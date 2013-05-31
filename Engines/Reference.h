@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <stdio.h>
+#include <string.h>
 #include <zlib.h>
 
 #include "../Common.h"

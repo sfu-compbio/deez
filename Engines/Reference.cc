@@ -33,7 +33,7 @@ Reference::Reference (const string &filename) {
     while (fgets(chrName, 100, input))
         if (chrName[0] == '>') {
             string cn = string(chrName + 1);
-            cn.pop_back();
+            cn = cn.substr(0, cn.size() - 1);
             chrStr.push_back(cn);
             chrInt[cn] = chrIdx++;
         }
