@@ -14,9 +14,6 @@ class SAMParser: public Parser {
 	Record currentRecord;
     char   *currentLine;
 
-	std::vector<std::string> ofm;
-	std::vector<short> of;
-
 public:
 	SAMParser (const std::string &filename);
 	~SAMParser (void);
@@ -29,7 +26,6 @@ public:
 	void parse (void);
 	const Record &next (void);
 	std::string head (void);
-	std::string getOFMeta (void);
 };
 
 #endif

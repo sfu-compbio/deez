@@ -11,6 +11,7 @@
 #include "Engines/EditOperation.h"
 #include "Engines/QualityScore.h"
 #include "Engines/PairedEnd.h"
+#include "Engines/OptionalField.h"
 
 class SAMFileCompressor: public Compressor {
 	SAMParser parser;
@@ -23,6 +24,7 @@ class SAMFileCompressor: public Compressor {
 //	EditOperationCompressor    editOperation;
 	QualityScoreCompressor 	   queryQual;
 	PairedEndCompressor 	   pairedEnd;
+    OptionalFieldCompressor    optionalField;
 
 	std::vector<EditOP> mapinfo;
 	FILE *metaFile;
@@ -45,6 +47,7 @@ class SAMFileDecompressor: public Decompressor {
 	EditOperationDecompressor 		editOperation;
 	QualityScoreDecompressor 		queryQual;
 	PairedEndDecompressor 			pairedEnd;
+    OptionalFieldDecompressor       optionalField;
 
 	FILE *metaFile;
 	FILE *samFile;

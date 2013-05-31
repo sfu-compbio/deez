@@ -6,8 +6,6 @@ static const char* LOG_PREFIX = "<Record>";
 Record::Record() {
     mappingSpanSize = 0;
     qlen = 0;
-    isSafeToProcess = false;
-    isProcessed = false;
 }
 
 void Record::setQueryName(const string & t) {
@@ -109,20 +107,12 @@ int Record::getTemplateLenght(void) const {
     return tlen;
 }
 
-void Record::setOptionalFieldKey(const string & s) {
-    optionalKeys=s;
+void Record::setOptional(const string & s) {
+    optional=s;
 }
 
-string Record::getOptionalFieldKeys(void) const {
-    return optionalKeys+"$";
-}
-
-void Record::setOptionalFieldValue(const string & s) {
-    optionalValues=s;
-}
-
-string Record::getOptionalFieldValues(void) const {
-    return optionalValues+"$";
+string Record::getOptional(void) const {
+    return optional;
 }
 
 int Record::getQueryLength(void) const {
@@ -131,22 +121,6 @@ int Record::getQueryLength(void) const {
 
 int Record::getMappingSpanSize(void) const {
     return mappingSpanSize+qlen;
-}
-
-void Record::setIsSafeToProcess(bool v) {
-    isSafeToProcess = v;
-}
-
-bool Record::getIsSafeToProcess(void) const {
-    return isSafeToProcess;
-}
-
-void Record::setIsProcessed(bool v) {
-    isProcessed = v;
-}
-
-bool Record::getIsProcessed(void) const {
-    return isProcessed;
 }
 
 int Record::getMappingLocationEnd(void) const {

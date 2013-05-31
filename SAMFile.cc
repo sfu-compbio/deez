@@ -12,6 +12,7 @@ SAMFileCompressor::SAMFileCompressor (const string &outFile, const string &samFi
 	mappingQuality(outFile, bs),
 	queryQual(outFile, bs), 
 	pairedEnd(outFile, bs),
+    optionalField(outFile, bs),
 	blockSize(bs) 
 {
 	string name1(outFile + ".meta.dz");
@@ -59,6 +60,7 @@ void SAMFileCompressor::compress (void) {
 			mappingQuality.addRecord(rc.getMappingQuality());
 			queryQual.addRecord((rc.getMappingFlag() & 16) ? rc.getQueryQualRev() : rc.getQueryQual());
 			pairedEnd.addRecord(reference.getChromosome(rc.getMateMappingReference()), rc.getMateMappingLocation(), rc.getTemplateLenght());
+            optionalField.addRecord(rc.getOptional());
 
 			lastStart = rc.getMappingLocation();
             parser.readNext();
@@ -84,10 +86,10 @@ void SAMFileCompressor::compress (void) {
 		mappingQuality.outputRecords();
 		queryQual.outputRecords();
 		pairedEnd.outputRecords();
+        optionalField.outputRecords();
 
         LOG("%d records are processed", k);
 	}
-	parser.getOFMeta();
 
 	fwrite(&total, 1, sizeof(int64_t), metaFile);
 }
@@ -101,6 +103,7 @@ SAMFileDecompressor::SAMFileDecompressor (const string &inFile, const string &ou
 	editOperation(inFile, bs),
 	queryQual(inFile, bs), 
 	pairedEnd(inFile, bs),
+    optionalField(inFile, bs),
 	blockSize(bs)
 {
 	string name1(inFile + ".meta.dz");
@@ -147,8 +150,9 @@ void SAMFileDecompressor::decompress (void) {
 		}*/
         if (mateRef == dtmp.ref && dtmp.ref != "*") 
 			mateRef = "=";
+        string optional = optionalField.getRecord();
 
-		fprintf(samFile, "%s\t%d\t%s\t%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s\n",
+		fprintf(samFile, "%s\t%d\t%s\t%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s",
 				dname.c_str(),
 				dflag,
 				dtmp.ref.c_str(),
@@ -161,6 +165,9 @@ void SAMFileDecompressor::decompress (void) {
 				eo.seq.c_str(),
 				dqual.c_str()
 		);
+        if (optional.size())
+            fprintf(samFile, "\t%s", optional.c_str());
+        fprintf(samFile, "\n");
 	}
 }
 

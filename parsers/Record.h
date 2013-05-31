@@ -18,11 +18,8 @@ class Record {
     int 		tlen;               // template length
     int 		mappingSpanSize;    // size of the span on the genome
     int 		qlen;               // query length
-    std::string 	optionalKeys;    // optional fields
-    std::string 	optionalValues;
-    bool 	isSafeToProcess;
-    bool 	isProcessed;
-
+    std::string 	optional;    // optional fields
+    
 public:
     Record();
 
@@ -38,11 +35,8 @@ public:
     void setMateMappingReference(const std::string &);
     void setMateMappingLocation(int);
     void setTemplateLength(int);
-    void setOptionalFieldKey(const std::string &);
-    void setOptionalFieldValue(const std::string &);
-    void setIsSafeToProcess(bool);
-    void setIsProcessed(bool);
-
+    void setOptional(const std::string &);
+    
     std::string 	getQueryName() const;
     std::string 	getQuerySeq() const;
     std::string 	getQueryQual() const;
@@ -55,8 +49,7 @@ public:
     std::string 	getMateMappingReference() const;
     int 		getMateMappingLocation() const;
     int 		getTemplateLenght() const;
-    std::string 	getOptionalFieldKeys() const;
-    std::string 	getOptionalFieldValues() const;
+    std::string 	getOptional() const;
     int 		getQueryLength() const;
     int 		getMappingSpanSize() const;
     bool 	getIsSafeToProcess() const;

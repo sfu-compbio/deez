@@ -1,6 +1,8 @@
 #include "../Common.h"
 #include "Record.h"
 #include "SAMParser.h"
+
+#include <assert.h>
 using namespace std;
 
 static const char *LOG_PREFIX     = "<Parser>";
@@ -12,7 +14,6 @@ SAMParser::SAMParser (const string &filename) {
 		throw DZException("Cannot open the file %s", filename.c_str());
 
 	currentLine = new char[MAX_LINE_LENGTH];
-	of.resize(256 * 256, 0);
 	readNext();
 }
 
@@ -38,46 +39,20 @@ void SAMParser::parse (void) {
 	int len = strlen(currentLine);
     if (currentLine[len - 1] == '\n') 
         len--;
-	for (int i = 0; i < len; i++) {
-		string tmp;
-		tmp.reserve(50);
-		while (i < len && currentLine[i] != '\t') {
-			tmp += currentLine[i];
-			i++;
-		}
+
+    int i;
+	for (i = 0; i < len; i++) {
+        string tmp = "";
+		while (i < len && currentLine[i] != '\t') 
+			tmp += currentLine[i++];
 		fields.push_back(tmp);
+        if (fields.size() == 11)
+            break;
 	}
-
-	int k = 11;
-	string keys = "";
-	string values = "";
-	keys.reserve((fields.size() - 11)*3);
-	values.reserve(50);
-	char a,b,c;
-	string kk = "";
-	while (k < fields.size()) {
-		a = fields[k][0];
-		b = fields[k][1];
-		c = fields[k][3];
-
-		if (of[a*b] == 0) {
-			kk = a;
-			kk += b;
-			kk += c;
-			ofm.push_back(fields[k].substr(0,5));
-			of[a * b] = ofm.size();
-			keys += (unsigned char)ofm.size();
-		}
-		else
-		{
-			keys+=(unsigned char)of[a*b];
-		}
-		if (values != "")
-			values += '|';
-		values += fields[k].substr(5);
-		k++;
-	}
-
+    if (i + 1 < len)
+        fields.push_back(string(currentLine + i + 1, len - i - 1));
+    else 
+        fields.push_back("");
 
 	currentRecord.setQueryName(fields[0]);
 	currentRecord.setMappingFlag(atoi(fields[1].c_str()));
@@ -90,8 +65,7 @@ void SAMParser::parse (void) {
 	currentRecord.setTemplateLength(atoi(fields[8].c_str()));
 	currentRecord.setQuerySeq(fields[9]);
 	currentRecord.setQueryQual(fields[10]);
-	currentRecord.setOptionalFieldKey(keys);
-	currentRecord.setOptionalFieldValue(values);
+    currentRecord.setOptional(fields[11]);
 }
 
 const Record &SAMParser::next (void) {
@@ -102,13 +76,4 @@ string SAMParser::head (void) {
 	return currentRecord.getMappingReference();
 }
 
-string SAMParser::getOFMeta (void) {
-	string tmp="";
-	for (int i=0; i<ofm.size(); i++) {
-		tmp+=ofm[i];
-		//logger->log("%s", ofm[i].c_str());
-	}
-	LOG("%s", tmp.c_str());
-	return tmp;
-}
 
