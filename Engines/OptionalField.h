@@ -1,6 +1,7 @@
 #ifndef OptionalField_H
 #define OptionalField_H
 
+#include <deque>
 #include <vector>
 #include <string>
 #include <zlib.h>
@@ -10,13 +11,14 @@
 #include "Decompressor.h"
 
 class OptionalFieldCompressor: public Compressor {
-	gzFile file;
-	std::string buffer;
+	gzFile keyFile;
+	gzFile valueFile;
 
-    std::vector<short>               fieldIdx;
-    std::vector<std::vector<string>> fieldData;
-    int fieldCount;
-
+	 std::vector<short> fieldIdx;		// indices for tags
+	 std::vector<std::string> fieldKey;		// tags
+	 std::vector<char> fieldType;    // types
+    std::vector<std::vector<std::string> > fieldData;		// tag contents
+	 std::vector<std::vector<short> > records; 		// tag list for each record
 
 
 public:
@@ -29,8 +31,13 @@ public:
 };
 
 class OptionalFieldDecompressor: public Decompressor {
-	gzFile file;
-	std::vector<std::string> records;
+	gzFile keyFile;
+	gzFile valueFile;
+
+	std::vector<std::string> fieldKey;	// tags
+	std::vector<char> fieldType;  // types
+   std::vector<std::deque<std::string> > fieldData;	// tag contents
+	std::vector<std::vector<short> > records; 	// tag list for each record
 
 	int recordCount;
 	int blockSize;

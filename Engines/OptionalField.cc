@@ -5,68 +5,90 @@ static const char *LOG_PREFIX = "<OF>";
 static const int  RECORD_AVG 	= 100;
 
 OptionalFieldCompressor::OptionalFieldCompressor (const string &filename, int blockSize) {
-	string name1(filename + ".of.dz");
-	file = gzopen(name1.c_str(), "wb6");
-	if (file == Z_NULL)
+	string name1(filename + ".ofk.dz");
+	keyFile = gzopen(name1.c_str(), "wb6");
+	if (keyFile == Z_NULL)
 		throw DZException("Cannot open the file %s", name1.c_str());
-	
-    fieldIdx.resize(256 * 256, 0);
-    fieldData.resize(256 * 256);
-    fieldCount = 0;
+
+	name1 = filename + ".ofv.dz";
+	valueFile = gzopen(name1.c_str(), "wb6");
+	if (valueFile == Z_NULL)
+		throw DZException("Cannot open the file %s", name1.c_str());
+
+	fieldIdx.resize(256 * 256, 0);
 }
 
 OptionalFieldCompressor::~OptionalFieldCompressor (void) {
-	gzclose(file);
+	gzclose(keyFile);
+	gzclose(valueFile);
 }
 
-/*
-All optional elds follow the TAG:TYPE:VALUE format where TAG is a two-character string that matches
-/[A-Za-z][A-Za-z0-9]/. Each TAG can only appear once in one alignment line. A TAG containing
-lowercase letters are reserved for end users. In an optional field, TYPE is a single casesensitive letter
-which denes the format of VALUE:
-A [!-~] Printable character
-i [-+]?[0-9]+ Singed 32-bit integer
-f [-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)? Single-precision oating number
-Z [ !-~]+ Printable string, including space
-H [0-9A-F]+ Byte array in the Hex format1
-B [cCsSiIf](,[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)+ Integer or numeric array
-
-KEY multiType!
-*/
 void OptionalFieldCompressor::addRecord (const string &rec) {
-	vector<int> keys;
-    for (int i = 0; i < rec.size(); i++) {
-        string s;
-        int j = i;
-        while (j < rec.size() && rec[j] != '\t') j++;
-        s = rec.substr(i, j - i);
-        if (s.size() < 5)
-            throw DZException("SAM optional tag is invalid!");
-        short idx = rec[0] * 256 + rec[1];
-        if (!fieldIdx[idx]) 
-            fieldIdx[idx] = ++fieldCount;
-        keys.push_back(fieldIdx[idx]);
-        fieldData[idx].push_back(rec.substr(5));
-        i = j;
-    }
+	vector<short> keys;
+	for (int i = 0; i < rec.size(); i++) {
+		int j = i;
+		while (j < rec.size() && rec[j] != '\t') 
+			j++;
+		if (j - i < 5)
+			throw DZException("SAM optional tag is invalid!");
+
+		short idx = rec[i] * 256 + rec[i + 1];
+		if (!fieldIdx[idx]) {
+			fieldKey.push_back(rec.substr(i, 2));
+			fieldType.push_back(rec[i + 3]);
+			fieldData.push_back(vector<string>());
+			fieldIdx[idx] = fieldKey.size();
+		}
+		fieldData[fieldIdx[idx] - 1].push_back(rec.substr(i + 5, j - i - 5));
+		keys.push_back(fieldIdx[idx] - 1);
+		i = j;
+	}
+	records.push_back(keys);
 }
 
 void OptionalFieldCompressor::outputRecords (void) {
-	if (buffer.size() > 0)
-		gzwrite(file, buffer.c_str(), buffer.size());
-	buffer.clear();
+	if (records.size() > 0) {
+		short s;
+		for (int i = 0; i < records.size(); i++) {
+			s = records[i].size();
+			gzwrite(keyFile, &s, sizeof(short));
+			gzwrite(keyFile, &records[i][0], records[i].size() * sizeof(short));
+		}
+
+		s = fieldKey.size();
+		gzwrite(valueFile, &s, sizeof(short));
+		for (int i = 0; i < fieldKey.size(); i++) {
+			gzwrite(valueFile, fieldKey[i].c_str(), 2 * sizeof(char)); // 2
+			gzwrite(valueFile, &fieldType[i], sizeof(char)); 			  // 1
+			int l = fieldData[i].size();
+			gzwrite(valueFile, &l, sizeof(int));
+			for (int j = 0; j < l; j++) {
+				// do only strings for now...
+				gzwrite(valueFile, fieldData[i][j].c_str(), fieldData[i][j].size() + 1);
+			}
+			fieldData[i].clear();
+		}
+	}
+	records.clear();
 }
 
-OptionalFieldDecompressor::OptionalFieldDecompressor (const string &filename, int bs)
-	: blockSize (bs), recordCount (0) {
-	string name1(filename + ".of.dz");
-	file = gzopen(name1.c_str(), "rb");
-	if (file == Z_NULL)
+OptionalFieldDecompressor::OptionalFieldDecompressor (const string &filename, int bs): 
+	blockSize (bs), recordCount (0) 
+{
+	string name1(filename + ".ofk.dz");
+	keyFile = gzopen(name1.c_str(), "rb");
+	if (keyFile == Z_NULL)
+		throw DZException("Cannot open the file %s", name1.c_str());
+
+	name1 = filename + ".ofv.dz";
+	valueFile = gzopen(name1.c_str(), "rb");
+	if (valueFile == Z_NULL)
 		throw DZException("Cannot open the file %s", name1.c_str());
 }
 
 OptionalFieldDecompressor::~OptionalFieldDecompressor (void) {
-	gzclose(file);
+	gzclose(keyFile);
+	gzclose(valueFile);
 }
 
 string OptionalFieldDecompressor::getRecord (void) {
@@ -75,69 +97,89 @@ string OptionalFieldDecompressor::getRecord (void) {
 		recordCount = 0;
 		importRecords();
 	}
-	return records[recordCount++];
+
+	const vector<short> &v = records[recordCount++];
+	string result = "";
+	for (int i = 0; i < v.size(); i++) {
+		if (i) result += "\t";
+		result += fieldKey[v[i]] + ":" + fieldType[v[i]] + ":";
+		result += fieldData[v[i]][0];
+		fieldData[v[i]].pop_front();
+	}
+	return result;
 }
 
 void OptionalFieldDecompressor::importRecords (void) {
-	char *c = new char[blockSize * RECORD_AVG];
-	size_t size = gzread(file, c, blockSize * RECORD_AVG);
-
-	string tmp = "";
-	size_t pos = 0;
-	while (pos < size) {
-		if (c[pos] != 0)
-			tmp += c[pos];
-		else {
-			records.push_back(tmp);
-			tmp="";
-		}
-		pos++;
-	}
-	if (pos == size && c[pos - 1] != 0) {
-		unsigned char t = c[pos - 1];
-		while (t) { // border case
-			gzread(file, &t, 1);
-			tmp += t;
-		}
-		records.push_back(tmp);
+	records.clear();
+	short s;
+	for (int i = 0; i < blockSize; i++) {
+		if (!gzread(keyFile, &s, sizeof(short)))
+			break;
+		records.push_back(vector<short>(s));
+		gzread(keyFile, &records[i][0], s * sizeof(short));
 	}
 
-	LOG("%d quality scores are loaded", records.size());
-	delete[] c;
+	/// idx?
+	gzread(valueFile, &s, sizeof(short));
+	fieldKey.resize(s);
+	fieldType.resize(s);
+	fieldData.resize(s);
+	char buf[2];
+	for (int i = 0; i < s; i++) {
+		gzread(valueFile, buf, 2 * sizeof(char));
+		fieldKey[i] = string(buf, 2);
+		gzread(valueFile, buf, sizeof(char)); 
+		fieldType[i] = buf[0];
+
+		int l;
+		gzread(valueFile, &l, sizeof(int));
+		fieldData[i].resize(l);
+		for (int j = 0; j < l; j++) {
+			// do only strings for now...
+			fieldData[i][j] = "";
+			while (1) {
+				gzread(valueFile, buf, sizeof(char));
+				if (!buf[0]) break;
+				fieldData[i][j] += buf[0];
+			}
+		}
+	}
+
+	LOG("%d optional fields are loaded", records.size());
 }
 
 
 
 /*
-of.resize(256 * 256, 0);
+  of.resize(256 * 256, 0);
+  
+  int k = 11;
+  string keys = "";
+  string values = "";
+  keys.reserve((fields.size() - 11)*3);
+  values.reserve(50);
+  char a,b,c;
+  string kk = "";
+  while (k < fields.size()) {
+  a = fields[k][0];
+  b = fields[k][1];
+  c = fields[k][3];
 
-int k = 11;
-	string keys = "";
-	string values = "";
-	keys.reserve((fields.size() - 11)*3);
-	values.reserve(50);
-	char a,b,c;
-	string kk = "";
-	while (k < fields.size()) {
-		a = fields[k][0];
-		b = fields[k][1];
-		c = fields[k][3];
-
-		if (of[a*b] == 0) {
-			kk = a;
-			kk += b;
-			kk += c;
-			ofm.push_back(fields[k].substr(0,5));
-			of[a * b] = ofm.size();
-			keys += (unsigned char)ofm.size();
-		}
-		else
-		{
-			keys+=(unsigned char)of[a*b];
-		}
-		if (values != "")
-			values += '|';
-		values += fields[k].substr(5);
-		k++;
-	}
-    */
+  if (of[a*b] == 0) {
+  kk = a;
+  kk += b;
+  kk += c;
+  ofm.push_back(fields[k].substr(0,5));
+  of[a * b] = ofm.size();
+  keys += (unsigned char)ofm.size();
+  }
+  else
+  {
+  keys+=(unsigned char)of[a*b];
+  }
+  if (values != "")
+  values += '|';
+  values += fields[k].substr(5);
+  k++;
+  }
+  */
