@@ -1,6 +1,7 @@
 #ifndef Common_H
 #define Common_H
 
+#include <assert.h>
 #include <inttypes.h>
 #include "DZException.h"
 #include "Logger.h"

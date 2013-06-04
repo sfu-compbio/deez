@@ -6,6 +6,8 @@
 #include "SAMFile.h"
 using namespace std;
 
+#include "Streams/GzipStream.h"
+
 int main (int argc, char **argv) {
     setlocale(LC_ALL, "");
 
@@ -15,8 +17,22 @@ int main (int argc, char **argv) {
 		return 0;
 	}
 
-//	Logger::initialize(stdout);
 	int blockSize = 1000000;
+	string referenceF(argv[1]);
+	string inputF(argv[2]);
+	string outputF(argv[3]);
+	string samOutF(argv[4]);
+
+	SAMFileCompressor *sc = new SAMFileCompressor(outputF, inputF, referenceF, blockSize);
+	sc->compress();
+	delete sc;
+
+	SAMFileDecompressor *sd = new SAMFileDecompressor(outputF, samOutF, referenceF, blockSize);
+	sd->decompress();
+	delete sd;
+
+//	Logger::initialize(stdout);
+/*	int blockSize = 1000000;
 
 	if (argc == 5 && argv[1][0] == 'c') {
 		string referenceF(argv[2]);
@@ -35,6 +51,7 @@ int main (int argc, char **argv) {
 		SAMFileDecompressor sd(inputF, outputF, reference, blockSize);
 		sd.decompress();
 	}
+*/
 
 	return 0;
 }

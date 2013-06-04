@@ -1,8 +1,7 @@
 #include "Reference.h"
 using namespace std;
 
-static const char *LOG_PREFIX    = "<Ref>";
-static const int  MAX_CHROMOSOME = 400 * MB;
+static const int MAX_CHROMOSOME = 400 * MB;
 
 inline string inttostr (int k) {
     static vector<std::string> mem;
@@ -87,7 +86,10 @@ char Reference::operator[](size_t i) const {
 }
 
 ReferenceCompressor::ReferenceCompressor (const string &filename, const string &refFile, int bs): 
-	reference(refFile), editOperation(filename, bs) {
+	reference(refFile), editOperation(bs) 
+{
+	stream = new GzipCompressionStream<6>();
+
 	string name1(filename + ".rf.dz");
 	file = gzopen(name1.c_str(), "wb6");
 	if (file == Z_NULL) 
@@ -97,6 +99,7 @@ ReferenceCompressor::ReferenceCompressor (const string &filename, const string &
 ReferenceCompressor::~ReferenceCompressor (void) {
 	outputChanges();
 	gzclose(file);
+	delete stream;
 }
 
 void ReferenceCompressor::outputChanges (void) {
@@ -127,7 +130,7 @@ bool ReferenceCompressor::getNext (void) {
 	fixedGenome.resize(cnt);
 	doc.resize(cnt, 0);
 
-	return cnt;
+	return (bool)cnt;
 }
 
 inline char ReferenceCompressor::getDNAValue (char ch) {
@@ -172,7 +175,7 @@ int ReferenceCompressor::updateGenome (int loc, const string &seq, const string 
 	int seqPos = 0;
 	int spanSize = 0;
 
-	for (int pos = 0; pos < op.length(); pos++) {
+	for (size_t pos = 0; pos < op.length(); pos++) {
 		if (isdigit(op[pos])) {
 			size = size * 10 + (op[pos] - '0');
 			continue;
@@ -206,7 +209,7 @@ int ReferenceCompressor::updateGenome (int loc, const string &seq, const string 
 	return spanSize;
 }
 
-void ReferenceCompressor::fixGenome(int start, int end) {
+void ReferenceCompressor::fixGenome (int start, int end) {
 	LOG("Updating %s:%d-%d ...", reference.getChromosomeName().c_str(), start, end);
 	for (int i = start; i < end; i++) {
 		if (doc[i] == 0)
@@ -252,7 +255,7 @@ string ReferenceCompressor::getEditOP(int loc, const string &seq, const string &
 	char lastOP = 0;
 	int  lastOPSize = 0;
 
-	for (int pos = 0; pos < op.size(); pos++) {
+	for (size_t pos = 0; pos < op.size(); pos++) {
 		if (isdigit(op[pos])) {
 			size = size * 10 + (op[pos] - '0');
 			continue;
@@ -316,8 +319,10 @@ string ReferenceCompressor::getEditOP(int loc, const string &seq, const string &
 	return newOP;
 }
 
-ReferenceDecompressor::ReferenceDecompressor (const string &filename, const string &refFile, int bs)
-    : reference(refFile), editOperation(filename, bs) {
+ReferenceDecompressor::ReferenceDecompressor (const string &filename, const string &refFile, int bs): 
+	reference(refFile), 
+	editOperation(bs) 
+{
 	string name1(filename + ".rf.dz");
 	file = gzopen(name1.c_str(), "rb");
 	if (file == Z_NULL) 
@@ -359,7 +364,7 @@ bool ReferenceDecompressor::getNext (void) {
 		fixedGenome[i] = reference[i];
 	if (fixedName == reference.getChromosomeName()) {
 		vector<GenomeChanges>::iterator it;
-		for (int i = 0; i < fixes.size(); i++)
+		for (size_t i = 0; i < fixes.size(); i++)
 			fixedGenome[fixes[i].loc] = fixes[i].changed;
 	}
 	fixes.clear();
@@ -378,7 +383,7 @@ EditOP ReferenceDecompressor::getSeqCigar (int loc, const string &op) {
 	string tmpSeq;
 	string tmpOP;
 
-	for (int pos = 0; pos < op.length(); pos++) {
+	for (size_t pos = 0; pos < op.length(); pos++) {
 		if (isdigit(op[pos])) {
 			size = size * 10 + (op[pos] - '0');
 			continue;

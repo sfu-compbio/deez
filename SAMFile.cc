@@ -1,30 +1,33 @@
 #include "SAMFile.h"
 using namespace std;
 
-static const char *LOG_PREFIX = "<SF>";
-
 SAMFileCompressor::SAMFileCompressor (const string &outFile, const string &samFile, const string &genomeFile, int bs): 
 	parser(samFile), 
 	reference(outFile, genomeFile, bs),
-	readName(outFile, bs),
-	mappingFlag(outFile, bs),
-	mappingOffset(outFile, bs),
-	mappingQuality(outFile, bs),
-	queryQual(outFile, bs), 
-	pairedEnd(outFile, bs),
-    optionalField(outFile, bs),
+	readName(bs),
+	mappingFlag(bs),
+	mappingOperation(bs),
+	mappingQuality(bs),
+	queryQual(bs), 
+	pairedEnd(bs),
+	optionalField(bs),
 	blockSize(bs) 
 {
-	string name1(outFile + ".meta.dz");
-	metaFile = fopen(name1.c_str(), "wb");
+	string name1 = outFile + ".dz";
+	outputFile = fopen(name1.c_str(), "wb");
 	if (metaFile == NULL)
 		throw DZException("Cannot open the file %s", name1.c_str());
-
-	mapinfo.reserve(blockSize + 1000);
 }
 
 SAMFileCompressor::~SAMFileCompressor (void) {
-	fclose(metaFile);
+	fclose(outputFile);
+}
+
+void SAMFileCompressor::outputBlock (const vector<char> &out) {
+	int i = out.size();
+	fwrite(&i, sizeof(int), 1, outputFile);
+	if (out.size())
+		fwrite(&out[0], sizeof(char), out.size(), outputFile);
 }
 
 void SAMFileCompressor::compress (void) {
@@ -36,7 +39,6 @@ void SAMFileCompressor::compress (void) {
 		if (parser.head() != reference.getName()) { 
 			while (reference.getName() != parser.head())
 				reference.getNext();
-			mappingOffset.addMetadata(reference.getName());
 		}
 
 		LOG("Loading records ...");
@@ -44,30 +46,27 @@ void SAMFileCompressor::compress (void) {
 		for (i = 0; i < blockSize && parser.hasNext() && parser.head() == reference.getName(); i++) {
 			total++;
 			const Record &rc = parser.next();
-			
-            EditOP e;
+
+			EditOP e;
 			e.start = rc.getMappingLocation();
 			e.seq   = rc.getQuerySeq();
 			e.op 	= rc.getMappingOperation();
-			
-            /*e.end   = e.start + reference.updateGenome(e.start - 1, e.seq, e.op);
-			mapinfo.push_back(e);*/
 
-            reference.addRecord(e);
+			reference.addRecord(e);
 			readName.addRecord(rc.getQueryName());
 			mappingFlag.addRecord(rc.getMappingFlag());
-			mappingOffset.addRecord(rc.getMappingLocation(), rc.getMappingReference());
+			mappingOperation.addRecord(rc.getMappingLocation(), reference.getChromosome(rc.getMappingReference()));
 			mappingQuality.addRecord(rc.getMappingQuality());
 			queryQual.addRecord((rc.getMappingFlag() & 16) ? rc.getQueryQualRev() : rc.getQueryQual());
-			pairedEnd.addRecord(reference.getChromosome(rc.getMateMappingReference()), rc.getMateMappingLocation(), rc.getTemplateLenght());
-            optionalField.addRecord(rc.getOptional());
+			pairedEnd.addRecord(PairedEndInfo(reference.getChromosome(rc.getMateMappingReference()), rc.getMateMappingLocation(), rc.getTemplateLenght()));
+			optionalField.addRecord(rc.getOptional());
 
 			lastStart = rc.getMappingLocation();
-            parser.readNext();
+			parser.readNext();
 		}
 		LOG("%d records are loaded.", i);
 
-		if (!parser.hasNext() || parser.head() != reference.getName()) {
+		if ((!parser.hasNext() && parser.head() != "*") || parser.head() != reference.getName()) {
 			reference.fixGenome(lastFixedLocation, reference.getLength());
 			lastFixedLocation = reference.getLength() - 1;
 		}
@@ -79,36 +78,53 @@ void SAMFileCompressor::compress (void) {
 			lastFixedLocation = 1; 
 
 		LOG("Writing to disk ...");
-        int k = reference.outputRecords(lastFixedLocation);
-		readName.outputRecords();
-		mappingFlag.outputRecords();
-		mappingOffset.outputRecords();
-		mappingQuality.outputRecords();
-		queryQual.outputRecords();
-		pairedEnd.outputRecords();
-        optionalField.outputRecords();
 
-        LOG("%d records are processed", k);
+		vector<char> out;
+
+		reference.getBlockBoundary(lastFixedLocation);
+
+		reference.outputRecords(out);
+		outputBlock(out);
+
+		readName.outputRecords(out);
+		outputBlock(out);
+
+		mappingFlag.outputRecords(out);
+		outputBlock(out);
+
+		mappingOperation.outputRecords(out);
+		outputBlock(out);
+
+		mappingQuality.outputRecords(out);
+		outputBlock(out);
+
+		queryQual.outputRecords(out);
+		outputBlock(out);
+
+		pairedEnd.outputRecords(out);
+		outputBlock(out);
+
+		optionalField.outputRecords(out);
+		outputBlock(out);
 	}
-
-	fwrite(&total, 1, sizeof(int64_t), metaFile);
 }
+
 
 SAMFileDecompressor::SAMFileDecompressor (const string &inFile, const string &outFile, const string &genomeFile, int bs): 
 	reference(inFile, genomeFile, bs),
-	readName(inFile, bs),
-	mappingFlag(inFile, bs),
-	mappingOffset(inFile, bs),
-	mappingQuality(inFile, bs),
-	editOperation(inFile, bs),
-	queryQual(inFile, bs), 
-	pairedEnd(inFile, bs),
-    optionalField(inFile, bs),
+	readName(bs),
+	mappingFlag(bs),
+	mappingOperation(bs),
+	mappingQuality(bs),
+	editOperation(bs),
+	queryQual(bs), 
+	pairedEnd(bs),
+	optionalField(bs),
 	blockSize(bs)
 {
-	string name1(inFile + ".meta.dz");
-	metaFile = fopen(name1.c_str(), "rb");
-	if (metaFile == NULL)
+	string name1 = inFile + ".dz";
+	this->inFile = fopen(name1.c_str(), "rb");
+	if (this->inFile == NULL)
 		throw DZException("Cannot open the file %s", name1.c_str());
 
 	samFile = fopen(outFile.c_str(), "wb");
@@ -117,57 +133,105 @@ SAMFileDecompressor::SAMFileDecompressor (const string &inFile, const string &ou
 }
 
 SAMFileDecompressor::~SAMFileDecompressor (void) {
-	fclose(metaFile);
 	fclose(samFile);
 }
 
+bool SAMFileDecompressor::getSingleBlock (vector<char> &in) {
+	int i;
+	if (fread(&i, sizeof(int), 1, inFile) != 1)
+		return false;
+	if (i) {
+		in.resize(i);
+		fread(&in[0], sizeof(char), i, inFile);
+	}
+
+	return true;
+}
+
+bool SAMFileDecompressor::getBlock (void) {
+	vector<char> in;
+
+	if (!getSingleBlock(in))
+		return false;
+	reference.importRecords(in);
+
+	getSingleBlock(in);
+	readName.importRecords(in);
+
+	getSingleBlock(in);
+	mappingFlag.importRecords(in);
+
+	getSingleBlock(in);
+	mappingOperation.importRecords(in);
+
+	getSingleBlock(in);
+	mappingQuality.importRecords(in);
+
+	getSingleBlock(in);
+	queryQual.importRecords(in);
+
+	getSingleBlock(in);
+	pairedEnd.importRecords(in);
+
+	getSingleBlock(in);
+	optionalField.importRecords(in);
+
+	return true;
+}
+
 void SAMFileDecompressor::decompress (void) {
-	int64_t total;
-	fread(&total, 1, sizeof(int64_t), metaFile);
-	for (int64_t z = 0; z < total; z++) {
-        Locs dtmp = mappingOffset.getRecord();
-		while (dtmp.ref != reference.getName())
-			reference.getNext();
-		string  dname = readName.getRecord();
-		short   dflag = mappingFlag.getRecord();
-		uint8_t dmq   = mappingQuality.getRecord();
-		EditOP  eo    = reference.getRecord(dtmp.loc - 1);
-		string  dqual = queryQual.getRecord();
-		
-        string mateRef = reference.getChromosome(pairedEnd.getRecord());
-        int mateLoc = pairedEnd.getRecord();
-        int tl = pairedEnd.getRecord();
-		/*if (tl & (1 << 31)) {
+	while (getBlock()) {		
+		while (1) {
+			if (!reference.hasRecord() ||
+				!mappingOperation.hasRecord() || 
+				!readName.hasRecord() ||
+				!mappingFlag.hasRecord() ||
+				!mappingQuality.hasRecord() ||
+				!queryQual.hasRecord() ||
+				!pairedEnd.hasRecord()) 
+				break;
+
+			Locs dtmp = mappingOperation.getRecord();
+			while (reference.getChromosome(dtmp.ref) != reference.getName())
+				reference.getNext();
+			string  dname = readName.getRecord();
+			short   dflag = mappingFlag.getRecord();
+			uint8_t dmq   = mappingQuality.getRecord();
+			EditOP  eo    = reference.getRecord(dtmp.loc - 1);
+			string  dqual = queryQual.getRecord();
+			PairedEndInfo mate = pairedEnd.getRecord();
+			
+			/*if (tl & (1 << 31)) {
 			mateRef = reference.getChromosome(tl & ~(1 << 31));
 			mateLoc = pairedEnd.getRecord();
 			tl = 0;
-		}
-		else { // not realy!
+			}
+			else { // not realy!
 			if (tl & (1 << 30)) 
-				tl = -(tl & ~(1 << 30));
+			tl = -(tl & ~(1 << 30));
 			mateLoc = (int)dtmp.loc + tl - eo.end + eo.start - 2;
 			mateRef = "=";
-		}*/
-        if (mateRef == dtmp.ref && dtmp.ref != "*") 
-			mateRef = "=";
-        string optional = optionalField.getRecord();
+			}*/
 
-		fprintf(samFile, "%s\t%d\t%s\t%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s",
+			fprintf(samFile, "%s\t%d\t%s\t%d\t%d\t%s\t%s\t%d\t%d\t%s\t%s",
 				dname.c_str(),
 				dflag,
-				dtmp.ref.c_str(),
+				reference.getChromosome(dtmp.ref).c_str(),
 				dtmp.loc,
 				dmq,
 				eo.op.c_str(),
-				mateRef.c_str(), 
-				mateLoc,
-				tl,
+				(mate.chr == dtmp.ref && reference.getChromosome(dtmp.ref) != "*") ? "=" : reference.getChromosome(mate.chr).c_str(), 
+				mate.pos,
+				mate.tlen,
 				eo.seq.c_str(),
 				dqual.c_str()
-		);
-        if (optional.size())
-            fprintf(samFile, "\t%s", optional.c_str());
-        fprintf(samFile, "\n");
+			);
+
+			string optional = optionalField.getRecord();
+			if (optional.size())
+				fprintf(samFile, "\t%s", optional.c_str());
+			fprintf(samFile, "\n");
+		}
 	}
 }
 

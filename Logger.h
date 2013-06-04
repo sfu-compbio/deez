@@ -51,7 +51,11 @@ public:
 	}
 };*/
 
+#define FILE_W \
+	(strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
+#define FILE_U \
+	(strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define LOG(c,...)\
-	fprintf(stderr, ": %s "c"\n", LOG_PREFIX, ##__VA_ARGS__ )
+	fprintf(stderr, "%20s\t"c"\n", FILE_W, ##__VA_ARGS__)
 
 #endif

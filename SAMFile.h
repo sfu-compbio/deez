@@ -3,46 +3,49 @@
 
 #include "Common.h"
 #include "Parsers/SAMParser.h"
-#include "Engines/Reference.h"
-#include "Engines/ReadName.h"
-#include "Engines/MappingFlag.h"
-#include "Engines/MappingOperation.h"
-#include "Engines/MappingQuality.h"
-#include "Engines/EditOperation.h"
-#include "Engines/QualityScore.h"
-#include "Engines/PairedEnd.h"
-#include "Engines/OptionalField.h"
+#include "Fields/Reference.h"
+#include "Fields/ReadName.h"
+#include "Fields/MappingFlag.h"
+#include "Fields/MappingOperation.h"
+#include "Fields/MappingQuality.h"
+#include "Fields/EditOperation.h"
+#include "Fields/QualityScore.h"
+#include "Fields/PairedEnd.h"
+#include "Fields/OptionalField.h"
 
-class SAMFileCompressor: public Compressor {
+class SAMFileCompressor {
 	SAMParser parser;
 
 	ReferenceCompressor 	   reference;
 	ReadNameCompressor 		   readName;
 	MappingFlagCompressor 	   mappingFlag;
-	MappingOperationCompressor mappingOffset;
+	MappingOperationCompressor mappingOperation;
     MappingQualityCompressor   mappingQuality;
-//	EditOperationCompressor    editOperation;
 	QualityScoreCompressor 	   queryQual;
 	PairedEndCompressor 	   pairedEnd;
     OptionalFieldCompressor    optionalField;
 
-	std::vector<EditOP> mapinfo;
 	FILE *metaFile;
+	FILE *outputFile;
+
 	int  blockSize;
 
 public:
 	SAMFileCompressor (const std::string &outFile, const std::string &samFile, const std::string &genomeFile, int blockSize);
 	~SAMFileCompressor (void);
 
+private:
+	void outputBlock (const vector<char> &out);
+
 public:
 	void compress (void);
 };
 
-class SAMFileDecompressor: public Decompressor {
+class SAMFileDecompressor {
 	ReferenceDecompressor 			reference;
 	ReadNameDecompressor 			readName;
 	MappingFlagDecompressor 		mappingFlag;
-	MappingOperationDecompressor 	mappingOffset;
+	MappingOperationDecompressor 	mappingOperation;
 	MappingQualityDecompressor		mappingQuality;
 	EditOperationDecompressor 		editOperation;
 	QualityScoreDecompressor 		queryQual;
@@ -51,12 +54,17 @@ class SAMFileDecompressor: public Decompressor {
 
 	FILE *metaFile;
 	FILE *samFile;
+	FILE *inFile;
 
     int blockSize;
 
 public:
 	SAMFileDecompressor (const std::string &inFile, const std::string &outFile, const std::string &genomeFile, int bs);
 	~SAMFileDecompressor (void);
+
+private:
+	bool getSingleBlock (vector<char> &in);
+	bool getBlock (void);
 
 public:
 	void decompress (void);

@@ -9,10 +9,8 @@
 #include <zlib.h>
 
 #include "../Common.h"
-#include "Compressor.h"
-#include "Decompressor.h"
+#include "../Engines/Engine.h"
 #include "EditOperation.h"
-#include "PairedEnd.h"
 
 class Reference {
 	FILE *input;
@@ -29,20 +27,24 @@ public:
 	size_t readNextChromosome (void);
 
 public:
-    char operator[](size_t i) const;
+	char operator[](size_t i) const;
 
 private:
-    std::vector<std::string> chrStr;
-    std::map<std::string,int> chrInt;
+	std::vector<std::string> chrStr;
+	std::map<std::string,int> chrInt;
 
 public:
 	std::string getChromosomeIndex (int i) {
-        return chrStr[i];
-    }
+		if (i < 0 || i > (int)chrStr.size())
+			return "*";
+		return chrStr[i];
+	}
 
-    int getChromosomeIndex (const std::string &i) {
-        return chrInt[i];
-    }
+	int getChromosomeIndex (const std::string &i) {
+		if (i == "*")
+			return -1;
+		return chrInt[i];
+	}
 };		
 
 struct EditOP {
@@ -60,40 +62,44 @@ struct GenomeChanges {
 
 class ReferenceCompressor: public Compressor {
 	gzFile file;
+
 	Reference reference;
-    EditOperationCompressor editOperation;
+	EditOperationCompressor editOperation;
 
 	std::string 			  	fixedGenome; 	// genome
 	std::vector<int*> 	        doc;     		// stats
 	std::vector<GenomeChanges>  fixes;   		// fixes
 
 public:
-	ReferenceCompressor (const std::string &filename, const std::string &refFile, int bs);
+	ReferenceCompressor (const string &filename, const std::string &refFile, int bs);
 	~ReferenceCompressor (void);
 
 public:
-    std::vector<EditOP> records;
-    void addRecord (EditOP &eo) {
-        eo.end = eo.start + updateGenome(eo.start - 1, eo.seq, eo.op);
-        records.push_back(eo);
-    }
+	std::vector<EditOP> records;
 
-	int outputRecords (int lastFixedLocation) {
-        std::vector<EditOP>::iterator it;
+	void addRecord (EditOP &eo) {
+		eo.end = eo.start + updateGenome(eo.start - 1, eo.seq, eo.op);
+		records.push_back(eo);
+	}
+
+	int getBlockBoundary (int lastFixedLocation) {
+		std::vector<EditOP>::iterator it;
 		int k = 0;
 		for (it = records.begin(); it < records.end() && it->end < lastFixedLocation; it++) {
 			k++;
 			editOperation.addRecord(getEditOP(it->start - 1, it->seq, it->op));
 		}
-		records.erase(records.begin(), it--);
-        editOperation.outputRecords();
-        return k;
-		//LOG("%d records are processed", k);
-    }
+		records.erase(records.begin(), records.begin() + k);
+		return k;
+	}
 
-    int getChromosome (const std::string &i) {
-        return reference.getChromosomeIndex(i);
-    }
+	void outputRecords (vector<char> &output) {
+		editOperation.outputRecords(output);
+	}
+
+	int getChromosome (const std::string &i) {
+		return reference.getChromosomeIndex(i);
+	}
 
 private:
 	void outputChanges (void);
@@ -106,7 +112,7 @@ public:
 private:
 	inline char getDNAValue (char ch);
 	inline void updateGenomeLoc (int loc, char ch);
-	
+
 public:
 	int updateGenome (int loc, const std::string &seq, const std::string &op);
 	void fixGenome (int start, int end);
@@ -116,7 +122,7 @@ public:
 class ReferenceDecompressor: public Decompressor {
 	gzFile 	  file;
 	Reference reference;
-    EditOperationDecompressor editOperation;
+	EditOperationDecompressor editOperation;
 
 	std::string fixedName;
 	std::string fixedGenome; 
@@ -134,17 +140,25 @@ public:
 	bool getNext (void);
 
 public:
-    std::string getChromosome (int i) {
-        return reference.getChromosomeIndex(i);
-    }
+	std::string getChromosome (int i) {
+		return reference.getChromosomeIndex(i);
+	}
 
 private:
 	EditOP getSeqCigar (int loc, const std::string &op);
 
 public:
-    EditOP getRecord (int loc) {
-        return getSeqCigar(loc, editOperation.getRecord());
-    }
+	void importRecords (const std::vector<char> &input) {
+		editOperation.importRecords(input);
+	}
+
+	bool hasRecord (void) {
+		return editOperation.hasRecord();
+	}
+
+	EditOP getRecord (int loc) {
+		return getSeqCigar(loc, editOperation.getRecord());
+	}
 };
 
 #endif
