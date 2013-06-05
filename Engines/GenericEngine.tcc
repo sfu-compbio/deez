@@ -21,7 +21,8 @@ void GenericCompressor<T, TStream>::outputRecords (vector<char> &output) {
 	if (records.size()) {
 		output.clear();
 		stream->compress(&records[0], records.size() * sizeof(records[0]), output);
-		records.erase(records.begin(), records.begin() + records.size());
+		DEBUG("%d generics %s of size %d are flushed, compressed size %d", records.size(), typeid(T).name(), sizeof(T), output.size());
+		records.erase(records.begin(), records.end());
 	}
 }
 
@@ -61,9 +62,9 @@ void GenericDecompressor<T, TStream>::importRecords (const vector<char> &input) 
 	memcpy(&tmp[0], &c[0], c.size());
 
 	records.erase(records.begin(), records.begin() + recordCount);
-	recordCount = 0;
 	records.insert(records.end(), tmp.begin(), tmp.end());
 
-	LOG("%d generics of size %d are loaded", c.size() / sizeof(T), sizeof(T));
+	DEBUG("%d generics of size %d are loaded, %d erased, total %d", tmp.size(), sizeof(T), recordCount, records.size());
+	recordCount = 0;
 }
 

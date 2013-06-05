@@ -51,12 +51,15 @@ public:
 	}
 };*/
 
-#define FILE_W \
-	(strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
-#define FILE_U \
-	__FILE__
-//	(strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#ifdef _MSC_VER
+#define FILE_NAME (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
+#else
+#define FILE_NAME __FILE__
+#endif
+
 #define LOG(c,...)\
-	fprintf(stderr, "%20s\t"c"\n", FILE_U, ##__VA_ARGS__)
+	fprintf(stderr, "L.%20s\t"c"\n", FILE_NAME, ##__VA_ARGS__)
+#define DEBUG(c,...)\
+	fprintf(stderr, "D.%20s\t"c"\n", FILE_NAME, ##__VA_ARGS__)
 
 #endif

@@ -56,9 +56,8 @@ void MappingOperationCompressor::outputRecords (vector<char> &output) {
 	if (records.size()) {
 		output.clear();		
 		
-		LOG("output %d corrections", corrections.size());
-		LOG("output %d records", records.size());
-
+		DEBUG("%d corrections, %d records flushed", corrections.size(), records.size());
+		
 		if (corrections.size())
 			stitchStream->compress(&corrections[0], corrections.size() * sizeof(corrections[0]), output);
 		size_t i = output.size();
@@ -109,7 +108,8 @@ void MappingOperationDecompressor::importRecords (const vector<char> &input) {
 		assert(corrections.size() == 0);
 		corrections.resize(c.size() / sizeof(Tuple));
 		memcpy(&corrections[0], &c[0], c.size());
-		LOG("%d corrections are loaded", c.size() / sizeof(Tuple));
+		correctionCount = 0;
+		DEBUG("%d corrections are loaded", c.size() / sizeof(Tuple));
 	}
 			
 	c.clear();
@@ -135,9 +135,10 @@ void MappingOperationDecompressor::importRecords (const vector<char> &input) {
 		}
 		records.push_back(n);
 	}
+	assert(correctionCount == corrections.size());
 	corrections.erase(corrections.begin(), corrections.begin() + correctionCount);
 	correctionCount = 0;
 	records.erase(records.begin(), records.begin() + recordCount);
+	DEBUG("%d locations are loaded, %d erased, total %d", rc.size(), recordCount, records.size());
 	recordCount = 0;
-	LOG("%d locations are loaded", rc.size());
 }
