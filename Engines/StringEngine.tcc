@@ -16,7 +16,7 @@ void StringCompressor<TStream>::outputRecords (vector<char> &output) {
 		}
 		output.clear();
 		this->stream->compress((void*)buffer.c_str(), buffer.size(), output);
-		DEBUG("%d strings (total size %d) are flushed, compressed size %d", records.size(), buffer.size(), output.size());
+		DEBUG("%d strings (total size %d) are flushed, compressed size %d", this->records.size(), buffer.size(), output.size());
 		this->records.erase(this->records.begin(), this->records.begin() + this->records.size());
 	}
 }
@@ -49,8 +49,8 @@ void StringDecompressor<TStream>::importRecords (const vector<char> &input) {
 	}
 	assert(c.back() == 0);
 
-	DEBUG("%d strings (total size %d) are loaded, %d erased, total %d", cnt, c.size(), this->recordCount, this->records.size());
 	this->records.erase(this->records.begin(), this->records.begin() + this->recordCount);
+	DEBUG("%d strings (total size %d) are loaded, %d erased, total %d", cnt, c.size(), this->recordCount, this->records.size());
 	this->recordCount = 0;
 }
 

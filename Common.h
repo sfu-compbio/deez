@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <inttypes.h>
+#include <typeinfo>
 #include "DZException.h"
 #include "Logger.h"
 

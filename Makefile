@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-g -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
+CFLAGS=-O3 -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
 LDFLAGS=-lz #-lpthread #-lprofile-ltcmalloc
 SOURCES=$(wildcard ./Engines/*.cc) $(wildcard ./Fields/*.cc) $(wildcard ./Parsers/*.cc) $(wildcard ./Streams/*.cc) $(wildcard ./*.cc)
 OBJECTS=$(SOURCES:.cc=.o)
