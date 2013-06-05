@@ -1,7 +1,7 @@
 #ifndef GenericEngine_H
 #define GenericEngine_H
 
-#include <deque>
+#include <vector>
 
 #include "../Common.h"
 #include "Engine.h"

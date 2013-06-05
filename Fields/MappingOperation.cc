@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "MappingOperation.h"
 #include "../Streams/GzipStream.h"
 using namespace std;

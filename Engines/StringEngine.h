@@ -2,6 +2,7 @@
 #define StringEngine_H
 
 #include <deque>
+#include <string>
 
 #include "../Common.h"
 #include "GenericEngine.h"

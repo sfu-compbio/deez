@@ -15,7 +15,7 @@ SAMFileCompressor::SAMFileCompressor (const string &outFile, const string &samFi
 {
 	string name1 = outFile + ".dz";
 	outputFile = fopen(name1.c_str(), "wb");
-	if (metaFile == NULL)
+	if (outputFile == NULL)
 		throw DZException("Cannot open the file %s", name1.c_str());
 }
 

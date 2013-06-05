@@ -8,15 +8,15 @@ StringCompressor<TStream>::StringCompressor (int blockSize):
 
 template<typename TStream>
 void StringCompressor<TStream>::outputRecords (vector<char> &output) {
-	if (records.size()) {
+	if (this->records.size()) {
 		string buffer = "";
-		for (size_t i = 0; i < records.size(); i++) {
-			buffer += records[i];
+		for (size_t i = 0; i < this->records.size(); i++) {
+			buffer += this->records[i];
 			buffer += '\0';
 		}
 		output.clear();
-		stream->compress((void*)buffer.c_str(), buffer.size(), output);
-		records.erase(records.begin(), records.begin() + records.size());
+		this->stream->compress((void*)buffer.c_str(), buffer.size(), output);
+		this->records.erase(this->records.begin(), this->records.begin() + this->records.size());
 	}
 }
 
@@ -32,25 +32,25 @@ void StringDecompressor<TStream>::importRecords (const vector<char> &input) {
 	if (input.size() == 0) return;
 
 	vector<char> c;
-	stream->decompress((void*)&input[0], input.size(), c);
+	this->stream->decompress((void*)&input[0], input.size(), c);
 
-	records.erase(records.begin(), records.begin() + recordCount);
+	this->records.erase(this->records.begin(), this->records.begin() + this->recordCount);
 
 	string tmp = "";
 	size_t pos = 0;
-	records.clear();
-	recordCount = 0;
+	this->records.clear();
+	this->recordCount = 0;
 	while (pos < c.size()) {
 		if (c[pos] != 0)
 			tmp += c[pos];
 		else {
-			records.push_back(tmp);
+			this->records.push_back(tmp);
 			tmp = "";
 		}
 		pos++;
 	}
 	assert(c.back() == 0);
 
-	LOG("%d strings are loaded", records.size());
+	LOG("%d strings are loaded", this->records.size());
 }
 
