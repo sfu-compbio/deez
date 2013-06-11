@@ -39,8 +39,13 @@ int main (int argc, char **argv) {
 		string inputF(argv[3]);
 		string outputF(argv[4]);
 
-		SAMFileCompressor sc(outputF, inputF, referenceF, blockSize);
-		sc.compress();
+//		try {
+			SAMFileCompressor sc(outputF, inputF, referenceF, blockSize);
+			sc.compress();
+//		}
+//		catch (exception &e) {
+//			DEBUG("WOOOOHOOOO! ==> %s", e.what());
+//		}
 	}
 
 	if (argc == 5 && argv[1][0] == 'd') {

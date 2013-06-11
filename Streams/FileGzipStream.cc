@@ -1,10 +1,10 @@
 #include "FileGzipStream.h"
-
-#define PATH "__qual__"
+using namespace std;
 
 FileGzipCompressionStream::FileGzipCompressionStream (void) {
-	stream = gzopen(PATH ".dz", "wb6");
-	ustream = fopen(PATH ".orig", "wb");
+	string s = getFilename();
+	stream = gzopen(s.append(".dz").c_str(), "wb6");
+	ustream = fopen(s.append(".orig").c_str(), "wb");
 }
 
 FileGzipCompressionStream::~FileGzipCompressionStream (void) {
@@ -20,7 +20,7 @@ void FileGzipCompressionStream::compress (void *source, size_t sz, std::vector<c
 
 
 FileGzipDecompressionStream::FileGzipDecompressionStream (void) {
-	stream = gzopen(PATH, "rb");
+	stream = gzopen("", "rb");
 	if (stream == Z_NULL)
 		throw;
 }

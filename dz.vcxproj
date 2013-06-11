@@ -76,6 +76,7 @@
     <ClCompile Include="Engines\GenericEngine.tcc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="Streams\FileGzipStream.cc" />
     <ClCompile Include="Streams\Stream.cc" />
     <ClCompile Include="Fields\EditOperation.cc" />
     <ClCompile Include="Fields\MappingFlag.cc" />
@@ -86,9 +87,6 @@
     <ClCompile Include="Fields\QualityScore.cc" />
     <ClCompile Include="Fields\ReadName.cc" />
     <ClCompile Include="Fields\Reference.cc" />
-    <ClCompile Include="Streams\GzipStream.cc">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="Main.cc" />
     <ClCompile Include="Parsers\Record.cc" />
     <ClCompile Include="Parsers\SAMParser.cc" />
@@ -100,6 +98,7 @@
   <ItemGroup>
     <ClInclude Include="Common.h" />
     <ClInclude Include="Engines\GenericEngine.h" />
+    <ClInclude Include="Streams\FileGzipStream.h" />
     <ClInclude Include="Streams\Stream.h" />
     <ClInclude Include="DZException.h" />
     <ClInclude Include="Engines\Engine.h" />

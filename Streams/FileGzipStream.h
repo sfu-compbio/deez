@@ -15,6 +15,9 @@ public:
 	FileGzipCompressionStream (void);
 	~FileGzipCompressionStream (void);
 
+protected:
+	virtual std::string getFilename (void) { return ""; }
+
 public:
 	void compress (void *source, size_t sz, std::vector<char> &result);
 };

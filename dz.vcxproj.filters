@@ -66,7 +66,7 @@
     <ClCompile Include="Fields\Reference.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Streams\GzipStream.cc">
+    <ClCompile Include="Streams\FileGzipStream.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -132,6 +132,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Fields\Reference.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Streams\FileGzipStream.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

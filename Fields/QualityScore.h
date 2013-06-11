@@ -5,7 +5,12 @@
 #include "../Streams/FileGzipStream.h"
 #include "../Engines/StringEngine.h"
 
-typedef StringCompressor<FileGzipCompressionStream>	  QualityScoreCompressor;
-typedef StringDecompressor<FileGzipDecompressionStream> QualityScoreDecompressor;
+class QualC: public FileGzipCompressionStream {
+	virtual std::string getFilename() { return "qual"; }
+};
+typedef FileGzipDecompressionStream QualD;
+
+typedef StringCompressor<QualC>	  QualityScoreCompressor;
+typedef StringDecompressor<QualD> QualityScoreDecompressor;
 
 #endif
