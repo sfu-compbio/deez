@@ -17,7 +17,7 @@ int main (int argc, char **argv) {
 		return 0;
 	}
 
-	int blockSize = 1000000;
+/*	int blockSize = 1000000;
 	string referenceF(argv[1]);
 	string inputF(argv[2]);
 	string outputF(argv[3]);
@@ -29,10 +29,10 @@ int main (int argc, char **argv) {
 
 	SAMFileDecompressor *sd = new SAMFileDecompressor(outputF, samOutF, referenceF, blockSize);
 	sd->decompress();
-	delete sd;
+	delete sd;*/
 
 //	Logger::initialize(stdout);
-/*	int blockSize = 1000000;
+	int blockSize = 1000000;
 
 	if (argc == 5 && argv[1][0] == 'c') {
 		string referenceF(argv[2]);
@@ -44,14 +44,13 @@ int main (int argc, char **argv) {
 	}
 
 	if (argc == 5 && argv[1][0] == 'd') {
-		string reference(argv[2]);
+		string referenceF(argv[2]);
 		string inputF(argv[3]);
 		string outputF(argv[4]);
 
-		SAMFileDecompressor sd(inputF, outputF, reference, blockSize);
+		SAMFileDecompressor sd(inputF, outputF, referenceF, blockSize);
 		sd.decompress();
 	}
-*/
 
 	return 0;
 }

@@ -23,7 +23,8 @@ SAMParser::~SAMParser (void) {
 }
 
 bool SAMParser::readNext (void)  {
-	if (fgets(currentLine, MAX_LINE_LENGTH, input)) {
+	while (fgets(currentLine, MAX_LINE_LENGTH, input)) {
+		if (currentLine[0] == '@') continue;
 		parse();
 		return true;
 	}

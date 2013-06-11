@@ -2,10 +2,10 @@
 #define QualityScore_H
 
 #include "../Common.h"
-#include "../Streams/GzipStream.h"
+#include "../Streams/FileGzipStream.h"
 #include "../Engines/StringEngine.h"
 
-typedef StringCompressor<GzipCompressionStream<6> >	QualityScoreCompressor;
-typedef StringDecompressor<GzipDecompressionStream> QualityScoreDecompressor;
+typedef StringCompressor<FileGzipCompressionStream>	  QualityScoreCompressor;
+typedef StringDecompressor<FileGzipDecompressionStream> QualityScoreDecompressor;
 
 #endif
