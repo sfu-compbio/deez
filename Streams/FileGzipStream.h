@@ -1,6 +1,7 @@
 #ifndef FileGzipStream_H
 #define FileGzipStream_H
 
+#include <string>
 #include <vector>
 #include <zlib.h>
 #include <stdio.h>

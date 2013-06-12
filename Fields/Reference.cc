@@ -58,11 +58,10 @@ size_t Reference::readNextChromosome (void) {
 		chromosomeName = "*";
 		return 0;
 	}
-    char c;
-//	if (lastChar == '>') {
 	chromosomeName = "";
-	c = fgetc(input); // avoid >
-    c = fgetc(input);
+	char c = fgetc(input); // avoid >
+   if (c == '>') 
+		c = fgetc(input);
 	while (c != '\r' && c != '\n' && c != EOF) {
 		chromosomeName += c;
 		c = fgetc(input);
@@ -71,7 +70,7 @@ size_t Reference::readNextChromosome (void) {
 		if (c == '>')
 			break;
 		if (c != '\n' && c != '\r')
-			chromosome += toupper(c);
+			chromosome.push_back(toupper(c));
 		c = fgetc(input);
 	}
 	LOG("%s (%d) loaded", chromosomeName.c_str(), chromosome.size());

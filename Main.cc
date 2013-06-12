@@ -9,13 +9,13 @@ using namespace std;
 #include "Streams/GzipStream.h"
 
 int main (int argc, char **argv) {
-    setlocale(LC_ALL, "");
+   // setlocale(LC_ALL, "");
 
-	if (argc == 1) {
+	/*if (argc == 1) {
 		fprintf(stderr, "dz c reference input.sam  output\n");
 		fprintf(stderr, "dz d reference input  output.sam\n");
 		return 0;
-	}
+	}*/
 
 /*	int blockSize = 1000000;
 	string referenceF(argv[1]);
@@ -39,13 +39,14 @@ int main (int argc, char **argv) {
 		string inputF(argv[3]);
 		string outputF(argv[4]);
 
-//		try {
+		try {
 			SAMFileCompressor sc(outputF, inputF, referenceF, blockSize);
+			//SAMFileCompressor sc("run/__small__", "run/small.sam", "run/ref.fa", blockSize);
 			sc.compress();
-//		}
-//		catch (exception &e) {
-//			DEBUG("WOOOOHOOOO! ==> %s", e.what());
-//		}
+		}
+		catch (exception &e) {
+			DEBUG("WOOOOHOOOO! ==> %s", e.what());
+		}
 	}
 
 	if (argc == 5 && argv[1][0] == 'd') {

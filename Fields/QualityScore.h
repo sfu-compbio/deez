@@ -2,15 +2,11 @@
 #define QualityScore_H
 
 #include "../Common.h"
-#include "../Streams/FileGzipStream.h"
+#include "../Streams/ArithmeticStream.h"
+#include "../Streams/ContextModels/Order3Model.h"
 #include "../Engines/StringEngine.h"
 
-class QualC: public FileGzipCompressionStream {
-	virtual std::string getFilename() { return "qual"; }
-};
-typedef FileGzipDecompressionStream QualD;
-
-typedef StringCompressor<QualC>	  QualityScoreCompressor;
-typedef StringDecompressor<QualD> QualityScoreDecompressor;
+typedef StringCompressor<ArithmeticCompressionStream<Order3Model> >  	QualityScoreCompressor;
+typedef StringDecompressor<ArithmeticDecompressionStream<Order3Model> > QualityScoreDecompressor;
 
 #endif
