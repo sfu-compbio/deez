@@ -35,10 +35,15 @@ void SAMFileCompressor::compress (void) {
 	int lastStart;
 	int64_t total = 0;
 
+	vector<char> out;
+
 	while (parser.hasNext()) {
 		if (parser.head() != reference.getName()) { 
-			while (reference.getName() != parser.head())
+			while (reference.getName() != parser.head()) {
+				reference.outputRecords(out);
+				outputBlock(out);
 				reference.getNext();
+			}
 		}
 
 		LOG("Loading records ...");
@@ -59,7 +64,7 @@ void SAMFileCompressor::compress (void) {
 			mappingQuality.addRecord(rc.getMappingQuality());
 			queryQual.addRecord((rc.getMappingFlag() & 16) ? rc.getQueryQualRev() : rc.getQueryQual());
 			pairedEnd.addRecord(PairedEndInfo(reference.getChromosome(rc.getMateMappingReference()), rc.getMateMappingLocation(), rc.getTemplateLenght()));
-			optionalField.addRecord(rc.getOptional());
+		//	optionalField.addRecord(rc.getOptional());
 
 			lastStart = rc.getMappingLocation();
 			parser.readNext();
@@ -78,8 +83,6 @@ void SAMFileCompressor::compress (void) {
 			lastFixedLocation = 1; 
 
 		LOG("Writing to disk ...");
-
-		vector<char> out;
 
 		reference.getBlockBoundary(lastFixedLocation);
 
@@ -104,8 +107,8 @@ void SAMFileCompressor::compress (void) {
 		pairedEnd.outputRecords(out);
 		outputBlock(out);
 
-		optionalField.outputRecords(out);
-		outputBlock(out);
+	//	optionalField.outputRecords(out);
+	//	outputBlock(out);
 	}
 }
 
@@ -192,8 +195,9 @@ void SAMFileDecompressor::decompress (void) {
 				break;
 
 			Locs dtmp = mappingOperation.getRecord();
-			while (reference.getChromosome(dtmp.ref) != reference.getName())
+			while (reference.getChromosome(dtmp.ref) != reference.getName()) {
 				reference.getNext();
+			}
 			string  dname = readName.getRecord();
 			short   dflag = mappingFlag.getRecord();
 			uint8_t dmq   = mappingQuality.getRecord();

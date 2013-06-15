@@ -37,8 +37,14 @@ Order3Model::~Order3Model (void) {
 	DEBUG("Rescale time %'lld", time_ticks);
 }
 
+#ifdef SUB
+#define BOT (1<<16)
+#else
+#define BOT (1ll<<32)
+#endif
+
 void Order3Model::update (void) {
-	DEBUG("rescaling... %llu", seenSoFar);
+//	DEBUG("rescaling... %llu", seenSoFar);
 
 	int64_t T = _TIME_();
 
@@ -52,7 +58,18 @@ void Order3Model::update (void) {
 				assert(hifreq[off + l] < (1ll<<31));
 			}
 
-			freq3[off / alphabetSize] = hifreq[off + alphabetSize - 1];
+			uint64_t f3 = freq3[off / alphabetSize] = hifreq[off + alphabetSize - 1];
+			while (f3 > BOT) {
+//				DEBUG("+ %'llu", f3);
+				for (int l = 0; l < alphabetSize; l++)
+					freq4[off + l] -= (freq4[off + l] >> 1);
+	          hifreq[off + 0] = freq4[off + 0];
+				 for (int l = 1; l < alphabetSize; l++) {
+					 hifreq[off + l] = hifreq[off + l - 1] + freq4[off + l];
+					 //assert(hifreq[off + l] < BOT);
+				 }
+				f3 = freq3[off / alphabetSize] = hifreq[off + alphabetSize - 1];
+			}
 	
 			int p = -1;
 			for (int l = 0; l < alphabetSize; l++)
@@ -66,7 +83,7 @@ void Order3Model::update (void) {
 }
 
 bool Order3Model::active (void) const {
-	return seenSoFar >= 1;
+	return seenSoFar >= 2;
 }
 
 uint32_t Order3Model::getLow (unsigned char c) const {
@@ -97,10 +114,12 @@ void Order3Model::add (unsigned char c) {
 
 unsigned char Order3Model::find (uint32_t cnt) {
 	uint32_t off = (c0 * alphabetSize + c1) * alphabetSize;
-	for (size_t i = 0; i < alphabetSize; i++)
-		if (/**freq4[off + i] &&**/ cnt >= lofreq[off + i] && cnt < hifreq[off + i]) {
-			if (char(i)<0)throw;
+	for (size_t i = 0; i < alphabetSize; i++) {
+		if (/**freq4[off + i] &&  cnt >= lofreq[off + i] &&**/ cnt < hifreq[off + i]) {
+	//		if (char(i)<0)throw;
 			return i;
 		}
+	}
+	DEBUG("%x %x", cnt, freq3[off/alphabetSize]);
 	throw "AC find failed";
 }

@@ -91,7 +91,7 @@ ReferenceCompressor::ReferenceCompressor (const string &filename, const string &
 
 	string name1(filename + ".rf.dz");
 	file = gzopen(name1.c_str(), "wb6");
-	if (file == Z_NULL) 
+	if (file == Z_NULL)
 		throw DZException("Cannot open the file %s", name1.c_str());
 }
 
