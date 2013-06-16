@@ -9,7 +9,7 @@ using namespace std;
 #include "Streams/GzipStream.h"
 
 int main (int argc, char **argv) {
-   // setlocale(LC_ALL, "");
+    setlocale(LC_ALL, "");
 
 	/*if (argc == 1) {
 		fprintf(stderr, "dz c reference input.sam  output\n");

@@ -10,7 +10,11 @@ protected:
 	CompressionStream *stream;
 
 public:
-	virtual ~Compressor (void) {}
+	FILE *debugStream;
+
+public:
+	Compressor () { debugStream = 0; }
+	virtual ~Compressor (void) { if (debugStream) fclose(debugStream); }
 
 public:
 	virtual void outputRecords (std::vector<char> &output) = 0;

@@ -3,7 +3,7 @@
 
 #include "Common.h"
 #include "Parsers/SAMParser.h"
-#include "Fields/Reference.h"
+#include "Fields/ReferenceFixes.h"
 #include "Fields/ReadName.h"
 #include "Fields/MappingFlag.h"
 #include "Fields/MappingOperation.h"
@@ -16,7 +16,7 @@
 class SAMFileCompressor {
 	SAMParser parser;
 
-	ReferenceCompressor 	   reference;
+	ReferenceFixesCompressor   reference;
 	ReadNameCompressor 		   readName;
 	MappingFlagCompressor 	   mappingFlag;
 	MappingOperationCompressor mappingOperation;
@@ -25,7 +25,6 @@ class SAMFileCompressor {
 	PairedEndCompressor 	   pairedEnd;
     OptionalFieldCompressor    optionalField;
 
-	FILE *metaFile;
 	FILE *outputFile;
 
 	int  blockSize;
@@ -35,14 +34,14 @@ public:
 	~SAMFileCompressor (void);
 
 private:
-	void outputBlock (const vector<char> &out);
+	void outputBlock (Compressor *c);
 
 public:
 	void compress (void);
 };
 
 class SAMFileDecompressor {
-	ReferenceDecompressor 			reference;
+	ReferenceFixesDecompressor   	reference;
 	ReadNameDecompressor 			readName;
 	MappingFlagDecompressor 		mappingFlag;
 	MappingOperationDecompressor 	mappingOperation;
@@ -52,7 +51,6 @@ class SAMFileDecompressor {
 	PairedEndDecompressor 			pairedEnd;
     OptionalFieldDecompressor       optionalField;
 
-	FILE *metaFile;
 	FILE *samFile;
 	FILE *inFile;
 

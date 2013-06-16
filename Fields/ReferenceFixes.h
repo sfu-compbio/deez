@@ -1,5 +1,5 @@
-#ifndef Reference_H
-#define Reference_H
+#ifndef ReferenceFixes_H
+#define ReferenceFixes_H
 
 #include <map>
 #include <string>
@@ -9,43 +9,9 @@
 #include <zlib.h>
 
 #include "../Common.h"
+#include "../Reference.h"
 #include "../Engines/Engine.h"
 #include "EditOperation.h"
-
-class Reference {
-	FILE *input;
-	std::string chromosomeName;
-	std::string chromosome;
-
-public:
-	Reference (const std::string &filename);
-	~Reference (void);
-
-public:
-	std::string getChromosomeName (void) const;
-	size_t getChromosomeLength (void) const;
-	size_t readNextChromosome (void);
-
-public:
-	char operator[](size_t i) const;
-
-private:
-	std::vector<std::string> chrStr;
-	std::map<std::string,int> chrInt;
-
-public:
-	std::string getChromosomeIndex (int i) {
-		if (i < 0 || i > (int)chrStr.size())
-			return "*";
-		return chrStr[i];
-	}
-
-	int getChromosomeIndex (const std::string &i) {
-		if (i == "*")
-			return -1;
-		return chrInt[i];
-	}
-};		
 
 struct EditOP {
 	int start;
@@ -55,12 +21,12 @@ struct EditOP {
 };
 
 struct GenomeChanges {
-	uint32_t	loc;
-	uint8_t 	original;
+	uint32_t loc;
+	uint8_t original;
 	uint8_t	changed;
 };
 
-class ReferenceCompressor: public Compressor {
+class ReferenceFixesCompressor: public Compressor {
 	gzFile file;
 
 	Reference reference;
@@ -71,8 +37,8 @@ class ReferenceCompressor: public Compressor {
 	std::vector<GenomeChanges>  fixes;   		// fixes
 
 public:
-	ReferenceCompressor (const string &filename, const std::string &refFile, int bs);
-	~ReferenceCompressor (void);
+	ReferenceFixesCompressor (const string &filename, const std::string &refFile, int bs);
+	~ReferenceFixesCompressor (void);
 
 public:
 	std::vector<EditOP> records;
@@ -93,8 +59,10 @@ public:
 		return k;
 	}
 
+	uint64_t perchr;
 	void outputRecords (vector<char> &output) {
 		editOperation.outputRecords(output);
+		perchr += output.size();
 	}
 
 	int getChromosome (const std::string &i) {
@@ -119,7 +87,7 @@ public:
 	std::string getEditOP (int loc, const std::string &seq, const std::string &op);
 };
 
-class ReferenceDecompressor: public Decompressor {
+class ReferenceFixesDecompressor: public Decompressor {
 	gzFile 	  file;
 	Reference reference;
 	EditOperationDecompressor editOperation;
@@ -129,8 +97,8 @@ class ReferenceDecompressor: public Decompressor {
 	std::vector<GenomeChanges> fixes;
 
 public:
-	ReferenceDecompressor (const std::string &filename, const std::string &refFile, int bs);
-	~ReferenceDecompressor (void);
+	ReferenceFixesDecompressor (const std::string &filename, const std::string &refFile, int bs);
+	~ReferenceFixesDecompressor (void);
 
 private:
 	void getChanges (void);

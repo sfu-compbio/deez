@@ -5,7 +5,20 @@
 #include "../Streams/GzipStream.h"
 #include "../Engines/StringEngine.h"
 
-typedef StringCompressor<GzipCompressionStream<6> >	ReadNameCompressor;
-typedef StringDecompressor<GzipDecompressionStream> ReadNameDecompressor;
+class ReadNameCompressor: public StringCompressor<GzipCompressionStream<6> > {
+	virtual const char *getID () const { return "ReadName"; }
+
+public:
+	ReadNameCompressor(int blockSize):
+		StringCompressor<GzipCompressionStream<6> >(blockSize) {}
+};
+
+class ReadNameDecompressor: public StringDecompressor<GzipDecompressionStream> {
+	virtual const char *getID () const { return "ReadName"; }
+
+public:
+	ReadNameDecompressor(int blockSize):
+		StringDecompressor<GzipDecompressionStream>(blockSize) {}
+};
 
 #endif

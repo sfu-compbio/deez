@@ -8,6 +8,8 @@
 
 template<typename T, typename TStream>
 class GenericCompressor: public Compressor {
+	virtual const char *getID () const { return "Generic"; }
+
 protected:
 	std::vector<T> records;
 
@@ -22,6 +24,8 @@ public:
 
 template<typename T, typename TStream>
 class GenericDecompressor: public Decompressor {
+	virtual const char *getID () const { return "Generic"; }
+
 protected:
 	std::vector<T> records;
 	size_t recordCount;

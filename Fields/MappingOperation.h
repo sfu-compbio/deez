@@ -26,6 +26,8 @@ class MappingOperationCompressor: public Compressor {
     uint32_t    lastLoc;
 	short		lastRef;
 
+	virtual const char *getID () const { return "MappingOperation"; }
+
 public:
 	MappingOperationCompressor (int blockSize);
 	~MappingOperationCompressor (void);
@@ -47,6 +49,8 @@ class MappingOperationDecompressor: public Decompressor {
 
 	int recordCount;
 	int correctionCount;
+
+	virtual const char *getID () const { return "MappingOperation"; }
 
 public:
 	MappingOperationDecompressor (int blockSize);

@@ -1,5 +1,5 @@
 CC      		= g++
-DEBUG			= -O3
+DEBUG			= 
 CFLAGS   	= -O3 -fno-omit-frame-pointer -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
 LDFLAGS  	= -lz
 SOURCES 	  := $(shell find $(SOURCEDIR) -name '*.cc')
@@ -15,5 +15,6 @@ $(EXECUTABLE): $(OBJECTS)
 	$(CC) $(CFLAGS) $< -o $@
 
 clean:
-	rm -f Engines/*.o Parsers/*.o Streams/*.o Fields/*.o *.o dz
+	find -name '*.o' -delete
+	rm -rf dz
 

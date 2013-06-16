@@ -5,7 +5,6 @@
 #include <assert.h>
 using namespace std;
 
-static const char *LOG_PREFIX     = "<Parser>";
 static const int  MAX_LINE_LENGTH = 4096;
 
 SAMParser::SAMParser (const string &filename) {
@@ -36,12 +35,42 @@ bool SAMParser::hasNext (void) {
 }
 
 void SAMParser::parse (void) {
-	vector<string> fields;
-	int len = strlen(currentLine);
-    if (currentLine[len - 1] == '\n') 
-        len--;
+//	vector<string> fields;
+//	int len = strlen(currentLine);
+//    if (currentLine[len - 1] == '\n')
+//        len--;
 
-    int i;
+
+	const int MAXFIELD = 1000;
+    char qname[MAXFIELD];
+    int flag;
+    char rname[MAXFIELD];
+    int pos;
+    char mapq;
+    char cigar[MAXFIELD];
+    char rnext[MAXFIELD];
+    int pnext;
+    int tlen;
+    char seq[MAXFIELD];
+    char qual[MAXFIELD];
+    int offset;
+
+    sscanf(currentLine, "%s %d %s %d %d %s %s %d %d %s %s%n",
+    		qname, &flag, rname, &pos, &mapq, cigar, rnext, &pnext, &tlen, seq, qual, &offset);
+    currentRecord.setQueryName(qname);
+	currentRecord.setMappingFlag(flag);
+	currentRecord.setMappingReference(rname);
+	currentRecord.setMappingLocation(pos);
+	currentRecord.setMappingQuality(mapq);
+	currentRecord.setMappingOperation(cigar);
+	currentRecord.setMateMappingReference(rnext);
+	currentRecord.setMateMappingLocation(pnext);
+	currentRecord.setTemplateLength(tlen);
+	currentRecord.setQuerySeq(seq);
+	currentRecord.setQueryQual(qual);
+	currentRecord.setOptional(currentLine + offset);
+
+    /*int i;
 	for (i = 0; i < len; i++) {
         string tmp = "";
 		while (i < len && currentLine[i] != '\t') 
@@ -66,7 +95,7 @@ void SAMParser::parse (void) {
 	currentRecord.setTemplateLength(atoi(fields[8].c_str()));
 	currentRecord.setQuerySeq(fields[9]);
 	currentRecord.setQueryQual(fields[10]);
-    currentRecord.setOptional(fields[11]);
+    currentRecord.setOptional(fields[11]);*/
 }
 
 const Record &SAMParser::next (void) {

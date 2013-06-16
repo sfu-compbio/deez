@@ -1,7 +1,5 @@
-#include "Reference.h"
+#include "ReferenceFixes.h"
 using namespace std;
-
-static const int MAX_CHROMOSOME = 400 * MB;
 
 inline string inttostr (int k) {
     static vector<std::string> mem;
@@ -17,74 +15,11 @@ inline string inttostr (int k) {
             }
             mem.push_back(s);
         }
-    }    
+    }
     return mem[k];
 }
 
-Reference::Reference (const string &filename) {
-	input = fopen(filename.c_str(), "rb");
-	if (input == NULL) 
-		throw DZException("Cannot open the file %s", filename.c_str());
-	chromosome.reserve(MAX_CHROMOSOME);
-
-    char chrName[100];
-    int chrIdx = 0;
-    while (fgets(chrName, 100, input))
-        if (chrName[0] == '>') {
-            string cn = string(chrName + 1);
-            cn = cn.substr(0, cn.size() - 1);
-            chrStr.push_back(cn);
-            chrInt[cn] = chrIdx++;
-        }
-    chrStr.push_back("*");
-    chrInt["*"] = chrIdx;
-    fseek(input, 0, SEEK_SET);
-}
-
-Reference::~Reference (void) {
-	fclose(input);
-}
-
-string Reference::getChromosomeName (void) const {
-	return chromosomeName;
-}
-
-size_t Reference::getChromosomeLength (void) const {
-	return chromosome.size();
-}
-
-size_t Reference::readNextChromosome (void) {
-	if (feof(input)) {
-		chromosomeName = "*";
-		return 0;
-	}
-	chromosomeName = "";
-	char c = fgetc(input); // avoid >
-   if (c == '>') 
-		c = fgetc(input);
-	while (c != '\r' && c != '\n' && c != EOF) {
-		chromosomeName += c;
-		c = fgetc(input);
-	}
-	while (!feof(input)) {
-		if (c == '>')
-			break;
-		if (c != '\n' && c != '\r')
-			chromosome.push_back(toupper(c));
-		c = fgetc(input);
-	}
-	LOG("%s (%d) loaded", chromosomeName.c_str(), chromosome.size());
-
-	return chromosome.size();
-}
-
-char Reference::operator[](size_t i) const {
-    if (i > chromosome.size())
-        throw DZException("Access outside chromosome range");
-    return chromosome[i];
-}
-
-ReferenceCompressor::ReferenceCompressor (const string &filename, const string &refFile, int bs): 
+ReferenceFixesCompressor::ReferenceFixesCompressor (const string &filename, const string &refFile, int bs):
 	reference(refFile), editOperation(bs) 
 {
 	stream = new GzipCompressionStream<6>();
@@ -93,15 +28,17 @@ ReferenceCompressor::ReferenceCompressor (const string &filename, const string &
 	file = gzopen(name1.c_str(), "wb6");
 	if (file == Z_NULL)
 		throw DZException("Cannot open the file %s", name1.c_str());
+
+	perchr=0;
 }
 
-ReferenceCompressor::~ReferenceCompressor (void) {
+ReferenceFixesCompressor::~ReferenceFixesCompressor (void) {
 	outputChanges();
 	gzclose(file);
 	delete stream;
 }
 
-void ReferenceCompressor::outputChanges (void) {
+void ReferenceFixesCompressor::outputChanges (void) {
 	if (fixes.size() > 0) {
         gzwrite(file, reference.getChromosomeName().c_str(), reference.getChromosomeName().length() + 1);
 		int size = fixes.size();
@@ -109,18 +46,19 @@ void ReferenceCompressor::outputChanges (void) {
 		gzwrite(file, &fixes[0], fixes.size() * sizeof(GenomeChanges));
 		fixes.clear();
 		LOG("Genome Changes Written");
+		LOG("For this %'llu EOps", perchr); perchr=0;
 	}
 }
 
-string ReferenceCompressor::getName (void) {
+string ReferenceFixesCompressor::getName (void) {
 	return reference.getChromosomeName();
 }
 
-size_t ReferenceCompressor::getLength (void) {
+size_t ReferenceFixesCompressor::getLength (void) {
 	return reference.getChromosomeLength();
 }
 
-bool ReferenceCompressor::getNext (void) {
+bool ReferenceFixesCompressor::getNext (void) {
 	outputChanges();
 
 	LOG("Loading Reference Genome ...");
@@ -132,7 +70,7 @@ bool ReferenceCompressor::getNext (void) {
 	return (bool)cnt;
 }
 
-inline char ReferenceCompressor::getDNAValue (char ch) {
+inline char ReferenceFixesCompressor::getDNAValue (char ch) {
 	switch (toupper(ch)) {
 		case '.':
 			return 0;
@@ -153,7 +91,7 @@ inline char ReferenceCompressor::getDNAValue (char ch) {
 	}
 }
 
-inline void ReferenceCompressor::updateGenomeLoc (int loc, char ch) {
+inline void ReferenceFixesCompressor::updateGenomeLoc (int loc, char ch) {
 	int pos = getDNAValue(ch);
 	if (doc[loc])
 		doc[loc][pos]++;
@@ -165,7 +103,7 @@ inline void ReferenceCompressor::updateGenomeLoc (int loc, char ch) {
 	}
 }
 
-int ReferenceCompressor::updateGenome (int loc, const string &seq, const string &op) {
+int ReferenceFixesCompressor::updateGenome (int loc, const string &seq, const string &op) {
 	if (op == "*") 
 		return 0;
 
@@ -208,7 +146,7 @@ int ReferenceCompressor::updateGenome (int loc, const string &seq, const string 
 	return spanSize;
 }
 
-void ReferenceCompressor::fixGenome (int start, int end) {
+void ReferenceFixesCompressor::fixGenome (int start, int end) {
 	LOG("Updating %s:%d-%d ...", reference.getChromosomeName().c_str(), start, end);
 	for (int i = start; i < end; i++) {
 		if (doc[i] == 0)
@@ -240,9 +178,14 @@ void ReferenceCompressor::fixGenome (int start, int end) {
     LOG("%s:%d-%d is updated.", reference.getChromosomeName().c_str(), start, end);
 }
 
-string ReferenceCompressor::getEditOP(int loc, const string &seq, const string &op) {
+//CigarOp
+string ReferenceFixesCompressor::getEditOP(int loc, const string &seq, const string &op) {
+//	CigarOp res;
+
 	if (op == "*") {
-		return seq + "*";
+//		res.keys = seq + "*";
+//		return res;
+		return seq+"*";
 	}
 
 	string newOP;
@@ -281,7 +224,7 @@ string ReferenceCompressor::getEditOP(int loc, const string &seq, const string &
 							lastOPSize = 1;
 						}
 					}
-					else if(lastOP == 'X') 
+					else if (lastOP == 'X')
 						newOP += tolower(seq[seqPos]);							
 					else {
 						if (lastOP)
@@ -315,10 +258,11 @@ string ReferenceCompressor::getEditOP(int loc, const string &seq, const string &
 		}
 		size = 0;
 	}
-	return newOP;
+
+	return newOP; //res;
 }
 
-ReferenceDecompressor::ReferenceDecompressor (const string &filename, const string &refFile, int bs): 
+ReferenceFixesDecompressor::ReferenceFixesDecompressor (const string &filename, const string &refFile, int bs):
 	reference(refFile), 
 	editOperation(bs) 
 {
@@ -330,11 +274,11 @@ ReferenceDecompressor::ReferenceDecompressor (const string &filename, const stri
 	getChanges();
 }
 
-ReferenceDecompressor::~ReferenceDecompressor (void) {
+ReferenceFixesDecompressor::~ReferenceFixesDecompressor (void) {
 	gzclose(file);
 }
 
-void ReferenceDecompressor::getChanges (void) {
+void ReferenceFixesDecompressor::getChanges (void) {
 	int size = 0;
 	char ch;
 	if (gzread(file, &ch, 1)) {
@@ -350,11 +294,11 @@ void ReferenceDecompressor::getChanges (void) {
 	LOG("Genome Changes Loaded");
 }
 
-string ReferenceDecompressor::getName (void) {
+string ReferenceFixesDecompressor::getName (void) {
 	return reference.getChromosomeName();
 }
 
-bool ReferenceDecompressor::getNext (void) {
+bool ReferenceFixesDecompressor::getNext (void) {
 	LOG("Loading Reference Genome ...");
 	size_t cnt = reference.readNextChromosome();
 	fixedGenome.resize(cnt);
@@ -372,7 +316,7 @@ bool ReferenceDecompressor::getNext (void) {
 	return (cnt > 0);
 }
 
-EditOP ReferenceDecompressor::getSeqCigar (int loc, const string &op) {
+EditOP ReferenceFixesDecompressor::getSeqCigar (int loc, const string &op) {
 	int  genPos  	 = loc;
 	int  size    	 = 0;
 	char lastOP 	 = 0;

@@ -7,6 +7,10 @@ StringCompressor<TStream>::StringCompressor (int blockSize):
 }
 
 template<typename TStream>
+StringCompressor<TStream>::~StringCompressor (void) {
+}
+
+template<typename TStream>
 void StringCompressor<TStream>::outputRecords (vector<char> &output) {
 	if (this->records.size()) {
 		string buffer = "";
@@ -26,6 +30,10 @@ template<typename TStream>
 StringDecompressor<TStream>::StringDecompressor (int blockSize):
 	GenericDecompressor<string, TStream>(blockSize) 
 {
+}
+
+template<typename TStream>
+StringDecompressor<TStream>::~StringDecompressor (void) {
 }
 
 template<typename TStream>

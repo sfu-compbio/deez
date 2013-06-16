@@ -17,17 +17,35 @@ SAMFileCompressor::SAMFileCompressor (const string &outFile, const string &samFi
 	outputFile = fopen(name1.c_str(), "wb");
 	if (outputFile == NULL)
 		throw DZException("Cannot open the file %s", name1.c_str());
+
+	reference.debugStream 			= fopen((outFile + ".Reference").c_str(), "wb");
+	readName.debugStream 			= fopen((outFile + ".ReadName").c_str(), "wb");
+	mappingFlag.debugStream 		= fopen((outFile + ".MappingFlag").c_str(), "wb");
+	mappingOperation.debugStream 	= fopen((outFile + ".MappingOperation").c_str(), "wb");
+	mappingQuality.debugStream 		= fopen((outFile + ".MappingQuality").c_str(), "wb");
+	queryQual.debugStream 			= fopen((outFile + ".QualityScore").c_str(), "wb");
+	pairedEnd.debugStream 			= fopen((outFile + ".PairedEnd").c_str(), "wb");
+	optionalField.debugStream 		= fopen((outFile + ".OptionalField").c_str(), "wb");
 }
 
 SAMFileCompressor::~SAMFileCompressor (void) {
 	fclose(outputFile);
 }
 
-void SAMFileCompressor::outputBlock (const vector<char> &out) {
-	int i = out.size();
-	fwrite(&i, sizeof(int), 1, outputFile);
-	if (out.size())
+uint64_t wasted_block = 0;
+void SAMFileCompressor::outputBlock (Compressor *c) {
+	vector<char> out;
+	c->outputRecords(out);
+	size_t i = out.size();
+	fwrite(&i, sizeof(size_t), 1, outputFile);
+	if(c->debugStream) fwrite(&i, sizeof(size_t), 1, c->debugStream);
+
+	wasted_block += sizeof(size_t);
+	if (out.size()) {
 		fwrite(&out[0], sizeof(char), out.size(), outputFile);
+
+		if(c->debugStream) fwrite(&out[0], sizeof(char), out.size(), c->debugStream);
+	}
 }
 
 void SAMFileCompressor::compress (void) {
@@ -35,16 +53,9 @@ void SAMFileCompressor::compress (void) {
 	int lastStart;
 	int64_t total = 0;
 
-	vector<char> out;
-
 	while (parser.hasNext()) {
-		if (parser.head() != reference.getName()) { 
-			while (reference.getName() != parser.head()) {
-				reference.outputRecords(out);
-				outputBlock(out);
-				reference.getNext();
-			}
-		}
+		while (reference.getName() != parser.head())
+			reference.getNext();
 
 		LOG("Loading records ...");
 		int i;
@@ -58,12 +69,12 @@ void SAMFileCompressor::compress (void) {
 			e.op 	= rc.getMappingOperation();
 
 			reference.addRecord(e);
-			readName.addRecord(rc.getQueryName());
-			mappingFlag.addRecord(rc.getMappingFlag());
-			mappingOperation.addRecord(rc.getMappingLocation(), reference.getChromosome(rc.getMappingReference()));
-			mappingQuality.addRecord(rc.getMappingQuality());
-			queryQual.addRecord((rc.getMappingFlag() & 16) ? rc.getQueryQualRev() : rc.getQueryQual());
-			pairedEnd.addRecord(PairedEndInfo(reference.getChromosome(rc.getMateMappingReference()), rc.getMateMappingLocation(), rc.getTemplateLenght()));
+		//	readName.addRecord(rc.getQueryName());
+		//	mappingFlag.addRecord(rc.getMappingFlag());
+		//	mappingOperation.addRecord(rc.getMappingLocation(), reference.getChromosome(rc.getMappingReference()));
+		//	mappingQuality.addRecord(rc.getMappingQuality());
+		//	queryQual.addRecord((rc.getMappingFlag() & 16) ? rc.getQueryQualRev() : rc.getQueryQual());
+		//	pairedEnd.addRecord(PairedEndInfo(reference.getChromosome(rc.getMateMappingReference()), rc.getMateMappingLocation(), rc.getTemplateLenght()));
 		//	optionalField.addRecord(rc.getOptional());
 
 			lastStart = rc.getMappingLocation();
@@ -86,30 +97,17 @@ void SAMFileCompressor::compress (void) {
 
 		reference.getBlockBoundary(lastFixedLocation);
 
-		reference.outputRecords(out);
-		outputBlock(out);
-
-		readName.outputRecords(out);
-		outputBlock(out);
-
-		mappingFlag.outputRecords(out);
-		outputBlock(out);
-
-		mappingOperation.outputRecords(out);
-		outputBlock(out);
-
-		mappingQuality.outputRecords(out);
-		outputBlock(out);
-
-		queryQual.outputRecords(out);
-		outputBlock(out);
-
-		pairedEnd.outputRecords(out);
-		outputBlock(out);
-
-	//	optionalField.outputRecords(out);
-	//	outputBlock(out);
+		outputBlock(&reference);
+	/*	outputBlock(&readName);
+		outputBlock(&mappingFlag);
+		outputBlock(&mappingOperation);
+		outputBlock(&mappingQuality);
+		outputBlock(&queryQual);
+		outputBlock(&pairedEnd);*/
+	//	outputBlock(optionalField);
 	}
+
+	LOG("Wasted block info %'llu", wasted_block);
 }
 
 
