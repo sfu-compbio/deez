@@ -1,7 +1,7 @@
 CC      		= g++
 DEBUG			= 
-CFLAGS   	= -O3 -fno-omit-frame-pointer -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
-LDFLAGS  	= -lz
+CFLAGS   	= -O3 -g -fno-omit-frame-pointer -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
+LDFLAGS  	= -lz 
 SOURCES 	  := $(shell find $(SOURCEDIR) -name '*.cc')
 OBJECTS  	= $(SOURCES:.cc=.o)
 EXECUTABLE 	= dz

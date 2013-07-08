@@ -14,8 +14,8 @@
 #include "EditOperation.h"
 
 struct EditOP {
-	int start;
-	int end;
+	size_t start;
+	size_t end;
 	std::string seq;
 	std::string op;
 };
@@ -36,6 +36,8 @@ class ReferenceFixesCompressor: public Compressor {
 	std::vector<int*> 	        doc;     		// stats
 	std::vector<GenomeChanges>  fixes;   		// fixes
 
+	FILE *__tf__;
+
 public:
 	ReferenceFixesCompressor (const string &filename, const std::string &refFile, int bs);
 	~ReferenceFixesCompressor (void);
@@ -48,13 +50,17 @@ public:
 		records.push_back(eo);
 	}
 
-	int getBlockBoundary (int lastFixedLocation) {
+	size_t getBlockBoundary (size_t lastFixedLocation) {
 		std::vector<EditOP>::iterator it;
-		int k = 0;
+		size_t k = 0;
+		string s;
 		for (it = records.begin(); it < records.end() && it->end < lastFixedLocation; it++) {
 			k++;
-			editOperation.addRecord(getEditOP(it->start - 1, it->seq, it->op));
+			editOperation.addRecord(s = getEditOP(it->start - 1, it->seq, it->op));
+			fwrite(s.c_str(), 1, s.size()+1, __tf__);
 		}
+		LOG("k=%lu of %'lu, lfo=%'lu,f1=%'lu,fE=%'lu",k,records.size(),
+			lastFixedLocation, records[0].end, records[records.size()-1].end );
 		records.erase(records.begin(), records.begin() + k);
 		return k;
 	}
@@ -79,12 +85,12 @@ public:
 
 private:
 	inline char getDNAValue (char ch);
-	inline void updateGenomeLoc (int loc, char ch);
+	inline void updateGenomeLoc (size_t loc, char ch);
 
 public:
-	int updateGenome (int loc, const std::string &seq, const std::string &op);
-	void fixGenome (int start, int end);
-	std::string getEditOP (int loc, const std::string &seq, const std::string &op);
+	size_t updateGenome (size_t loc, const std::string &seq, const std::string &op);
+	void fixGenome (size_t start, size_t end);
+	std::string getEditOP (size_t loc, const std::string &seq, const std::string &op);
 };
 
 class ReferenceFixesDecompressor: public Decompressor {
@@ -113,7 +119,7 @@ public:
 	}
 
 private:
-	EditOP getSeqCigar (int loc, const std::string &op);
+	EditOP getSeqCigar (size_t loc, const std::string &op);
 
 public:
 	void importRecords (const std::vector<char> &input) {
@@ -124,7 +130,7 @@ public:
 		return editOperation.hasRecord();
 	}
 
-	EditOP getRecord (int loc) {
+	EditOP getRecord (size_t loc) {
 		return getSeqCigar(loc, editOperation.getRecord());
 	}
 };

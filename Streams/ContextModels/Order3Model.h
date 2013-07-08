@@ -4,10 +4,7 @@
 #include "../../Common.h"
 
 class Order3Model/*: public CodingModel*/ {
-	uint64_t *freq3;
 	uint64_t *freq4;
-//	uint64_t *freq4_active;
-	uint64_t *hifreq;
 	uint64_t *lofreq;
 
 	size_t alphabetSize;
@@ -26,7 +23,7 @@ private:
 public:
 	bool active (void) const;
 	uint32_t getLow (unsigned char c) const;
-	uint32_t getHigh (unsigned char c) const;
+	uint32_t getFreq (unsigned char c) const;
 	uint32_t getSpan (void) const;
 	void add (unsigned char c);
 	unsigned char find (uint32_t cnt);

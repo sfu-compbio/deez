@@ -6,16 +6,11 @@
 #include "../Common.h"
 #include "Stream.h"
 
-#define CODER_SHELWIEN
-
 template<typename TModel>
 class ArithmeticCompressionStream: public CompressionStream {
 	TModel model;
 	std::vector<char> *out;
 
-#ifdef CODER_SUBBOTIN
-	uint32_t low, range;
-#elif defined CODER_SHELWIEN
 	uint64_t Range;
 	uint64_t Low;
 
@@ -23,14 +18,6 @@ class ArithmeticCompressionStream: public CompressionStream {
 	uint32_t rc_LowH;		// high 32bits of Low
 	uint32_t rc_Cache;		// cached low dword
 	uint32_t rc_Carry;		// Low carry flag
-#else
-	uint32_t lo;
-	uint32_t hi;
-	uint32_t underflow;
-
-	char bufPos;
-	char cOutput;
-#endif
 
 private:
 	void setbit (uint32_t t);
@@ -51,11 +38,6 @@ private:
 	TModel model;
 	char *in;
 
-#ifdef CODER_SUBBOTIN
-	uint32_t low;
-	uint32_t range;
-	uint32_t code;
-#elif defined CODER_SHELWIEN
 	uint64_t Range;
 	uint64_t Low;
 	uint64_t Code;
@@ -64,17 +46,11 @@ private:
 	uint32_t rc_LowH;		// high 32bits of Low
 	uint32_t rc_Cache;		// cached low dword
 	uint32_t rc_Carry;		// Low carry flag
-#else
-	uint32_t lo;
-	uint32_t hi;
-	uint32_t code;
-	char cOutput;
-#endif
 
 	char initialized;
 
 private:
-	uint32_t getbit (void);
+	void getbit (void);
 	char readByte (void);
 
 public:

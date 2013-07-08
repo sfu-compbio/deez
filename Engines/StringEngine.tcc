@@ -4,6 +4,7 @@ template<typename TStream>
 StringCompressor<TStream>::StringCompressor (int blockSize):
 	GenericCompressor<string, TStream>(blockSize) 
 {
+//	MEM_DEBUG("\tfrom StrCompress");
 }
 
 template<typename TStream>
@@ -20,8 +21,10 @@ void StringCompressor<TStream>::outputRecords (vector<char> &output) {
 		}
 		output.clear();
 		this->stream->compress((void*)buffer.c_str(), buffer.size(), output);
-		DEBUG("%d strings (total size %d) are flushed, compressed size %d", this->records.size(), buffer.size(), output.size());
-		this->records.erase(this->records.begin(), this->records.begin() + this->records.size());
+		DEBUG("%lu strings (total size %lu) are flushed, compressed size %lu", this->records.size(), buffer.size(), output.size());
+
+		this->records.clear();
+		//this->records.erase(this->records.begin(), this->records.begin() + this->records.size());
 	}
 }
 
@@ -39,6 +42,8 @@ StringDecompressor<TStream>::~StringDecompressor (void) {
 template<typename TStream>
 void StringDecompressor<TStream>::importRecords (const vector<char> &input) {
 	if (input.size() == 0) return;
+
+	DEBUG("size %lu", input.size());
 
 	vector<char> c;
 	this->stream->decompress((void*)&input[0], input.size(), c);
@@ -58,7 +63,7 @@ void StringDecompressor<TStream>::importRecords (const vector<char> &input) {
 	assert(c.back() == 0);
 
 	this->records.erase(this->records.begin(), this->records.begin() + this->recordCount);
-	DEBUG("%d strings (total size %d) are loaded, %d erased, total %d", cnt, c.size(), this->recordCount, this->records.size());
+	DEBUG("%lu strings (total size %lu) are loaded, %lu erased, total %lu", cnt, c.size(), this->recordCount, this->records.size());
 	this->recordCount = 0;
 }
 

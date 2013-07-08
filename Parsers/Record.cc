@@ -8,110 +8,102 @@ Record::Record() {
     qlen = 0;
 }
 
-void Record::setQueryName(const string & t) {
+/*void Record::setQueryName(const const char* & t) {
     qname = t;
-}
+}*/
 
-string Record::getQueryName(void) const {
+const char* Record::getQueryName(void) const {
     return qname;
 }
-
-void Record::setQuerySeq(const string & t) {
+/*
+void Record::setQuerySeq(const const char* & t) {
     qseq = t;
 }
-
-string Record::getQuerySeq(void) const {
+*/
+const char* Record::getQuerySeq(void) const {
     return qseq;
 }
 
-void Record::setQueryQual(const string & t) {
+/*
+void Record::setQueryQual(const const char* & t) {
     qqual = t;
 }
-
-string Record::getQueryQual(void) const {
+*/
+const char* Record::getQueryQual(void) const {
     return qqual;
 }
-
-string Record::getQueryQualRev(void) const {
-    return qqual;
-    //TODO: is it worth doing this?
-    string tmp;
-    for (int i=qqual.length()-1;i>=0; i--)
-        tmp += qqual[i];
-    return tmp;
-}
-
-void Record::setMappingReference(const string & t) {
+/*
+void Record::setMappingReference(const const char* & t) {
     mref = t;
 }
-
-string Record::getMappingReference(void) const {
+*/
+const char* Record::getMappingReference(void) const {
     return mref;
 }
 
-
+/*
 void Record::setMappingLocation(int l) {
     mloc = l;
 }
-
+*/
 int Record::getMappingLocation(void) const {
     return mloc;
 }
 
-
+/*
 void Record::setMappingQuality(int q) {
     mqual = q;
 }
-
+*/
 int Record::getMappingQuality(void) const {
     return mqual;
 }
-
+/*
 void Record::setMappingFlag(int f) {
     mflag = f;
 }
-
+*/
 int Record::getMappingFlag(void) const {
     return mflag;
 }
-
-void Record::setMappingOperation(const string & s) {
+/*
+void Record::setMappingOperation(const const char* & s) {
     operation = s;
 }
-
-string Record::getMappingOperation(void) const {
+*/
+const char* Record::getMappingOperation(void) const {
     return operation;
 }
-
-void Record::setMateMappingReference(const string & s) {
+/*
+void Record::setMateMappingReference(const const char* & s) {
     mmref = s;
 }
-
-string Record::getMateMappingReference(void) const {
+*/
+const char* Record::getMateMappingReference(void) const {
     return mmref;
 }
-
+/*
 void Record::setMateMappingLocation(int l) {
     mmloc = l;
-}
+}*/
 
 int Record::getMateMappingLocation(void) const {
     return mmloc;
 }
-
+/*
 void Record::setTemplateLength(int l) {
     tlen = l;
 }
-
+*/
 int Record::getTemplateLenght(void) const {
     return tlen;
 }
-
-void Record::setOptional(const string & s) {
+/*
+void Record::setOptional(const const char* & s) {
     optional=s;
 }
-
-string Record::getOptional(void) const {
+*/
+const char* Record::getOptional(void) const {
     return optional;
 }
 

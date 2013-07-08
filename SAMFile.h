@@ -23,7 +23,7 @@ class SAMFileCompressor {
     MappingQualityCompressor   mappingQuality;
 	QualityScoreCompressor 	   queryQual;
 	PairedEndCompressor 	   pairedEnd;
-    OptionalFieldCompressor    optionalField;
+	OptionalFieldCompressor    optionalField;
 
 	FILE *outputFile;
 
@@ -49,7 +49,7 @@ class SAMFileDecompressor {
 	EditOperationDecompressor 		editOperation;
 	QualityScoreDecompressor 		queryQual;
 	PairedEndDecompressor 			pairedEnd;
-    OptionalFieldDecompressor       optionalField;
+	OptionalFieldDecompressor       optionalField;
 
 	FILE *samFile;
 	FILE *inFile;

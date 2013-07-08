@@ -15,6 +15,9 @@ Reference::Reference (const string &filename) {
         if (chrName[0] == '>') {
             string cn = string(chrName + 1);
             cn = cn.substr(0, cn.size() - 1);
+				size_t comment = cn.find(' ');
+				if (comment != string::npos)
+					cn = cn.substr(0, comment);
             chrStr.push_back(cn);
             chrInt[cn] = chrIdx++;
         }
@@ -40,14 +43,18 @@ size_t Reference::readNextChromosome (void) {
 		chromosomeName = "*";
 		return 0;
 	}
-	chromosomeName = "";
 	char c = fgetc(input); // avoid >
-   if (c == '>')
+	if (c == '>')
 		c = fgetc(input);
+
+	bool comment = false;
+	chromosomeName = "";
 	while (c != '\r' && c != '\n' && c != EOF) {
-		chromosomeName += c;
+		if (c == ' ') comment = true;
+		if (!comment) chromosomeName += c;
 		c = fgetc(input);
 	}
+	chromosome.clear();
 	while (!feof(input)) {
 		if (c == '>')
 			break;
@@ -55,7 +62,11 @@ size_t Reference::readNextChromosome (void) {
 			chromosome.push_back(toupper(c));
 		c = fgetc(input);
 	}
-	LOG("%s (%d) loaded", chromosomeName.c_str(), chromosome.size());
+	LOG("%s (%lu) loaded", chromosomeName.c_str(), chromosome.size());
+
+
+	chromosome.reserve(chromosome.size());
+	MEM_DEBUG("Ref capacity %'lu size %'lu", chromosome.capacity(), chromosome.size());
 
 	return chromosome.size();
 }

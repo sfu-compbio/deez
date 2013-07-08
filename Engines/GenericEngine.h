@@ -20,6 +20,8 @@ public:
 public:
 	virtual void addRecord (const T &rec);
 	virtual void outputRecords (std::vector<char> &output);
+
+	virtual size_t size (void) const { return records.size(); }
 };
 
 template<typename T, typename TStream>

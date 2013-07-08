@@ -41,34 +41,34 @@ void SAMParser::parse (void) {
 //        len--;
 
 
-	const int MAXFIELD = 1000;
-    char qname[MAXFIELD];
-    int flag;
-    char rname[MAXFIELD];
-    int pos;
-    char mapq;
-    char cigar[MAXFIELD];
-    char rnext[MAXFIELD];
-    int pnext;
-    int tlen;
-    char seq[MAXFIELD];
-    char qual[MAXFIELD];
-    int offset;
-
+	int offset;
     sscanf(currentLine, "%s %d %s %d %d %s %s %d %d %s %s%n",
-    		qname, &flag, rname, &pos, &mapq, cigar, rnext, &pnext, &tlen, seq, qual, &offset);
-    currentRecord.setQueryName(qname);
-	currentRecord.setMappingFlag(flag);
-	currentRecord.setMappingReference(rname);
-	currentRecord.setMappingLocation(pos);
-	currentRecord.setMappingQuality(mapq);
-	currentRecord.setMappingOperation(cigar);
-	currentRecord.setMateMappingReference(rnext);
-	currentRecord.setMateMappingLocation(pnext);
-	currentRecord.setTemplateLength(tlen);
-	currentRecord.setQuerySeq(seq);
-	currentRecord.setQueryQual(qual);
-	currentRecord.setOptional(currentLine + offset);
+    		currentRecord.qname, 
+			&currentRecord.mflag, 
+			currentRecord.mref, 
+			&currentRecord.mloc, 
+			&currentRecord.mqual, 
+			currentRecord.operation, 
+			currentRecord.mmref, 
+			&currentRecord.mmloc, 
+			&currentRecord.tlen,
+			currentRecord.qseq, 
+			currentRecord.qqual, 
+			&offset
+	);
+	 strcpy(currentRecord.optional, currentLine+offset);
+	 int l = strlen(currentRecord.qqual), i;
+	 if (currentRecord.mflag & 0x10 /* rev compl */)
+		 for (i = 0; i < l/2; i++)
+			 swap(currentRecord.qqual[i], currentRecord.qqual[l-i-1]);
+	 i=l-1; if (currentRecord.qqual[l-1]=='!') i--; 
+	 for (; i >= 0 && currentRecord.qqual[i] == '#'; i--);
+	 if (i < l-1) {
+		currentRecord.qqual[++i] = '\t';
+		if (currentRecord.qqual[l-1]=='!')
+			currentRecord.qqual[++i]='!';
+		currentRecord.qqual[++i] = 0;
+	 }
 
     /*int i;
 	for (i = 0; i < len; i++) {

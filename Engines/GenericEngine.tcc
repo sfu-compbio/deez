@@ -1,8 +1,14 @@
 using namespace std;
 
+static long long _allocated_so_far = 0;
+
 template<typename T, typename TStream>
 GenericCompressor<T, TStream>::GenericCompressor (int blockSize) {
 	stream = new TStream();
+
+	_allocated_so_far += blockSize * sizeof(T);
+//	MEM_DEBUG("Reserved %'lld, total %'lld, type %s", blockSize * sizeof(T), _allocated_so_far, typeid(T).name());
+
 	records.reserve(blockSize);
 }
 
@@ -13,6 +19,8 @@ GenericCompressor<T, TStream>::~GenericCompressor (void) {
 
 template<typename T, typename TStream>
 void GenericCompressor<T, TStream>::addRecord (const T &rec) {
+	if (records.size() == records.capacity())
+		records.reserve(records.size() + 100);
 	records.push_back(rec);
 }
 
@@ -21,8 +29,8 @@ void GenericCompressor<T, TStream>::outputRecords (vector<char> &output) {
 	if (records.size()) {
 		output.clear();
 		stream->compress(&records[0], records.size() * sizeof(records[0]), output);
-		DEBUG("%d generics %s of size %d are flushed, compressed size %d", records.size(), typeid(T).name(), sizeof(T), output.size());
-		records.erase(records.begin(), records.end());
+		DEBUG("%lu generics of size %lu are flushed, compressed size %lu", records.size(), sizeof(T), output.size());
+		records.clear();
 	}
 }
 
@@ -64,7 +72,7 @@ void GenericDecompressor<T, TStream>::importRecords (const vector<char> &input) 
 	records.erase(records.begin(), records.begin() + recordCount);
 	records.insert(records.end(), tmp.begin(), tmp.end());
 
-	DEBUG("%d generics of size %d are loaded, %d erased, total %d", tmp.size(), sizeof(T), recordCount, records.size());
+	DEBUG("%lu generics of size %lu are loaded, %lu erased, total %lu", tmp.size(), sizeof(T), recordCount, records.size());
 	recordCount = 0;
 }
 

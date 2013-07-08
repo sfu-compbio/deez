@@ -49,13 +49,15 @@ void SAMFileCompressor::outputBlock (Compressor *c) {
 }
 
 void SAMFileCompressor::compress (void) {
-	int lastFixedLocation = 0;
-	int lastStart;
+	size_t lastFixedLocation = 0;
+	size_t lastStart;
 	int64_t total = 0;
 
 	while (parser.hasNext()) {
-		while (reference.getName() != parser.head())
+		while (reference.getName() != parser.head()) {
 			reference.getNext();
+			lastFixedLocation = 0;
+		}
 
 		LOG("Loading records ...");
 		int i;
@@ -69,13 +71,13 @@ void SAMFileCompressor::compress (void) {
 			e.op 	= rc.getMappingOperation();
 
 			reference.addRecord(e);
-		//	readName.addRecord(rc.getQueryName());
-		//	mappingFlag.addRecord(rc.getMappingFlag());
-		//	mappingOperation.addRecord(rc.getMappingLocation(), reference.getChromosome(rc.getMappingReference()));
-		//	mappingQuality.addRecord(rc.getMappingQuality());
-		//	queryQual.addRecord((rc.getMappingFlag() & 16) ? rc.getQueryQualRev() : rc.getQueryQual());
-		//	pairedEnd.addRecord(PairedEndInfo(reference.getChromosome(rc.getMateMappingReference()), rc.getMateMappingLocation(), rc.getTemplateLenght()));
-		//	optionalField.addRecord(rc.getOptional());
+			readName.addRecord(rc.getQueryName());
+			mappingFlag.addRecord(rc.getMappingFlag());
+			mappingOperation.addRecord(rc.getMappingLocation(), reference.getChromosome(rc.getMappingReference()));
+			mappingQuality.addRecord(rc.getMappingQuality());
+			queryQual.addRecord(rc.getQueryQual());
+			pairedEnd.addRecord(PairedEndInfo(reference.getChromosome(rc.getMateMappingReference()), rc.getMateMappingLocation(), rc.getTemplateLenght()));
+			optionalField.addRecord(rc.getOptional());
 
 			lastStart = rc.getMappingLocation();
 			parser.readNext();
@@ -84,30 +86,30 @@ void SAMFileCompressor::compress (void) {
 
 		if ((!parser.hasNext() && parser.head() != "*") || parser.head() != reference.getName()) {
 			reference.fixGenome(lastFixedLocation, reference.getLength());
-			lastFixedLocation = reference.getLength() - 1;
+			lastFixedLocation = (size_t)-1; //reference.getLength() + 1;
 		}
 		else if (parser.head() != "*") {
 			reference.fixGenome(lastFixedLocation, lastStart - 2);
 			lastFixedLocation = lastStart - 2;
 		}
 		else 
-			lastFixedLocation = 1; 
+			lastFixedLocation = (size_t)-1; 
 
-		LOG("Writing to disk ...");
-
+		LOG("Block boundary ...");			
 		reference.getBlockBoundary(lastFixedLocation);
 
+		LOG("Writing to disk ...");
 		outputBlock(&reference);
-	/*	outputBlock(&readName);
+		outputBlock(&readName);
 		outputBlock(&mappingFlag);
 		outputBlock(&mappingOperation);
 		outputBlock(&mappingQuality);
 		outputBlock(&queryQual);
-		outputBlock(&pairedEnd);*/
-	//	outputBlock(optionalField);
+		outputBlock(&pairedEnd);
+		outputBlock(&optionalField);
 	}
 
-	LOG("Wasted block info %'llu", wasted_block);
+	LOG("Wasted block info %'lu", wasted_block);
 }
 
 
@@ -139,7 +141,7 @@ SAMFileDecompressor::~SAMFileDecompressor (void) {
 
 bool SAMFileDecompressor::getSingleBlock (vector<char> &in) {
 	int i;
-	if (fread(&i, sizeof(int), 1, inFile) != 1)
+	if (fread(&i, sizeof(size_t), 1, inFile) != 1)
 		return false;
 	if (i) {
 		in.resize(i);
@@ -189,8 +191,8 @@ void SAMFileDecompressor::decompress (void) {
 				!mappingFlag.hasRecord() ||
 				!mappingQuality.hasRecord() ||
 				!queryQual.hasRecord() ||
-				!pairedEnd.hasRecord()) 
-				break;
+				!pairedEnd.hasRecord()
+			) break;
 
 			Locs dtmp = mappingOperation.getRecord();
 			while (reference.getChromosome(dtmp.ref) != reference.getName()) {
@@ -202,7 +204,8 @@ void SAMFileDecompressor::decompress (void) {
 			EditOP  eo    = reference.getRecord(dtmp.loc - 1);
 			string  dqual = queryQual.getRecord();
 			PairedEndInfo mate = pairedEnd.getRecord();
-			
+			mate.pos=0; mate.tlen=0;mate.chr=-1; 
+
 			/*if (tl & (1 << 31)) {
 			mateRef = reference.getChromosome(tl & ~(1 << 31));
 			mateLoc = pairedEnd.getRecord();

@@ -13,5 +13,6 @@
 	fprintf(stderr, "[L %18s]  "c"\n", FILE_NAME, ##__VA_ARGS__)
 #define DEBUG(c,...)\
 	fprintf(stderr, "[D %18s]  "c"\n", FILE_NAME, ##__VA_ARGS__)
-
+#define MEM_DEBUG(c,...)\
+	fprintf(stderr, "[MEM %18s]  "c"\n", FILE_NAME, ##__VA_ARGS__)
 #endif

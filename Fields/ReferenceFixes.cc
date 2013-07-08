@@ -30,23 +30,26 @@ ReferenceFixesCompressor::ReferenceFixesCompressor (const string &filename, cons
 		throw DZException("Cannot open the file %s", name1.c_str());
 
 	perchr=0;
+	__tf__=fopen("____rf____", "wb");
 }
 
 ReferenceFixesCompressor::~ReferenceFixesCompressor (void) {
 	outputChanges();
 	gzclose(file);
+	fclose(__tf__);
 	delete stream;
 }
 
 void ReferenceFixesCompressor::outputChanges (void) {
 	if (fixes.size() > 0) {
+//		MEM_DEBUG("RF fixes %'lld %'lld", fixes.capacity()*sizeof(GenomeChanges), fixes.size()*sizeof(GenomeChanges));
         gzwrite(file, reference.getChromosomeName().c_str(), reference.getChromosomeName().length() + 1);
-		int size = fixes.size();
-		gzwrite(file, &size, sizeof(int));
+		size_t size = fixes.size();
+		gzwrite(file, &size, sizeof(size_t));
 		gzwrite(file, &fixes[0], fixes.size() * sizeof(GenomeChanges));
 		fixes.clear();
 		LOG("Genome Changes Written");
-		LOG("For this %'llu EOps", perchr); perchr=0;
+		LOG("For this %'lu EOps", perchr); perchr=0;
 	}
 }
 
@@ -61,11 +64,24 @@ size_t ReferenceFixesCompressor::getLength (void) {
 bool ReferenceFixesCompressor::getNext (void) {
 	outputChanges();
 
+	assert(fixes.size() == 0);
+	assert(records.size() == 0);
+	assert(editOperation.size() == 0);
+
 	LOG("Loading Reference Genome ...");
 	size_t cnt = reference.readNextChromosome();
 
+	fixedGenome.reserve(cnt);
 	fixedGenome.resize(cnt);
+
+	int _q=0;
+	for (size_t i = 0; i < doc.size(); i++)
+		if (doc[i]) {_q++; delete doc[i]; doc[i] = 0; }
+	MEM_DEBUG("doc used %'d out of %'lu",_q,doc.size());
+	
+	doc.reserve(cnt);
 	doc.resize(cnt, 0);
+	MEM_DEBUG("%'lu %'lu", doc.capacity(), doc.size());
 
 	return (bool)cnt;
 }
@@ -91,7 +107,7 @@ inline char ReferenceFixesCompressor::getDNAValue (char ch) {
 	}
 }
 
-inline void ReferenceFixesCompressor::updateGenomeLoc (int loc, char ch) {
+inline void ReferenceFixesCompressor::updateGenomeLoc (size_t loc, char ch) {
 	int pos = getDNAValue(ch);
 	if (doc[loc])
 		doc[loc][pos]++;
@@ -103,14 +119,14 @@ inline void ReferenceFixesCompressor::updateGenomeLoc (int loc, char ch) {
 	}
 }
 
-int ReferenceFixesCompressor::updateGenome (int loc, const string &seq, const string &op) {
+size_t ReferenceFixesCompressor::updateGenome (size_t loc, const string &seq, const string &op) {
 	if (op == "*") 
 		return 0;
 
-	int size = 0;
-	int genPos = loc;
-	int seqPos = 0;
-	int spanSize = 0;
+	size_t size = 0;
+	size_t genPos = loc;
+	size_t seqPos = 0;
+	size_t spanSize = 0;
 
 	for (size_t pos = 0; pos < op.length(); pos++) {
 		if (isdigit(op[pos])) {
@@ -121,7 +137,7 @@ int ReferenceFixesCompressor::updateGenome (int loc, const string &seq, const st
 			case 'M':
 			case '=':
 			case 'X':
-				for (int i = 0; i < size; i++) {
+				for (size_t i = 0; i < size; i++) {
 					updateGenomeLoc(genPos, seq[seqPos]);
 					genPos++;
 					seqPos++;
@@ -134,7 +150,7 @@ int ReferenceFixesCompressor::updateGenome (int loc, const string &seq, const st
 				break;
 			case 'D':
 			case 'N':
-				for (int i = 0; i < size; i++) {
+				for (size_t i = 0; i < size; i++) {
 					updateGenomeLoc(genPos, '.');
 					genPos++;
 				}
@@ -146,9 +162,15 @@ int ReferenceFixesCompressor::updateGenome (int loc, const string &seq, const st
 	return spanSize;
 }
 
-void ReferenceFixesCompressor::fixGenome (int start, int end) {
-	LOG("Updating %s:%d-%d ...", reference.getChromosomeName().c_str(), start, end);
-	for (int i = start; i < end; i++) {
+void ReferenceFixesCompressor::fixGenome (size_t start, size_t end) {
+	LOG("Updating %s:%'lu-%'lu ...", reference.getChromosomeName().c_str(), start, end);
+	for (size_t i = start; i < end; i++) {
+	#ifdef DZ_NO_GENOME_FIX
+		if (doc[i] != 0) {
+			delete doc[i];
+			doc[i] = 0;
+		}
+	#else
 		if (doc[i] == 0)
 			fixedGenome[i] = reference[i];
 		else {
@@ -174,12 +196,13 @@ void ReferenceFixesCompressor::fixGenome (int start, int end) {
 			}
 			delete[] tmp;
 		}
+	#endif
 	}
-    LOG("%s:%d-%d is updated.", reference.getChromosomeName().c_str(), start, end);
+    LOG("%s:%'lu-%'lu is updated.", reference.getChromosomeName().c_str(), start, end);
 }
 
-//CigarOp
-string ReferenceFixesCompressor::getEditOP(int loc, const string &seq, const string &op) {
+string
+ReferenceFixesCompressor::getEditOP(size_t loc, const string &seq, const string &op) {
 //	CigarOp res;
 
 	if (op == "*") {
@@ -190,9 +213,9 @@ string ReferenceFixesCompressor::getEditOP(int loc, const string &seq, const str
 
 	string newOP;
 
-	int size   = 0;
-	int genPos = loc;
-	int seqPos = 0;
+	size_t size   = 0;
+	size_t genPos = loc;
+	size_t seqPos = 0;
 
 	char lastOP = 0;
 	int  lastOPSize = 0;
@@ -209,7 +232,7 @@ string ReferenceFixesCompressor::getEditOP(int loc, const string &seq, const str
 			case 'M':
 			case '=':
 			case 'X':
-				for (int i = 0; i < size; i++) {
+				for (size_t i = 0; i < size; i++) {
 					if (seq[seqPos] == fixedGenome[genPos]) {
 						if (lastOP == 0) {
 							lastOP = '=';
@@ -242,7 +265,7 @@ string ReferenceFixesCompressor::getEditOP(int loc, const string &seq, const str
 				break;
 			case 'I':
 			case 'S':
-				for (int i = 0; i < size; i++)
+				for (size_t i = 0; i < size; i++)
 					newOP += seq[seqPos + i];
 				newOP  += op[pos];
 				seqPos += size;
@@ -279,7 +302,7 @@ ReferenceFixesDecompressor::~ReferenceFixesDecompressor (void) {
 }
 
 void ReferenceFixesDecompressor::getChanges (void) {
-	int size = 0;
+	size_t size = 0;
 	char ch;
 	if (gzread(file, &ch, 1)) {
 		fixedName = "";
@@ -287,7 +310,7 @@ void ReferenceFixesDecompressor::getChanges (void) {
 			fixedName += ch;
 			gzread(file, &ch, 1);
 		}
-		gzread(file, &size, sizeof(int));
+		gzread(file, &size, sizeof(size_t));
 		fixes.resize(size);
 		gzread(file, &fixes[0], size * sizeof(GenomeChanges));
 	}
@@ -316,12 +339,12 @@ bool ReferenceFixesDecompressor::getNext (void) {
 	return (cnt > 0);
 }
 
-EditOP ReferenceFixesDecompressor::getSeqCigar (int loc, const string &op) {
-	int  genPos  	 = loc;
-	int  size    	 = 0;
-	char lastOP 	 = 0;
-	int  lastOPSize = 0;
-	int  endPos		 = 0;
+EditOP ReferenceFixesDecompressor::getSeqCigar (size_t loc, const string &op) {
+	size_t  genPos = loc;
+	size_t  size = 0;
+	char    lastOP = 0;
+	int     lastOPSize = 0;
+	size_t  endPos = 0;
 
 	string tmpSeq;
 	string tmpOP;
@@ -393,7 +416,7 @@ EditOP ReferenceFixesDecompressor::getSeqCigar (int loc, const string &op) {
 					lastOP = 'M';
 					lastOPSize = size;
 				}
-				for (int i = 0; i < size; i++)
+				for (size_t i = 0; i < size; i++)
 					tmpSeq += fixedGenome[genPos + i];
 				genPos += size;
 				size = 0;

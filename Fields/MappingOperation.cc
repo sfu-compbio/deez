@@ -13,6 +13,8 @@ MappingOperationCompressor::MappingOperationCompressor (int blockSize):
 	
 	records.reserve(blockSize);
 	corrections.reserve(blockSize);
+
+//	MEM_DEBUG("MOC Reserved %'lld", blockSize * (1+ sizeof(Tuple)));
 }
 
 MappingOperationCompressor::~MappingOperationCompressor (void) {
@@ -56,16 +58,16 @@ void MappingOperationCompressor::outputRecords (vector<char> &output) {
 	if (records.size()) {
 		output.clear();		
 		
-		DEBUG("%d corrections, %d records flushed", corrections.size(), records.size());
+		DEBUG("%lu corrections, %lu records flushed", corrections.size(), records.size());
 		
 		if (corrections.size())
 			stitchStream->compress(&corrections[0], corrections.size() * sizeof(corrections[0]), output);
 		size_t i = output.size();
 		output.insert(output.begin(), (char*)&i, (char*)&i + sizeof(size_t));
-		corrections.erase(corrections.begin(), corrections.end());
+		corrections.clear();
 
 		stream->compress(&records[0], records.size() * sizeof(records[0]), output);
-		records.erase(records.begin(), records.end());
+		records.clear();
 	}
 }
 
@@ -109,7 +111,7 @@ void MappingOperationDecompressor::importRecords (const vector<char> &input) {
 		corrections.resize(c.size() / sizeof(Tuple));
 		memcpy(&corrections[0], &c[0], c.size());
 		correctionCount = 0;
-		DEBUG("%d corrections are loaded", c.size() / sizeof(Tuple));
+		DEBUG("%lu corrections are loaded", c.size() / sizeof(Tuple));
 	}
 			
 	c.clear();
@@ -139,6 +141,6 @@ void MappingOperationDecompressor::importRecords (const vector<char> &input) {
 	corrections.erase(corrections.begin(), corrections.begin() + correctionCount);
 	correctionCount = 0;
 	records.erase(records.begin(), records.begin() + recordCount);
-	DEBUG("%d locations are loaded, %d erased, total %d", rc.size(), recordCount, records.size());
+	DEBUG("%lu locations are loaded, %d erased, total %lu", rc.size(), recordCount, records.size());
 	recordCount = 0;
 }

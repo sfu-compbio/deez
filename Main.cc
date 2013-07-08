@@ -32,7 +32,7 @@ int main (int argc, char **argv) {
 	delete sd;*/
 
 //	Logger::initialize(stdout);
-	int blockSize = 1000000;
+	int blockSize = 500000;
 
 	if (argc == 5 && argv[1][0] == 'c') {
 		string referenceF(argv[2]);
@@ -47,6 +47,9 @@ int main (int argc, char **argv) {
 		catch (exception &e) {
 			DEBUG("WOOOOHOOOO! ==> %s", e.what());
 		}
+		catch (char const *e) {
+			DEBUG("WOOOOHOOOO! ==> %s", e);
+		}
 	}
 
 	if (argc == 5 && argv[1][0] == 'd') {
@@ -55,7 +58,17 @@ int main (int argc, char **argv) {
 		string outputF(argv[4]);
 
 		SAMFileDecompressor sd(inputF, outputF, referenceF, blockSize);
-		sd.decompress();
+		try {
+			//SAMFileCompressor sc("run/__small__", "run/small.sam", "run/ref.fa", blockSize);
+			sd.decompress();
+		}
+		catch (exception &e) {
+			DEBUG("WOOOOHOOOO! ==> %s", e.what());
+		}
+		catch (char const *e) {
+			DEBUG("WOOOOHOOOO! ==> %s", e);
+		}
+		
 	}
 
 	return 0;

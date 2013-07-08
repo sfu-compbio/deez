@@ -3,8 +3,12 @@
 
 #include "../Common.h"
 #include "../Streams/ArithmeticStream.h"
+#include "../Streams/GzipStream.h"
 #include "../Streams/ContextModels/Order3Model.h"
 #include "../Engines/StringEngine.h"
+
+//typedef StringCompressor<GzipCompressionStream<6> > QualityScoreCompressor;
+//typedef StringDecompressor<GzipDecompressionStream> QualityScoreDecompressor;
 
 class QualityScoreCompressor: public StringCompressor<ArithmeticCompressionStream<Order3Model> > {
 	virtual const char *getID () const { return "QualityScore"; }

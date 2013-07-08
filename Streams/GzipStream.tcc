@@ -23,12 +23,12 @@ void GzipCompressionStream<Level>::compress (void *source, size_t sz, std::vecto
 		stream.avail_out = CHUNK;
 		stream.next_out = (unsigned char*)buffer;
 		if (deflate(&stream, Z_SYNC_FLUSH) == Z_STREAM_ERROR)
-			throw;
+			throw DZException("zlib compression error %d, so far done %lu", Z_STREAM_ERROR, result.size());
 		size_t have = CHUNK - stream.avail_out;
 		result.insert(result.end(), buffer, buffer + have);
 	} while (stream.avail_out == 0);
 	if (stream.avail_in != 0)
-		throw;
+		throw DZException("zlib compression error, buffer not empty");
 }
 
 template<char Level>
@@ -60,8 +60,8 @@ void GzipDecompressionStream_<Level>::decompress (void *source, size_t sz, std::
 		stream.avail_out = CHUNK;
 		stream.next_out = (unsigned char*)buffer;
 		int ret = inflate(&stream, Z_NO_FLUSH);
-		if (ret != Z_STREAM_END  && ret != Z_OK)
-			throw;
+		if (ret != Z_STREAM_END && ret != Z_OK) 
+			throw DZException("zlib decompression error %d, so far done %lu", ret, result.size());
 
 		size_t have = CHUNK - stream.avail_out;
 		result.insert(result.end(), buffer, buffer + have);
