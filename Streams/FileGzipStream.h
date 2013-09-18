@@ -1,4 +1,4 @@
-#ifndef FileGzipStream_H
+/*#ifndef FileGzipStream_H
 #define FileGzipStream_H
 
 #include <string>
@@ -35,3 +35,4 @@ public:
 };
 
 #endif
+*/

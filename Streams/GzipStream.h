@@ -1,41 +1,40 @@
 #ifndef GzipStream_H
 #define GzipStream_H
 
-#include <vector>
 #include <zlib.h>
 #include "../Common.h"
 #include "Stream.h"
 
-static const int CHUNK = 256 * KB;
-
 template<char Level>
-class GzipCompressionStream: public CompressionStream {
-	z_stream stream;
-	char *buffer;
+class GzipCompressionStream: public CompressionStream {	
+public:
+	GzipCompressionStream (void) {}
+	~GzipCompressionStream (void) {}
 
 public:
-	GzipCompressionStream (void);
-	~GzipCompressionStream (void);
+	virtual size_t compress (uint8_t *source, size_t source_sz, 
+		Array<uint8_t> &dest, size_t dest_offset) 
+	{
+		if (dest_offset + compressBound(source_sz) >= dest.size())
+			dest.resize(dest_offset + compressBound(source_sz) + 1);
 
-public:
-	void compress (void *source, size_t sz, std::vector<char> &result);
+		size_t sz = dest.size() - dest_offset;
+		int c = compress2(dest.data() + dest_offset, &sz, source, source_sz, Level);
+		if (c == Z_OK) 
+			return sz;
+		else 
+			throw DZException("zlib compression error %d", c);
+	}
 };
 
-template<char Level>
-class GzipDecompressionStream_: public DecompressionStream {
-	z_stream stream;
-	char *buffer;
+class GzipDecompressionStream: public DecompressionStream {
+public:
+	GzipDecompressionStream (void);
+	~GzipDecompressionStream (void);
 
 public:
-	GzipDecompressionStream_ (void);
-	~GzipDecompressionStream_ (void);
-
-public:
-	void decompress (void *source, size_t sz, std::vector<char> &result);
+	virtual size_t decompress (uint8_t *source, size_t source_sz, 
+		Array<uint8_t> &dest, size_t dest_offset); 
 };
-
-#include "GzipStream.tcc"
-
-typedef GzipDecompressionStream_<6> GzipDecompressionStream;
 
 #endif

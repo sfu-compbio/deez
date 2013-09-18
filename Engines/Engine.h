@@ -11,13 +11,16 @@ protected:
 
 public:
 	FILE *debugStream;
+	size_t compressedCount;
 
 public:
-	Compressor () { debugStream = 0; }
+	Compressor () { debugStream = 0; compressedCount = 0; }
 	virtual ~Compressor (void) { if (debugStream) fclose(debugStream); }
 
 public:
-	virtual void outputRecords (std::vector<char> &output) = 0;
+	// Resets out
+	// set out size to compressed size block
+	virtual void outputRecords (Array<uint8_t> &out) {}
 };
 
 class Decompressor {
@@ -29,7 +32,7 @@ public:
 
 public:
 	virtual bool hasRecord (void) = 0;
-	virtual void importRecords (const std::vector<char> &input) = 0;
+	virtual void importRecords (uint8_t *in, size_t in_size) {} 
 };
 
 #endif

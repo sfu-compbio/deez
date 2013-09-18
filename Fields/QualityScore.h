@@ -2,28 +2,30 @@
 #define QualityScore_H
 
 #include "../Common.h"
-#include "../Streams/ArithmeticStream.h"
 #include "../Streams/GzipStream.h"
-#include "../Streams/ContextModels/Order3Model.h"
+#include "../Streams/Order2Stream.h"
 #include "../Engines/StringEngine.h"
 
-//typedef StringCompressor<GzipCompressionStream<6> > QualityScoreCompressor;
-//typedef StringDecompressor<GzipDecompressionStream> QualityScoreDecompressor;
-
-class QualityScoreCompressor: public StringCompressor<ArithmeticCompressionStream<Order3Model> > {
-	virtual const char *getID () const { return "QualityScore"; }
+class QualityScoreCompressor: 
+	public StringCompressor<AC2CompressionStream> {
+	
+public:
+	QualityScoreCompressor (int blockSize);
+	virtual ~QualityScoreCompressor (void);
 
 public:
-	QualityScoreCompressor(int blockSize):
-		StringCompressor<ArithmeticCompressionStream<Order3Model> >(blockSize) {}
+	void addRecord (std::string qual, int flag);
 };
 
-class QualityScoreDecompressor: public StringDecompressor<ArithmeticDecompressionStream<Order3Model> > {
-	virtual const char *getID () const { return "QualityScore"; }
+class QualityScoreDecompressor: 
+	public StringDecompressor<AC2DecompressionStream> {
 
 public:
-	QualityScoreDecompressor(int blockSize):
-		StringDecompressor<ArithmeticDecompressionStream<Order3Model> >(blockSize) {}
+	QualityScoreDecompressor (int blockSize);
+	virtual ~QualityScoreDecompressor (void);
+
+public:
+	std::string getRecord (size_t seq_len, int flag);
 };
 
 #endif

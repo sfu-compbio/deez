@@ -6,9 +6,8 @@
 #include "Fields/ReferenceFixes.h"
 #include "Fields/ReadName.h"
 #include "Fields/MappingFlag.h"
-#include "Fields/MappingOperation.h"
+#include "Fields/MappingLocation.h"
 #include "Fields/MappingQuality.h"
-#include "Fields/EditOperation.h"
 #include "Fields/QualityScore.h"
 #include "Fields/PairedEnd.h"
 #include "Fields/OptionalField.h"
@@ -19,7 +18,7 @@ class SAMFileCompressor {
 	ReferenceFixesCompressor   reference;
 	ReadNameCompressor 		   readName;
 	MappingFlagCompressor 	   mappingFlag;
-	MappingOperationCompressor mappingOperation;
+	MappingLocationCompressor  mappingLocation;
     MappingQualityCompressor   mappingQuality;
 	QualityScoreCompressor 	   queryQual;
 	PairedEndCompressor 	   pairedEnd;
@@ -44,7 +43,7 @@ class SAMFileDecompressor {
 	ReferenceFixesDecompressor   	reference;
 	ReadNameDecompressor 			readName;
 	MappingFlagDecompressor 		mappingFlag;
-	MappingOperationDecompressor 	mappingOperation;
+	MappingLocationDecompressor 	mappingLocation;
 	MappingQualityDecompressor		mappingQuality;
 	EditOperationDecompressor 		editOperation;
 	QualityScoreDecompressor 		queryQual;
@@ -61,8 +60,8 @@ public:
 	~SAMFileDecompressor (void);
 
 private:
-	bool getSingleBlock (vector<char> &in);
-	bool getBlock (void);
+	bool getSingleBlock (Array<uint8_t> &in);
+	int getBlock (std::string &);
 
 public:
 	void decompress (void);

@@ -1,7 +1,7 @@
 #ifndef Stream_H
 #define Stream_H
 
-#include <vector>
+#include "../Common.h"
 
 class CompressionStream {
 protected:
@@ -10,7 +10,10 @@ public:
 	virtual ~CompressionStream (void) {}
 
 public:
-	virtual void compress (void *source, size_t sz, std::vector<char> &result) = 0;
+	// virtual void compress (void *source, size_t sz, std::vector<char> &result) = 0;
+	// append compressed data AFTER dest+dest_offset,
+	// return new compressed size!	
+	virtual size_t compress (uint8_t *source, size_t source_sz, Array<uint8_t> &dest, size_t dest_offset) = 0;//uint8_t *dest, size_t dest_sz) = 0;
 };
 
 class DecompressionStream {
@@ -20,7 +23,10 @@ public:
 	virtual ~DecompressionStream (void) {}
 
 public:
-	virtual void decompress (void *source, size_t sz, std::vector<char> &result) = 0;
+	// virtual void decompress (void *source, size_t sz, std::vector<char> &result) = 0;
+	// append decompressed data AFTER dest+dest_offset,
+	// return new decompressed size!
+	virtual size_t decompress (uint8_t *source, size_t source_sz, Array<uint8_t> &dest, size_t dest_offset) = 0;//uint8_t *dest, size_t dest_sz) = 0;
 };
 
 #endif

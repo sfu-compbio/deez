@@ -11,37 +11,18 @@
 
 class Reference {
 	FILE *input;
-	std::string chromosomeName;
-	std::string chromosome;
-
+	std::string currentChr;
+	size_t currentPos;
+	char c;
+	
 public:
 	Reference (const std::string &filename);
 	~Reference (void);
 
 public:
 	std::string getChromosomeName (void) const;
-	size_t getChromosomeLength (void) const;
-	size_t readNextChromosome (void);
-
-public:
-	char operator[](size_t i) const;
-
-private:
-	std::vector<std::string> chrStr;
-	std::map<std::string,int> chrInt;
-
-public:
-	std::string getChromosomeIndex (int i) {
-		if (i < 0 || i > (int)chrStr.size())
-			return "*";
-		return chrStr[i];
-	}
-
-	int getChromosomeIndex (const std::string &i) {
-		if (i == "*")
-			return -1;
-		return chrInt[i];
-	}
+	std::string scanNextChromosome (void);
+	void load (char *arr, size_t s, size_t e);
 };
 
 #endif

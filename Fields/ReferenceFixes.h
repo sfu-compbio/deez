@@ -11,128 +11,150 @@
 #include "../Common.h"
 #include "../Reference.h"
 #include "../Engines/Engine.h"
-#include "EditOperation.h"
+#include "../Engines/GenericEngine.h"
+#include "../Engines/StringEngine.h"
+#include "../Streams/GzipStream.h"
 
 struct EditOP {
 	size_t start;
 	size_t end;
 	std::string seq;
 	std::string op;
+
+	EditOP() {}
+	EditOP(size_t s, const std::string &se, const std::string &o) :
+		start(s), seq(se), op(o) {}
 };
+
+struct GenomePager {
+	static const int GenomePageSize = 256 * KB;
+
+	size_t start;
+	char fixes[GenomePageSize];
+	int *stat[GenomePageSize];
+
+	GenomePager *next;
+
+	GenomePager (size_t s): start(s), next(0) {
+		memset(stat, 0, sizeof(int*) * GenomePageSize);
+	}
+	~GenomePager (void) {
+		// do the cleaning manually in update() and in fixGenome()
+	}
+
+	void increase (size_t loc, char ch) {
+		if (loc < start + GenomePageSize) {
+			if (!stat[loc - start]) {
+				stat[loc - start] = new int[6];
+				memset(stat[loc - start], 0, sizeof(int) * 6);
+			}
+			assert(ch<6);
+			assert(loc-start<GenomePageSize);
+			stat[loc - start][ch]++;
+		//	DEBUG("%d -> %d = %d", loc, ch, stat[loc - start][ch]);
+		}
+		else {
+			if (!next || next->start > loc) {
+				GenomePager *g = new GenomePager(loc - loc % GenomePageSize);
+				g->next = next;
+				next = g;
+			}
+			next->increase(loc, ch);
+		}
+	}
+
+	char getFixed (size_t loc) {
+		assert(loc >= start);
+		if (loc < start + GenomePageSize) 
+			return fixes[loc - start];
+		else {
+			if (!next) throw "error in genomepager";
+			return next->getFixed(loc);
+		}
+	}
+};
+
+typedef StringCompressor<GzipCompressionStream<6> > 
+	EditOperationCompressor;
+typedef StringDecompressor<GzipDecompressionStream> 
+	EditOperationDecompressor;
 
 struct GenomeChanges {
 	uint32_t loc;
-	uint8_t original;
 	uint8_t	changed;
+
+	GenomeChanges () {}
+	GenomeChanges (uint32_t l, char c): loc(l), changed(c) {}
 };
 
-class ReferenceFixesCompressor: public Compressor {
-	gzFile file;
+typedef GenericCompressor<GenomeChanges, GzipCompressionStream<6> > 
+	FixesCompressor;
+typedef GenericDecompressor<GenomeChanges, GzipDecompressionStream> 
+	FixesDecompressor;
 
+class ReferenceFixesCompressor: public Compressor {
 	Reference reference;
 	EditOperationCompressor editOperation;
+	FixesCompressor fixes;
 
-	std::string 			  	fixedGenome; 	// genome
-	std::vector<int*> 	        doc;     		// stats
-	std::vector<GenomeChanges>  fixes;   		// fixes
+	// temporary for the Cigars before the genome fixing
+	std::vector<EditOP> records;
 
-	FILE *__tf__;
+	GenomePager *genomePager;
+
+	std::string chromosome; // chromosome index
+	size_t blockStart;
+	size_t lastFixed;
+	size_t nextStart;
 
 public:
-	ReferenceFixesCompressor (const string &filename, const std::string &refFile, int bs);
+	ReferenceFixesCompressor (const std::string &refFile, int bs);
 	~ReferenceFixesCompressor (void);
 
 public:
-	std::vector<EditOP> records;
+	void addRecord (size_t loc, const std::string &seq, const std::string &cigar);
+	void outputRecords (Array<uint8_t> &output);
 
-	void addRecord (EditOP &eo) {
-		eo.end = eo.start + updateGenome(eo.start - 1, eo.seq, eo.op);
-		records.push_back(eo);
-	}
-
-	size_t getBlockBoundary (size_t lastFixedLocation) {
-		std::vector<EditOP>::iterator it;
-		size_t k = 0;
-		string s;
-		for (it = records.begin(); it < records.end() && it->end < lastFixedLocation; it++) {
-			k++;
-			editOperation.addRecord(s = getEditOP(it->start - 1, it->seq, it->op));
-			fwrite(s.c_str(), 1, s.size()+1, __tf__);
-		}
-		LOG("k=%lu of %'lu, lfo=%'lu,f1=%'lu,fE=%'lu",k,records.size(),
-			lastFixedLocation, records[0].end, records[records.size()-1].end );
-		records.erase(records.begin(), records.begin() + k);
-		return k;
-	}
-
-	uint64_t perchr;
-	void outputRecords (vector<char> &output) {
-		editOperation.outputRecords(output);
-		perchr += output.size();
-	}
-
-	int getChromosome (const std::string &i) {
-		return reference.getChromosomeIndex(i);
-	}
-
-private:
-	void outputChanges (void);
-
+	void applyFixes (size_t end);
+	
 public:
-	std::string getName (void);
-	size_t getLength (void);
-	bool getNext (void);
-
+	std::string getChromosome (void) const { return chromosome; }
+	void scanNextChromosome (void);
+	
 private:
-	inline char getDNAValue (char ch);
-	inline void updateGenomeLoc (size_t loc, char ch);
-
-public:
+	void updateGenomeLoc (size_t loc, char ch);
 	size_t updateGenome (size_t loc, const std::string &seq, const std::string &op);
-	void fixGenome (size_t start, size_t end);
 	std::string getEditOP (size_t loc, const std::string &seq, const std::string &op);
 };
 
 class ReferenceFixesDecompressor: public Decompressor {
-	gzFile 	  file;
 	Reference reference;
 	EditOperationDecompressor editOperation;
+	FixesDecompressor fixes;
 
-	std::string fixedName;
-	std::string fixedGenome; 
-	std::vector<GenomeChanges> fixes;
+	char   *fixed;
+	size_t fixed_offset;
+	size_t fixed_size;
+	size_t nextStart;
+	std::string chromosome;
 
 public:
-	ReferenceFixesDecompressor (const std::string &filename, const std::string &refFile, int bs);
+	ReferenceFixesDecompressor (const std::string &refFile, int bs);
 	~ReferenceFixesDecompressor (void);
 
-private:
-	void getChanges (void);
+public:
+	bool hasRecord (void);
+	EditOP getRecord (size_t loc);
+
+	void importRecords (uint8_t *in, size_t in_size);
 
 public:
-	std::string getName (void);
-	bool getNext (void);
-
-public:
-	std::string getChromosome (int i) {
-		return reference.getChromosomeIndex(i);
-	}
+	void scanNextChromosome (void);
+	std::string getChromosome (void) const { return chromosome; }
 
 private:
-	EditOP getSeqCigar (size_t loc, const std::string &op);
-
-public:
-	void importRecords (const std::vector<char> &input) {
-		editOperation.importRecords(input);
-	}
-
-	bool hasRecord (void) {
-		return editOperation.hasRecord();
-	}
-
-	EditOP getRecord (size_t loc) {
-		return getSeqCigar(loc, editOperation.getRecord());
-	}
+	void importFixes (uint8_t *in, size_t in_size);
+	EditOP getSeqCigar (size_t loc, const std::string &op);	
 };
 
 #endif

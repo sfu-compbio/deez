@@ -12,15 +12,18 @@
 
 class SAMParser: public Parser {
 	Record currentRecord;
-    char   *currentLine;
+    size_t file_size;
 
 public:
 	SAMParser (const std::string &filename);
 	~SAMParser (void);
 
 public:
+	char *readComment (void);
 	bool readNext (void);
 	bool hasNext (void);
+	size_t fpos (void);
+	size_t fsize (void);
 
 public:
 	void parse (void);

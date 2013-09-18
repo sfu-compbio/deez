@@ -19,74 +19,7 @@ inline string inttostr (int k) {
     return mem[k];
 }
 
-ReferenceFixesCompressor::ReferenceFixesCompressor (const string &filename, const string &refFile, int bs):
-	reference(refFile), editOperation(bs) 
-{
-	stream = new GzipCompressionStream<6>();
-
-	string name1(filename + ".rf.dz");
-	file = gzopen(name1.c_str(), "wb6");
-	if (file == Z_NULL)
-		throw DZException("Cannot open the file %s", name1.c_str());
-
-	perchr=0;
-	__tf__=fopen("____rf____", "wb");
-}
-
-ReferenceFixesCompressor::~ReferenceFixesCompressor (void) {
-	outputChanges();
-	gzclose(file);
-	fclose(__tf__);
-	delete stream;
-}
-
-void ReferenceFixesCompressor::outputChanges (void) {
-	if (fixes.size() > 0) {
-//		MEM_DEBUG("RF fixes %'lld %'lld", fixes.capacity()*sizeof(GenomeChanges), fixes.size()*sizeof(GenomeChanges));
-        gzwrite(file, reference.getChromosomeName().c_str(), reference.getChromosomeName().length() + 1);
-		size_t size = fixes.size();
-		gzwrite(file, &size, sizeof(size_t));
-		gzwrite(file, &fixes[0], fixes.size() * sizeof(GenomeChanges));
-		fixes.clear();
-		LOG("Genome Changes Written");
-		LOG("For this %'lu EOps", perchr); perchr=0;
-	}
-}
-
-string ReferenceFixesCompressor::getName (void) {
-	return reference.getChromosomeName();
-}
-
-size_t ReferenceFixesCompressor::getLength (void) {
-	return reference.getChromosomeLength();
-}
-
-bool ReferenceFixesCompressor::getNext (void) {
-	outputChanges();
-
-	assert(fixes.size() == 0);
-	assert(records.size() == 0);
-	assert(editOperation.size() == 0);
-
-	LOG("Loading Reference Genome ...");
-	size_t cnt = reference.readNextChromosome();
-
-	fixedGenome.reserve(cnt);
-	fixedGenome.resize(cnt);
-
-	int _q=0;
-	for (size_t i = 0; i < doc.size(); i++)
-		if (doc[i]) {_q++; delete doc[i]; doc[i] = 0; }
-	MEM_DEBUG("doc used %'d out of %'lu",_q,doc.size());
-	
-	doc.reserve(cnt);
-	doc.resize(cnt, 0);
-	MEM_DEBUG("%'lu %'lu", doc.capacity(), doc.size());
-
-	return (bool)cnt;
-}
-
-inline char ReferenceFixesCompressor::getDNAValue (char ch) {
+inline char getDNAValue (char ch) {
 	switch (toupper(ch)) {
 		case '.':
 			return 0;
@@ -107,16 +40,147 @@ inline char ReferenceFixesCompressor::getDNAValue (char ch) {
 	}
 }
 
-inline void ReferenceFixesCompressor::updateGenomeLoc (size_t loc, char ch) {
-	int pos = getDNAValue(ch);
-	if (doc[loc])
-		doc[loc][pos]++;
-	else {
-		int *tmp = new int[6];
-		memset(tmp, 0, 6 * sizeof(int)); 
-		tmp[pos] = 1;
-		doc[loc] = tmp;
+/********************************************************************************/
+/*
+Reference.chromosome ...... // current chromosome
+SweepNext ~~~
+Print block.
+*/
+
+ReferenceFixesCompressor::ReferenceFixesCompressor (const string &refFile, int bs):
+	reference(refFile), 
+	editOperation(bs),
+	fixes(bs),
+	genomePager(0),
+	chromosome("") // first call to scanNextChr will populate this one
+{
+}
+
+ReferenceFixesCompressor::~ReferenceFixesCompressor (void) {
+}
+
+
+void ReferenceFixesCompressor::addRecord (size_t loc, const string &seq, const string &cigar) {
+	EditOP eo;
+	eo.end = loc + updateGenome(eo.start = loc, eo.seq = seq, eo.op = cigar);
+	records.push_back(eo);
+}
+
+void ReferenceFixesCompressor::outputRecords (Array<uint8_t> &output) {
+	output.resize(0);
+	size_t sz = 0;
+	output.add((uint8_t*)&sz, sizeof(size_t));
+
+	// fixes
+	if (chromosome != "*") {
+		fixes.appendRecords(output);
+		output.add((uint8_t*)&blockStart, sizeof(size_t));
+		output.add((uint8_t*)&lastFixed, sizeof(size_t));
+		output.add((uint8_t*)&nextStart, sizeof(size_t));
+		sz = output.size() - sizeof(size_t);
+		*(size_t*)output.data() = sz;
 	}
+
+	// operations
+	editOperation.appendRecords(output);
+}
+
+void ReferenceFixesCompressor::scanNextChromosome (void) {
+	// by here, all should be fixed ...
+	assert(fixes.size() == 0);
+	assert(records.size() == 0);
+	assert(editOperation.size() == 0);
+
+	// clean genomePager
+	while (genomePager) {
+		GenomePager *gp = genomePager->next;
+		delete genomePager;
+		genomePager = gp;
+	}
+	genomePager = new GenomePager(0); // new one
+	lastFixed = blockStart = 0;
+
+	chromosome = reference.scanNextChromosome();
+}
+
+// called at the end of the block!
+// what if end is chr_end?
+void ReferenceFixesCompressor::applyFixes (size_t end) {
+	/////////////////////////////////////////////////////////////////////////////
+	size_t k;
+
+	if (chromosome != "*") {
+	//	DEBUG("Sent %'lu", end);
+		// update blockEnd to handle cigar skips
+		size_t blockEnd = end;
+		blockStart = lastFixed;
+		
+		assert(blockStart <= blockEnd);
+		DEBUG("Applying fixes %'lu-%'lu", blockStart, blockEnd);
+
+		// update pages
+		GenomePager *gp = genomePager;
+		assert(gp != NULL);
+		// start should be in the first page
+		assert(blockStart >= gp->start);
+		assert(blockStart < gp->start + GenomePager::GenomePageSize);
+		size_t s, e;
+		for (k = blockStart; k < blockEnd && gp; ) {
+			s = max(gp->start, k) - gp->start;
+			e = min(gp->start + GenomePager::GenomePageSize, blockEnd) - gp->start;
+
+			end = gp->start + e;
+
+			reference.load(gp->fixes + s, gp->start + s, gp->start + e);
+			// reference index has to be accesses in non-decreasing order through the application lifetime!
+			for (size_t i = s; i < e; i++) 
+				if (gp->stat[i]) {
+					int max = -1, pos = -1;
+					for (int j = 1; j < 6; j++)
+						if (gp->stat[i][j] > max)
+							max = gp->stat[i][pos = j];
+					if (gp->fixes[i] != pos[".ACGTN"]) 
+						fixes.addRecord(GenomeChanges(gp->start + i, gp->fixes[i] = pos[".ACGTN"]));
+					delete[] gp->stat[i];
+					gp->stat[i] = 0;
+				}
+			gp = gp->next;
+			k += GenomePager::GenomePageSize;
+			k -= k % GenomePager::GenomePageSize;
+		}
+		blockEnd = end;
+	//	DEBUG("Finally fixed to %'lu", blockEnd);
+	}
+	//else DEBUG("Fixing *");
+
+	lastFixed = end;
+
+	// now fix cigars in the database
+	for (k = 0; k < records.size() && records[k].end < end; k++)
+		editOperation.addRecord(getEditOP(records[k].start, records[k].seq, records[k].op));
+	if (k < records.size())
+		nextStart = records[k].start;
+	else
+		nextStart = (size_t)-1;
+	records.erase(records.begin(), records.begin() + k);
+
+	if (chromosome != "*") {
+		// all till the end is fixed
+		GenomePager *gp = genomePager;
+		while (gp && gp->start + GenomePager::GenomePageSize < end) {
+		//	DEBUG("GP %'lu %'lu",gp->start,gp->start+GenomePager::GenomePageSize);
+		//	string x = string(gp->fixes, GenomePager::GenomePageSize);
+		//	DEBUG(">>> %'lu ~ %-lu", gp->start, gp->start + GenomePager::GenomePageSize);
+		//	DEBUG(">>> %s",x.c_str());
+			genomePager = gp->next; delete gp; gp = genomePager;
+		}
+		if (!genomePager) genomePager = new GenomePager(0);
+	}
+	// return k;
+}
+
+inline void ReferenceFixesCompressor::updateGenomeLoc (size_t loc, char ch) {
+	genomePager->increase(loc, getDNAValue(ch));
 }
 
 size_t ReferenceFixesCompressor::updateGenome (size_t loc, const string &seq, const string &op) {
@@ -162,54 +226,9 @@ size_t ReferenceFixesCompressor::updateGenome (size_t loc, const string &seq, co
 	return spanSize;
 }
 
-void ReferenceFixesCompressor::fixGenome (size_t start, size_t end) {
-	LOG("Updating %s:%'lu-%'lu ...", reference.getChromosomeName().c_str(), start, end);
-	for (size_t i = start; i < end; i++) {
-	#ifdef DZ_NO_GENOME_FIX
-		if (doc[i] != 0) {
-			delete doc[i];
-			doc[i] = 0;
-		}
-	#else
-		if (doc[i] == 0)
-			fixedGenome[i] = reference[i];
-		else {
-			int *tmp = doc[i];
-			int max = -1;
-			int pos = -1;
-			for (int j = 1; j < 6; j++)
-				if (tmp[j] > max) {
-					max = tmp[j];
-					pos = j;
-				}
-			doc[i] = 0;
-
-			int a[] = {'.', 'A', 'C', 'G', 'T', 'N'};
-
-			fixedGenome[i] = a[pos];
-			if (reference[i] != a[pos]) {
-				GenomeChanges f;
-				f.loc = i;
-				f.original = reference[i];
-				f.changed = fixedGenome[i];
-				fixes.push_back(f);
-			}
-			delete[] tmp;
-		}
-	#endif
-	}
-    LOG("%s:%'lu-%'lu is updated.", reference.getChromosomeName().c_str(), start, end);
-}
-
-string
-ReferenceFixesCompressor::getEditOP(size_t loc, const string &seq, const string &op) {
-//	CigarOp res;
-
-	if (op == "*") {
-//		res.keys = seq + "*";
-//		return res;
-		return seq+"*";
-	}
+string ReferenceFixesCompressor::getEditOP(size_t loc, const string &seq, const string &op) {
+	if (op == "*") 
+		return seq + "*";
 
 	string newOP;
 
@@ -233,7 +252,7 @@ ReferenceFixesCompressor::getEditOP(size_t loc, const string &seq, const string 
 			case '=':
 			case 'X':
 				for (size_t i = 0; i < size; i++) {
-					if (seq[seqPos] == fixedGenome[genPos]) {
+					if (seq[seqPos] == genomePager->getFixed(genPos)) {
 						if (lastOP == 0) {
 							lastOP = '=';
 							lastOPSize = 1;
@@ -285,58 +304,81 @@ ReferenceFixesCompressor::getEditOP(size_t loc, const string &seq, const string 
 	return newOP; //res;
 }
 
-ReferenceFixesDecompressor::ReferenceFixesDecompressor (const string &filename, const string &refFile, int bs):
-	reference(refFile), 
-	editOperation(bs) 
-{
-	string name1(filename + ".rf.dz");
-	file = gzopen(name1.c_str(), "rb");
-	if (file == Z_NULL) 
-		throw DZException("Cannot open the file %s", name1.c_str());
+/************************************************************************************************************************/
 
-	getChanges();
+ReferenceFixesDecompressor::ReferenceFixesDecompressor (const string &refFile, int bs):
+	reference(refFile), 
+	editOperation(bs),
+	fixes(bs),
+	chromosome(""),
+	fixed(0),
+	fixed_size(0),
+	nextStart((size_t)-1)
+{
 }
 
 ReferenceFixesDecompressor::~ReferenceFixesDecompressor (void) {
-	gzclose(file);
+	delete[] fixed;
 }
 
-void ReferenceFixesDecompressor::getChanges (void) {
-	size_t size = 0;
-	char ch;
-	if (gzread(file, &ch, 1)) {
-		fixedName = "";
-		while (ch) {
-			fixedName += ch;
-			gzread(file, &ch, 1);
-		}
-		gzread(file, &size, sizeof(size_t));
-		fixes.resize(size);
-		gzread(file, &fixes[0], size * sizeof(GenomeChanges));
+
+bool ReferenceFixesDecompressor::hasRecord (void) {
+	return editOperation.hasRecord();
+}
+
+EditOP ReferenceFixesDecompressor::getRecord (size_t loc) {
+	return getSeqCigar(loc, editOperation.getRecord());
+}
+
+void ReferenceFixesDecompressor::importRecords (uint8_t *in, size_t in_size) {
+	size_t fixes_sz = *(size_t*)in;
+	importFixes(in + sizeof(size_t), fixes_sz);
+	editOperation.importRecords(in + fixes_sz + sizeof(size_t), in_size - fixes_sz - sizeof(size_t));
+}
+
+void ReferenceFixesDecompressor::importFixes (uint8_t *in, size_t in_size) {
+	if (chromosome == "*")
+		return;
+	if (in_size == 0) 
+		return;
+	fixes.importRecords(in, in_size - 3 * sizeof(size_t));
+	size_t *bnd = (size_t*)(in + in_size - 3 * sizeof(size_t));
+
+	if (nextStart == (size_t)-1) 
+		nextStart = bnd[0];
+
+	if (nextStart > bnd[0])
+		nextStart = bnd[0];
+	char *c = new char[bnd[1] - nextStart];
+	if (nextStart < bnd[0]) {
+		assert(fixed_size - bnd[0] + nextStart >= 0);
+		assert(fixed_size - bnd[0] + nextStart < fixed_size);
+		memcpy(c, fixed + (fixed_size - bnd[0] + nextStart), bnd[0] - nextStart);
 	}
-	LOG("Genome Changes Loaded");
-}
+	delete[] fixed;
+	fixed = c;
+	fixed_size = bnd[1] - nextStart;
+	fixed_offset = nextStart;
+	reference.load(fixed + bnd[0] - nextStart, bnd[0], bnd[1]);
 
-string ReferenceFixesDecompressor::getName (void) {
-	return reference.getChromosomeName();
-}
-
-bool ReferenceFixesDecompressor::getNext (void) {
-	LOG("Loading Reference Genome ...");
-	size_t cnt = reference.readNextChromosome();
-	fixedGenome.resize(cnt);
-
-	for (size_t i = 0; i < cnt; i++)
-		fixedGenome[i] = reference[i];
-	if (fixedName == reference.getChromosomeName()) {
-		vector<GenomeChanges>::iterator it;
-		for (size_t i = 0; i < fixes.size(); i++)
-			fixedGenome[fixes[i].loc] = fixes[i].changed;
+	while (fixes.hasRecord()) {
+		GenomeChanges gc = fixes.getRecord();
+		assert(gc.loc - fixed_offset < fixed_size);
+		fixed[gc.loc - fixed_offset] = gc.changed;
 	}
-	fixes.clear();
-	getChanges();
 
-	return (cnt > 0);
+	nextStart = bnd[2];
+}
+
+void ReferenceFixesDecompressor::scanNextChromosome (void) {
+	// by here, all should be fixed ...
+// 	TODO more checking
+//	assert(fixes.size() == 0);
+//	assert(records.size() == 0);
+//	assert(editOperation.size() == 0);
+
+	// clean genomePager
+	chromosome = reference.scanNextChromosome();
 }
 
 EditOP ReferenceFixesDecompressor::getSeqCigar (size_t loc, const string &op) {
@@ -416,8 +458,11 @@ EditOP ReferenceFixesDecompressor::getSeqCigar (size_t loc, const string &op) {
 					lastOP = 'M';
 					lastOPSize = size;
 				}
-				for (size_t i = 0; i < size; i++)
-					tmpSeq += fixedGenome[genPos + i];
+				for (size_t i = 0; i < size; i++) {
+					assert((int)genPos + (int)i - (int)fixed_offset >= 0);
+					assert(genPos + i - fixed_offset < fixed_size);
+					tmpSeq += fixed[genPos + i - fixed_offset];
+				}
 				genPos += size;
 				size = 0;
 				break;
@@ -434,6 +479,7 @@ EditOP ReferenceFixesDecompressor::getSeqCigar (size_t loc, const string &op) {
 	eo.seq = tmpSeq;
 	eo.op  = tmpOP;
 	eo.end = eo.start + endPos; 
+
 	return eo;
 }
 

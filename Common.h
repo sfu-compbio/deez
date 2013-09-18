@@ -6,9 +6,15 @@
 #include <typeinfo>
 #include "DZException.h"
 #include "Logger.h"
+#include "Array.h"
 
 #define KB  1024
 #define MB  KB * 1024
 #define GB  MB * 1024
+
+#define VERSION	0x10
+#define MAGIC 	(0x07445A00 | VERSION)
+
+//#define DZ_EVAL
 
 #endif

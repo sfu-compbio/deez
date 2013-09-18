@@ -1,4 +1,4 @@
-#include "FileGzipStream.h"
+/*#include "FileGzipStream.h"
 using namespace std;
 
 FileGzipCompressionStream::FileGzipCompressionStream (void) {
@@ -33,3 +33,4 @@ void FileGzipDecompressionStream::decompress (void *source, size_t sz, std::vect
 	result.resize(sz);
 	gzread(stream, &result[0], sz);
 }
+*/

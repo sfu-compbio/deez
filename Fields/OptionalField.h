@@ -6,8 +6,10 @@
 #include "../Streams/GzipStream.h"
 #include "../Engines/StringEngine.h"
 
-typedef StringCompressor<GzipCompressionStream<6> >    OptionalFieldCompressor;
-typedef StringDecompressor<GzipDecompressionStream> OptionalFieldDecompressor;
+typedef StringCompressor<GzipCompressionStream<6> >    
+	OptionalFieldCompressor;
+typedef StringDecompressor<GzipDecompressionStream> 
+	OptionalFieldDecompressor;
 
 /*
 class OptionalFieldCompressor: public Compressor {

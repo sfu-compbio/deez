@@ -9,10 +9,14 @@
 #endif
 #define FILE_NAME	 FILE_NAME_EXT
 
+#define SCREEN(c,...)\
+	fprintf(stderr, c, ##__VA_ARGS__)
+#define WARN(c,...)\
+	fprintf(stderr, c"\n", ##__VA_ARGS__)
+#define ERROR(c,...)\
+	fprintf(stderr, c"\n", ##__VA_ARGS__)
 #define LOG(c,...)\
-	fprintf(stderr, "[L %18s]  "c"\n", FILE_NAME, ##__VA_ARGS__)
+	fprintf(stderr, c"\n", ##__VA_ARGS__)
 #define DEBUG(c,...)\
-	fprintf(stderr, "[D %18s]  "c"\n", FILE_NAME, ##__VA_ARGS__)
-#define MEM_DEBUG(c,...)\
-	fprintf(stderr, "[MEM %18s]  "c"\n", FILE_NAME, ##__VA_ARGS__)
+	fprintf(stdout, c"\n", ##__VA_ARGS__)
 #endif

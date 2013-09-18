@@ -1,17 +1,13 @@
 #ifndef GenericEngine_H
 #define GenericEngine_H
 
-#include <vector>
-
 #include "../Common.h"
 #include "Engine.h"
 
 template<typename T, typename TStream>
 class GenericCompressor: public Compressor {
-	virtual const char *getID () const { return "Generic"; }
-
 protected:
-	std::vector<T> records;
+	Array<T> records;
 
 public:
 	GenericCompressor (int blockSize);
@@ -19,17 +15,17 @@ public:
 
 public:
 	virtual void addRecord (const T &rec);
-	virtual void outputRecords (std::vector<char> &output);
+	virtual void outputRecords (Array<uint8_t> &out);
+	virtual void appendRecords (Array<uint8_t> &out);
 
+public:
 	virtual size_t size (void) const { return records.size(); }
 };
 
 template<typename T, typename TStream>
 class GenericDecompressor: public Decompressor {
-	virtual const char *getID () const { return "Generic"; }
-
 protected:
-	std::vector<T> records;
+	Array<T> records;
 	size_t recordCount;
 
 public:
@@ -37,9 +33,9 @@ public:
 	virtual ~GenericDecompressor (void);
 
 public:
-	virtual const T &getRecord (void);
+	const T &getRecord (void);
 	virtual bool hasRecord (void);
-	virtual void importRecords (const std::vector<char> &input);
+	virtual void importRecords (uint8_t *in, size_t in_size);
 };
 
 #include "GenericEngine.tcc"

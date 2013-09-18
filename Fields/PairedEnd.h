@@ -1,35 +1,43 @@
 #ifndef PairedEnd_H
 #define PairedEnd_H
 
+#include <string>
+#include <map>
+
 #include "../Common.h"
 #include "../Streams/GzipStream.h"
 #include "../Engines/GenericEngine.h"
 
 struct PairedEndInfo {
-	int chr;
-	int pos;
-	int tlen;
-
-	PairedEndInfo (void):
-		chr(0), pos(0), tlen(0) {}
-	PairedEndInfo (int c, int p, int t):
-		chr(c), pos(p), tlen(t) {}
+	size_t pos;
+	int32_t tlen;
+	string chr;
 };
 
-class PairedEndCompressor: public GenericCompressor<PairedEndInfo, GzipCompressionStream<6> > {
-	virtual const char *getID () const { return "PairedEnd"; }
+class PairedEndCompressor: 
+	public GenericCompressor<uint8_t, GzipCompressionStream<6> > {
+	
+	std::map<std::string, char> chromosomes;
 
 public:
-	PairedEndCompressor(int blockSize):
-		GenericCompressor<PairedEndInfo, GzipCompressionStream<6> >(blockSize) {}
+	PairedEndCompressor (int blockSize);
+	virtual ~PairedEndCompressor (void);
+
+public:
+	void addRecord (const std::string &chr, size_t pos, int32_t len);
 };
 
-class PairedEndDecompressor: public GenericDecompressor<PairedEndInfo, GzipDecompressionStream> {
-	virtual const char *getID () const { return "PairedEnd"; }
+class PairedEndDecompressor: 
+	public GenericDecompressor<uint8_t, GzipDecompressionStream> {
+
+	std::map<char, std::string> chromosomes;
 
 public:
-	PairedEndDecompressor(int blockSize):
-		GenericDecompressor<PairedEndInfo, GzipDecompressionStream>(blockSize) {}
+	PairedEndDecompressor (int blockSize);
+	virtual ~PairedEndDecompressor (void);
+	
+public:
+	PairedEndInfo getRecord (void);
 };
 
 #endif

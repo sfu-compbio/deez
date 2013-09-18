@@ -4,40 +4,8 @@
 #include <vector>
 #include <zlib.h>
 #include "../Common.h"
-#include "Stream.h"
 
-template<typename TModel>
-class ArithmeticCompressionStream: public CompressionStream {
-	TModel model;
-	std::vector<char> *out;
-
-	uint64_t Range;
-	uint64_t Low;
-
-	uint32_t rc_FFNum;		// number of all-F dwords between Cache and Low
-	uint32_t rc_LowH;		// high 32bits of Low
-	uint32_t rc_Cache;		// cached low dword
-	uint32_t rc_Carry;		// Low carry flag
-
-private:
-	void setbit (uint32_t t);
-	void writeByte (char c);
-	void flush (void);
-
-public:
-	ArithmeticCompressionStream (void);
-	~ArithmeticCompressionStream (void);
-
-public:
-	void compress (void *source, size_t sz, std::vector<char> &result);
-};
-
-template<typename TModel>
-class ArithmeticDecompressionStream: public DecompressionStream {
-private:
-	TModel model;
-	char *in;
-
+class AC {
 	uint64_t Range;
 	uint64_t Low;
 	uint64_t Code;
@@ -47,20 +15,26 @@ private:
 	uint32_t rc_Cache;		// cached low dword
 	uint32_t rc_Carry;		// Low carry flag
 
-	char initialized;
+	uint8_t *dataI;
+	Array<uint8_t> *dataO;
 
 private:
+	void setbit (void);
 	void getbit (void);
-	char readByte (void);
 
 public:
-	ArithmeticDecompressionStream (void);
-	~ArithmeticDecompressionStream (void);
+	void encode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq);
+	void decode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq);
+	uint32_t getFreq (uint32_t);
+	void flush (void);
+
+
+	void initEncode (Array<uint8_t> *o);
+	void initDecode (uint8_t *o);
 
 public:
-	void decompress (void *source, size_t sz, std::vector<char> &result);
+	AC ();
+	~AC (void);
 };
-
-#include "ArithmeticStream.tcc"
-
+	
 #endif
