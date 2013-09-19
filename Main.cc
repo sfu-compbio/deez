@@ -160,7 +160,7 @@ int main (int argc, char **argv) {
 		else {
 			string output = remove_extension(optInput);	
 			if (!is_dz_file(optInput))
-				decompress(optInput, output + ".dz");
+				compress(optInput, output + ".dz");
 			else
 				decompress(optInput, output + ".dz.sam");
 		}

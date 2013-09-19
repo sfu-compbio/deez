@@ -1,5 +1,5 @@
 CC ?= g++
-CFLAGS = -fno-omit-frame-pointer -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
+CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
 LDFLAGS = -lz -lpthread
 
 SOURCES := $(shell find $(SOURCEDIR) -name '*.cc' -not -path "./run/*" -not -path "./Point*/*")
@@ -9,11 +9,16 @@ EXECUTABLE = dz
 all: CFLAGS += -O3 -DNDEBUG
 all: $(SOURCES) $(EXECUTABLE)
 
-debug: CFLAGS += -g
+debug: CFLAGS += -g -fno-omit-frame-pointer
 debug: $(SOURCES) $(EXECUTABLE)
  
-profile: LDFLAGS += -ltcmalloc -lprofiler
+profile: CFLAGS += -g -pg
+profile: LDFLAGS += -pg
 profile: $(SOURCES) $(EXECUTABLE)
+
+gprofile: LDFLAGS += -ltcmalloc -lprofiler
+gprofile: CFLAGS += -g
+gprofile: $(SOURCES) $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS) 
 	$(CC) $(OBJECTS) $(LDFLAGS) -o $@

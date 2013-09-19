@@ -116,7 +116,7 @@ void ReferenceFixesCompressor::applyFixes (size_t end) {
 		blockStart = lastFixed;
 		
 		assert(blockStart <= blockEnd);
-		DEBUG("Applying fixes %'lu-%'lu", blockStart, blockEnd);
+		//DEBUG("Applying fixes %'lu-%'lu", blockStart, blockEnd);
 
 		// update pages
 		GenomePager *gp = genomePager;
@@ -134,15 +134,16 @@ void ReferenceFixesCompressor::applyFixes (size_t end) {
 			reference.load(gp->fixes + s, gp->start + s, gp->start + e);
 			// reference index has to be accesses in non-decreasing order through the application lifetime!
 			for (size_t i = s; i < e; i++) 
-				if (gp->stat[i]) {
+				//if (gp->stat[i]) 
+				{
 					int max = -1, pos = -1;
 					for (int j = 1; j < 6; j++)
 						if (gp->stat[i][j] > max)
 							max = gp->stat[i][pos = j];
 					if (gp->fixes[i] != pos[".ACGTN"]) 
 						fixes.addRecord(GenomeChanges(gp->start + i, gp->fixes[i] = pos[".ACGTN"]));
-					delete[] gp->stat[i];
-					gp->stat[i] = 0;
+					//delete[] gp->stat[i];
+					//gp->stat[i] = 0;
 				}
 			gp = gp->next;
 			k += GenomePager::GenomePageSize;

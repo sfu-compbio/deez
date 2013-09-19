@@ -31,12 +31,12 @@ struct GenomePager {
 
 	size_t start;
 	char fixes[GenomePageSize];
-	int *stat[GenomePageSize];
+	int stat[GenomePageSize][5];
 
 	GenomePager *next;
 
 	GenomePager (size_t s): start(s), next(0) {
-		memset(stat, 0, sizeof(int*) * GenomePageSize);
+		memset(stat, 0, sizeof(int) * GenomePageSize * 5);
 	}
 	~GenomePager (void) {
 		// do the cleaning manually in update() and in fixGenome()
@@ -44,10 +44,10 @@ struct GenomePager {
 
 	void increase (size_t loc, char ch) {
 		if (loc < start + GenomePageSize) {
-			if (!stat[loc - start]) {
+			/*if (!stat[loc - start]) {
 				stat[loc - start] = new int[6];
 				memset(stat[loc - start], 0, sizeof(int) * 6);
-			}
+			}*/
 			assert(ch<6);
 			assert(loc-start<GenomePageSize);
 			stat[loc - start][ch]++;

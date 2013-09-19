@@ -86,7 +86,6 @@ void SAMFileCompressor::compress (void) {
 	size_t lastStart;
 	int64_t total = 0;
 	
-	SCREEN("%10s %-15s\t%-5s%%\n", "Chr", "Position", "File");
 	while (parser.hasNext()) {
 		char op = 0;
 		while (reference.getChromosome() != parser.head())
@@ -127,13 +126,9 @@ void SAMFileCompressor::compress (void) {
 			lastStart = loc;
 			parser.readNext();
 
-			if (i % (1 << 16) == 0) SCREEN("\r%10s %'-15lu\t%-5.2lf%%                          ", 
-				parser.head().c_str(), 
-				parser.next().getLocation(), 
-				(100.0 * parser.fpos()) / parser.fsize()
-			);
+			if (i % (1 << 16) == 0) 
+				SCREEN("\r   Chr %-6s %5.2lf%%", parser.head().c_str(), (100.0 * parser.fpos()) / parser.fsize());
 		}
-	//	SCREEN(" [F]");
 		
 		if (!parser.hasNext() || parser.head() != reference.getChromosome() || parser.head() == "*")
 			reference.applyFixes((size_t)-1);
@@ -151,7 +146,7 @@ void SAMFileCompressor::compress (void) {
 		outputBlock(&pairedEnd);
 		outputBlock(&optionalField);
 	}
-
+	SCREEN("\r");
 	DEBUG("%s: %'15lu", "RN", readName.compressedCount);
 	DEBUG("%s: %'15lu", "MF", mappingFlag.compressedCount);
 	DEBUG("%s: %'15lu", "ML", mappingLocation.compressedCount);
