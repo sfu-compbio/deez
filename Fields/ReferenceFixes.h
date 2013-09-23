@@ -115,7 +115,7 @@ public:
 	void addRecord (size_t loc, const std::string &seq, const std::string &cigar);
 	void outputRecords (Array<uint8_t> &output);
 
-	void applyFixes (size_t end);
+	void applyFixes (size_t end, size_t&, size_t&, size_t&);
 	
 public:
 	std::string getChromosome (void) const { return chromosome; }

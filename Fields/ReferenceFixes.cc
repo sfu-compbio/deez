@@ -105,7 +105,7 @@ void ReferenceFixesCompressor::scanNextChromosome (void) {
 
 // called at the end of the block!
 // what if end is chr_end?
-void ReferenceFixesCompressor::applyFixes (size_t end) {
+void ReferenceFixesCompressor::applyFixes (size_t end, size_t &cnt, size_t &end_S, size_t &end_E) {
 	/////////////////////////////////////////////////////////////////////////////
 	size_t k;
 
@@ -159,6 +159,12 @@ void ReferenceFixesCompressor::applyFixes (size_t end) {
 	// now fix cigars in the database
 	for (k = 0; k < records.size() && records[k].end < end; k++)
 		editOperation.addRecord(getEditOP(records[k].start, records[k].seq, records[k].op));
+
+	assert(k > 0);
+	cnt = k;
+	end_S = records[cnt - 1].start;
+	end_E = records[cnt - 1].end;
+
 	if (k < records.size())
 		nextStart = records[k].start;
 	else

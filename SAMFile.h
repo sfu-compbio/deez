@@ -25,6 +25,7 @@ class SAMFileCompressor {
 	OptionalFieldCompressor    optionalField;
 
 	FILE *outputFile;
+	FILE *indexFile;
 
 	int  blockSize;
 
@@ -52,6 +53,7 @@ class SAMFileDecompressor {
 
 	FILE *samFile;
 	FILE *inFile;
+	FILE *idxFile;
 
     int blockSize;
 
