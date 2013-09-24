@@ -20,7 +20,7 @@ public:
 public:
 	// Resets out
 	// set out size to compressed size block
-	virtual void outputRecords (Array<uint8_t> &out) {}
+	virtual void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {}
 };
 
 class Decompressor {

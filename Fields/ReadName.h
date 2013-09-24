@@ -6,15 +6,14 @@
 #include "../Common.h"
 #include "../Streams/GzipStream.h"
 #include "../Engines/GenericEngine.h"
+#include "../Engines/StringEngine.h"
 
 const int MAX_TOKEN = 10;
 
-class ReadNameCompressor: public Compressor {
-	GenericCompressor<uint8_t, GzipCompressionStream<6> > 
-		indexStream;
-	GenericCompressor<uint8_t, GzipCompressionStream<6> > 
-		contentStream;
-
+class ReadNameCompressor: 
+	public StringCompressor<GzipCompressionStream<6> >  
+{
+	CompressionStream *indexStream;
 	std::string prevTokens[MAX_TOKEN];
 	char token;
 
@@ -23,20 +22,17 @@ public:
 	virtual ~ReadNameCompressor(void);
 
 public:
-	void addRecord (const std::string &rn);
-	void outputRecords (Array<uint8_t> &output);
+	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
 
 private:
 	void detectToken (const std::string &rn);
-	void addTokenizedName (const std::string &rn);
+	void addTokenizedName (const std::string &rn, Array<uint8_t> &content, Array<uint8_t> &index);
 };
 
-class ReadNameDecompressor: public Decompressor {
-	GenericDecompressor<uint8_t, GzipDecompressionStream> 
-		indexStream;
-	GenericDecompressor<uint8_t, GzipDecompressionStream> 
-		contentStream;
-
+class ReadNameDecompressor: 
+	public StringDecompressor<GzipDecompressionStream>  
+{
+	DecompressionStream *indexStream;
 	std::string prevTokens[MAX_TOKEN];
 	char token;
 
@@ -45,12 +41,7 @@ public:
 	virtual ~ReadNameDecompressor(void);
 
 public:
-	std::string getRecord (void);
-	bool hasRecord (void);
 	void importRecords (uint8_t *in, size_t in_size);
-
-private:
-	void extractTokenizedName (std::string &s);
 };
 
 #endif

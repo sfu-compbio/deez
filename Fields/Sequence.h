@@ -79,26 +79,15 @@ typedef StringCompressor<GzipCompressionStream<6> >
 typedef StringDecompressor<GzipDecompressionStream> 
 	EditOperationDecompressor;
 
-struct GenomeChanges {
-	uint32_t loc;
-	uint8_t	changed;
-
-	GenomeChanges () {}
-	GenomeChanges (uint32_t l, char c): loc(l), changed(c) {}
-};
-
-typedef GenericCompressor<GenomeChanges, GzipCompressionStream<6> > 
-	FixesCompressor;
-typedef GenericDecompressor<GenomeChanges, GzipDecompressionStream> 
-	FixesDecompressor;
-
-class ReferenceFixesCompressor: public Compressor {
+class SequenceCompressor: public Compressor {
 	Reference reference;
 	EditOperationCompressor editOperation;
-	FixesCompressor fixes;
+	CompressionStream *fixesStream;
 
 	// temporary for the Cigars before the genome fixing
-	std::vector<EditOP> records;
+	CircularArray<EditOP> records;
+	Array<uint32_t> fixes_loc;
+	Array<uint8_t> fixes_replace;
 
 	GenomePager *genomePager;
 
@@ -108,18 +97,19 @@ class ReferenceFixesCompressor: public Compressor {
 	size_t nextStart;
 
 public:
-	ReferenceFixesCompressor (const std::string &refFile, int bs);
-	~ReferenceFixesCompressor (void);
+	SequenceCompressor (const std::string &refFile, int bs);
+	~SequenceCompressor (void);
 
 public:
 	void addRecord (size_t loc, const std::string &seq, const std::string &cigar);
-	void outputRecords (Array<uint8_t> &output);
+	void outputRecords (Array<uint8_t> &output, size_t out_offset, size_t k);
 
-	void applyFixes (size_t end, size_t&, size_t&, size_t&);
+	size_t applyFixes (size_t end, size_t&, size_t&);
 	
 public:
 	std::string getChromosome (void) const { return chromosome; }
 	void scanNextChromosome (void);
+	size_t size(void) { return records.size(); }
 	
 private:
 	void updateGenomeLoc (size_t loc, char ch);
@@ -127,10 +117,10 @@ private:
 	std::string getEditOP (size_t loc, const std::string &seq, const std::string &op);
 };
 
-class ReferenceFixesDecompressor: public Decompressor {
+class SequenceDecompressor: public Decompressor {
 	Reference reference;
 	EditOperationDecompressor editOperation;
-	FixesDecompressor fixes;
+	DecompressionStream *fixesStream;
 
 	char   *fixed;
 	size_t fixed_offset;
@@ -139,8 +129,8 @@ class ReferenceFixesDecompressor: public Decompressor {
 	std::string chromosome;
 
 public:
-	ReferenceFixesDecompressor (const std::string &refFile, int bs);
-	~ReferenceFixesDecompressor (void);
+	SequenceDecompressor (const std::string &refFile, int bs);
+	~SequenceDecompressor (void);
 
 public:
 	bool hasRecord (void);
@@ -153,7 +143,6 @@ public:
 	std::string getChromosome (void) const { return chromosome; }
 
 private:
-	void importFixes (uint8_t *in, size_t in_size);
 	EditOP getSeqCigar (size_t loc, const std::string &op);	
 };
 

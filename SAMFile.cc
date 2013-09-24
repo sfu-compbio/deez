@@ -39,9 +39,9 @@ SAMFileCompressor::~SAMFileCompressor (void) {
 	fclose(indexFile);
 }
 
-void SAMFileCompressor::outputBlock (Compressor *c) {	
+void SAMFileCompressor::outputBlock (Compressor *c, size_t k) {	
 	static Array<uint8_t> _cmp;
-	c->outputRecords(_cmp);
+	c->outputRecords(_cmp, 0, k);
 	uint8_t *out = _cmp.data();
 	size_t out_sz = _cmp.size();
 
@@ -97,6 +97,10 @@ void SAMFileCompressor::compress (void) {
 		while (reference.getChromosome() != parser.head())
 			reference.scanNextChromosome(), op = 1;
 
+		/// index
+		size_t zpos = ftell(outputFile);
+		fwrite(&zpos, sizeof(size_t), 1, indexFile);
+
 		// write chromosome id
 		fwrite(&op, sizeof(char), 1, outputFile);
 		if (op) 
@@ -106,11 +110,9 @@ void SAMFileCompressor::compress (void) {
 		size_t endPos = -1;
 
 		//LOG("Loading records ...");
-		size_t i;
-		for (i = 0; i < blockSize 
-							//records.size() < blockSize
+		for (; reference.size() < blockSize
 							&& parser.hasNext() 
-							&& parser.head() == reference.getChromosome(); i++, total++) {
+							&& parser.head() == reference.getChromosome(); total++) {
 			const Record &rc = parser.next();
 
 			size_t loc = rc.getLocation();
@@ -123,17 +125,17 @@ void SAMFileCompressor::compress (void) {
 			);
 			readName.addRecord(rc.getReadName());
 			mappingFlag.addRecord(rc.getMappingFlag());
-			mappingLocation.addRecord(loc, parser.head());
+			mappingLocation.addRecord(loc);
 			mappingQuality.addRecord(rc.getMappingQuality());
 			queryQual.addRecord(rc.getQuality(), rc.getMappingFlag());
 			
 			size_t p_loc = rc.getPairLocation();
 			if (p_loc == (size_t)-1) p_loc = 0;
-			pairedEnd.addRecord(
+			pairedEnd.addRecord(PairedEndInfo(
 				rc.getPairChromosome(),
 				p_loc, 
 				rc.getTemplateLenght()
-			);
+			));
 			optionalField.addRecord(rc.getOptional());
 
 			lastStart = loc;
@@ -143,48 +145,38 @@ void SAMFileCompressor::compress (void) {
 
 			parser.readNext();
 
-			if (i % (1 << 16) == 0) 
+			if (total % (1 << 16) == 0) 
 				SCREEN("\r   Chr %-6s %5.2lf%%", parser.head().c_str(), (100.0 * parser.fpos()) / parser.fsize());
 		}
 		
 		size_t zcnt, zes, zee;
-		reference.applyFixes(!parser.hasNext() 
+		zcnt = reference.applyFixes(!parser.hasNext() 
 							|| parser.head() != reference.getChromosome() 
 							|| parser.head() == "*" 
-						? (size_t)-1 : lastStart - 1,
-						zcnt, zes, zee);
+						? (size_t)-1 : lastStart - 1, zes, zee);
 		
-		/// index
-		size_t zpos = ftell(outputFile);
-		fwrite(&zpos, sizeof(size_t), 1, indexFile);
 		// cnt
-		// ref
 		fwrite(&zcnt, sizeof(size_t), 1, indexFile);
-		// rest
-		fwrite(&i, sizeof(size_t), 1, indexFile);
 		// chr		
 		fwrite(reference.getChromosome().c_str(), reference.getChromosome().size() + 1, 1, indexFile);
 		// start pos		
 		fwrite(&startPos, sizeof(size_t), 1, indexFile);
 		// end pos
-		// ref
-		fwrite(&zes, sizeof(size_t), 1, indexFile);
-		// fwrite(&zee, sizeof(size_t), 1, indexFile);
-		// rest
 		fwrite(&endPos, sizeof(size_t), 1, indexFile);
 
 		//LOG("Writing to disk ...");
 		// First ref fixes
-		outputBlock(&reference);
-		outputBlock(&readName);
-		outputBlock(&mappingFlag);
-		outputBlock(&mappingLocation);
-		outputBlock(&mappingQuality);
-		outputBlock(&queryQual);
-		outputBlock(&pairedEnd);
-		outputBlock(&optionalField);
+		outputBlock(&reference, zcnt);
+		outputBlock(&readName, zcnt);
+		outputBlock(&mappingFlag, zcnt);
+		outputBlock(&mappingLocation, zcnt);
+		outputBlock(&mappingQuality, zcnt);
+		outputBlock(&queryQual, zcnt);
+		outputBlock(&pairedEnd, zcnt);
+		outputBlock(&optionalField, zcnt);
+		DEBUG("Block size %'lu", zcnt);
 	}
-	SCREEN("\r");
+	SCREEN("\rWritten %'lu lines", total);
 	DEBUG("%s: %'15lu", "RN", readName.compressedCount);
 	DEBUG("%s: %'15lu", "MF", mappingFlag.compressedCount);
 	DEBUG("%s: %'15lu", "ML", mappingLocation.compressedCount);
@@ -218,9 +210,13 @@ SAMFileDecompressor::SAMFileDecompressor (const string &inFile, const string &ou
 	if (this->idxFile == NULL)
 		throw DZException("Cannot open the file %s", name1.c_str());
 
-	samFile = fopen(outFile.c_str(), "wb");
-	if (samFile == NULL)
-		throw DZException("Cannot open the file %s", outFile.c_str());
+	if (optStdout)
+		samFile = stdout;
+	else {
+		samFile = fopen(outFile.c_str(), "wb");
+		if (samFile == NULL)
+			throw DZException("Cannot open the file %s", outFile.c_str());
+	}
 }
 
 SAMFileDecompressor::~SAMFileDecompressor (void) {
@@ -250,9 +246,9 @@ int SAMFileDecompressor::getBlock (string &chr) {
 			chr += chflag;
 			fread(&chflag, 1, 1, inFile);
 		}
-		while (chr != reference.getChromosome())
-			reference.scanNextChromosome();
 	}
+	while (chr != reference.getChromosome())
+		reference.scanNextChromosome();
 
 	//DEBUG("chr %s\n", chr.c_str());
 
@@ -353,8 +349,26 @@ void SAMFileDecompressor::decompress (void) {
 }
 
 
-/*
-void SAMFileDecompressor::decompress () {
+void SAMFileDecompressor::decompress (const string &range) {
+	string chr;
+	size_t start, end;
+	char *dup = strdup(range.c_str());
+	char *tok = strtok(dup, ":-");
+	
+	if (tok) 
+		chr = tok, tok = strtok(0, ":-");
+	else 
+		throw DZException("Range string %s invalid", range.c_str());
+	if (tok) 
+		start = atol(tok), tok = strtok(0, ":-");
+	else 
+		throw DZException("Range string %s invalid", range.c_str());
+	if (tok) 
+		end = atol(tok), tok = strtok(0, ":-");
+	else 
+		throw DZException("Range string %s invalid", range.c_str());
+	DEBUG("Seeking to chromosome %s, [%'lu:%'lu]...", chr.c_str(), start, end);
+
 	uint32_t magic;
 	fread(&magic, 4, 1, inFile);
 	DEBUG("File format: %c%c v%d.%d", 
@@ -365,7 +379,7 @@ void SAMFileDecompressor::decompress () {
 	);
 
 	// Comment!
-	size_t arcsz;
+	/*size_t arcsz;
 	fread(&arcsz, sizeof(size_t), 1, inFile);
 	if (arcsz) {
 		Array<uint8_t> arc;
@@ -375,14 +389,35 @@ void SAMFileDecompressor::decompress () {
 		comment.resize(arcsz);
 		fread(comment.data(), 1, arcsz, inFile);
 
-		GzipDecompressionStream gzc;
-		gzc.decompress(comment.data(), comment.size(), arc, 0);
-		fwrite(arc.data(), 1, arc.size(), samFile);
+		//GzipDecompressionStream gzc;
+		//gzc.decompress(comment.data(), comment.size(), arc, 0);
+		//fwrite(arc.data(), 1, arc.size(), samFile);
+	}*/
+
+	// read index, detect
+	while (1) {
+		size_t zpos, zcnt, startPos, endPos;
+		char chrx[100];
+		char *c = chrx;
+
+		if (fread(&zpos, sizeof(size_t), 1, idxFile) != 1) 
+			throw DZException("Requested range not found");
+		fread(&zcnt, sizeof(size_t), 1, idxFile);
+		while (fread(c, 1, 1, idxFile) && *c++);
+		fread(&startPos, sizeof(size_t), 1, idxFile);
+		fread(&endPos, sizeof(size_t), 1, idxFile);
+		DEBUG("to %'lu",zpos);
+		if (string(chrx) == chr && start >= startPos && start <= endPos) {
+			fseek(inFile, zpos, SEEK_SET);
+			break;
+		}
 	}
 
 	// Rest of file
-	string chr;
-	while (getBlock(chr) != -1) {		
+	string curchr = chr;
+	while (getBlock(curchr) != -1) {	
+		if (curchr != chr)
+			break;
 		while (1) {
 			if (!reference.hasRecord() ||
 				!mappingLocation.hasRecord() || 
@@ -394,33 +429,39 @@ void SAMFileDecompressor::decompress () {
 			) break;
 
 			uint32_t dtmp = mappingLocation.getRecord();
+		
 			EditOP eo = reference.getRecord(dtmp);
 			if (chr != "*") dtmp++;
 			PairedEndInfo mate = pairedEnd.getRecord();
 			if (chr != "*") mate.pos++;
-
+			string optional = optionalField.getRecord();
 			int flag = mappingFlag.getRecord();
+			int qual = mappingQuality.getRecord();
+			string rn = readName.getRecord();
+			string qq = queryQual.getRecord(eo.seq.size(), flag);
+
+			if (dtmp < start)
+				continue;
+			if (dtmp >= end)
+				goto end;
 
 			fprintf(samFile, "%s\t%d\t%s\t%d\t%d\t%s\t%s\t%lu\t%d\t%s\t%s",
-			 	readName.getRecord().c_str(),
+			 	rn.c_str(),
 			 	flag,
 			 	reference.getChromosome().c_str(),
 			 	dtmp,
-			 	mappingQuality.getRecord(),
+			 	qual,
 			 	eo.op.c_str(),
 			 	mate.chr.c_str(),
 			 	mate.pos,
 			 	mate.tlen,
 			 	eo.seq.c_str(),
-			 	queryQual.getRecord(eo.seq.size(), flag).c_str()
+			 	qq.c_str()
 			);
-
-			string optional = optionalField.getRecord();
 			if (optional.size())
 				fprintf(samFile, "\t%s", optional.c_str());
 			fprintf(samFile, "\n");
 		}
 	}
+	end:;
 }
-
-*/

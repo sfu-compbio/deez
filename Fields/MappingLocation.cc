@@ -2,111 +2,81 @@
 #include <string.h>
 
 #include "MappingLocation.h"
-#include "../Streams/GzipStream.h"
-#include "../Streams/Order0Stream.h"
-using namespace std;
 
 MappingLocationCompressor::MappingLocationCompressor (int blockSize):    
-	records(blockSize), corrections(blockSize),
-	lastLoc(0), lastRef("")
+	GenericCompressor<size_t, AC0CompressionStream>(blockSize),
+	lastLoc(0)
 {
-	stream = new AC0CompressionStream();
 	stitchStream = new GzipCompressionStream<6>();
 }
 
 MappingLocationCompressor::~MappingLocationCompressor (void) {
 	delete stitchStream;
-	delete stream;
 }
 
-void MappingLocationCompressor::addRecord (uint32_t tmpLoc, const string &tmpRef) {
-	if (tmpRef != lastRef || tmpLoc - lastLoc >= 254) {
-		records.add(255);
-		corrections.add(tmpLoc);
-		lastRef = tmpRef;
-	}
-	else {
-		records.add(tmpLoc - lastLoc);
-	}
-	lastLoc = tmpLoc;
-}
-
-void MappingLocationCompressor::outputRecords (Array<uint8_t> &output) {
-	if (!records.size()) {
-		output.resize(0);
+void MappingLocationCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {
+	if (!records.size()) { 
+		out.resize(0);
 		return;
 	}
+	assert(k <= records.size());
 
-	// attach size ..... ~~~~~~~
+	Array<uint8_t> buffer;
+	Array<uint32_t> corrections;	
+
+	for (size_t i = 0; i < k; i++) {
+		if (this->records[i] - lastLoc >= 254)
+			buffer.add(255), corrections.add(this->records[i]);
+		else
+			buffer.add(this->records[i] - lastLoc);
+		lastLoc = this->records[i];
+	}
 
 	size_t s = stitchStream->compress((uint8_t*)corrections.data(), 
-		corrections.size() * sizeof(uint32_t), output, sizeof(size_t));
-	memcpy(output.data(), &s, sizeof(size_t)); // copy size
+		corrections.size() * sizeof(uint32_t), out, out_offset + sizeof(size_t));
+	memcpy(out.data() + out_offset, &s, sizeof(size_t));
 	
-	size_t sn = stream->compress(records.data(), records.size(), 
-		output, s + 2 * sizeof(size_t));
-	memcpy(output.data() + s + sizeof(size_t), &sn, sizeof(size_t));
-
-	output.resize(sn + s + 2 * sizeof(size_t));
-
-	//DEBUG("%lu %lu >> comp %lu %lu --- %lu\n", corrections.size(), records.size(), s, sn, output.size());
-
-	corrections.resize(0);
-	records.resize(0);
+	size_t sn = stream->compress(buffer.data(), buffer.size(), 
+		out, out_offset + s + 2 * sizeof(size_t));
+	memcpy(out.data() + out_offset + s + sizeof(size_t), &sn, sizeof(size_t));
+	out.resize(out_offset + sn + s + 2 * sizeof(size_t));
+	//// 
+	this->records.remove_first_n(k);
 }
 
 MappingLocationDecompressor::MappingLocationDecompressor (int blockSize): 
-	recordCount(0),
-	correctionCount(0),
-	lastLoc(0), 
-	records(blockSize), corrections(blockSize)
+	GenericDecompressor<size_t, AC0DecompressionStream>(blockSize),
+	lastLoc(0)
 {
-	stream = new AC0DecompressionStream();
 	stitchStream = new GzipDecompressionStream();
 }
 
 MappingLocationDecompressor::~MappingLocationDecompressor (void) {
 	delete stitchStream;
-	delete stream;
-}
-
-bool MappingLocationDecompressor::hasRecord (void) {
-	return recordCount < records.size();
-}
-
-uint32_t MappingLocationDecompressor::getRecord (void) {
-	assert(hasRecord());
-	if (records.data()[recordCount++] == 255) 
-		return lastLoc = corrections.data()[correctionCount++];
-	else
-		return lastLoc += records.data()[recordCount - 1];
 }
 
 void MappingLocationDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	if (in_size == 0) return;
 
-	// move to the front ....   erase first recordCount
-	if (recordCount < records.size())
-		memmove(records.data(), records.data() + recordCount, 
-			records.size() - recordCount);
-	records.resize(records.size() - recordCount);
-	if (correctionCount < corrections.size())
-		memmove(corrections.data(), corrections.data() + correctionCount, 
-			(corrections.size() - correctionCount) * sizeof(uint32_t));
-	corrections.resize(corrections.size() - correctionCount);
+	assert(recordCount == records.size());
 
 	// decompress
-	Array<uint8_t> au;
+	Array<uint8_t> au, au2;
 	au.resize( 51000000 );
+	au2.resize( 51000000 );
 
 	size_t in1 = *((size_t*)in);
 	size_t s = stitchStream->decompress(in + sizeof(size_t), in1, au, 0);
-	corrections.add((uint32_t*)au.data(), s / sizeof(uint32_t));	
 	
 	int in2 = *((size_t*)(in + in1 + sizeof(size_t)));
-	s = stream->decompress(in + in1 + 2 * sizeof(size_t), in2, au, 0);
-	records.add(au.data(), s);
-	
+	size_t s2 = stream->decompress(in + in1 + 2 * sizeof(size_t), in2, au2, 0);
+
+	size_t j = 0;
+	for (size_t i = 0; i < s2; i++)
+		if (au2.data()[i] == 255)
+			records.add(lastLoc = j++[(uint32_t*)au.data()]);
+		else
+			records.add(lastLoc += au2.data()[i]);
+
 	recordCount = 0;
-	correctionCount = 0;
 }

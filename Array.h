@@ -15,7 +15,7 @@ class Array {
 
 public:
 	Array (void):
-		_size(0), _capacity(0), _records(0), _extend(100)
+		_size(0), _records(0), _capacity(0), _extend(100)
 	{
 	}
 

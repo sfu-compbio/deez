@@ -1,50 +1,38 @@
 #ifndef MappingLocation_H
 #define MappingLocation_H
 
+#include <string>
+
 #include "../Common.h"
-#include "../Streams/Stream.h"
-#include "../Engines/Engine.h"
 #include "../Engines/GenericEngine.h"
+#include "../Streams/Order0Stream.h"
+#include "../Streams/GzipStream.h"
 
-class MappingLocationCompressor: public Compressor {
+class MappingLocationCompressor: 
+	public GenericCompressor<size_t, AC0CompressionStream> 
+{
 	CompressionStream *stitchStream;
-
-	Array<uint8_t>	 records;
-	Array<uint32_t>	 corrections;
-	
     uint32_t lastLoc;
-    std::string lastRef;
 
 public:
 	MappingLocationCompressor (int blockSize);
 	~MappingLocationCompressor (void);
 
 public:
-	void addRecord (uint32_t tmpLoc, const std::string &tmpRef);
-	void outputRecords (Array<uint8_t> &output);
+	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
 };
 
-class MappingLocationDecompressor: public Decompressor {
+class MappingLocationDecompressor: 
+	public GenericDecompressor<size_t, AC0DecompressionStream> 
+{
 	DecompressionStream	*stitchStream;
-
-	Array<uint8_t>	 records;
-	Array<uint32_t>	 corrections;
-
 	uint32_t lastLoc;
-	
-	int recordCount;
-	int correctionCount;
 
 public:
 	MappingLocationDecompressor (int blockSize);
 	~MappingLocationDecompressor (void);
 
-private:
-	void getNextCorrection (void);
-
 public:
-	uint32_t getRecord (void);
-	bool hasRecord (void);
 	void importRecords (uint8_t *in, size_t in_size);
 };
 

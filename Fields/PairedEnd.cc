@@ -2,61 +2,80 @@
 using namespace std;
 
 PairedEndCompressor::PairedEndCompressor (int blockSize):
-	GenericCompressor<uint8_t, GzipCompressionStream<6> >(blockSize * 13) // 13 - szof PE 
+	GenericCompressor<PairedEndInfo, GzipCompressionStream<6> >(blockSize)
 {
 }
 
 PairedEndCompressor::~PairedEndCompressor (void) {
 }
 
-void PairedEndCompressor::addRecord (const std::string &chr, size_t pos, int32_t len) {
-	int cnt;
-	uint8_t *p;
-
-	p = (uint8_t*)&pos, cnt = sizeof(size_t);
-	while (cnt--) this->records.add(*p++);
-	p = (uint8_t*)&len, cnt = sizeof(int32_t);
-	while (cnt--) this->records.add(*p++);
-
-	map<string, char>::iterator c = chromosomes.find(chr);
-	if (c != chromosomes.end())
-		this->records.add(c->second);
-	else {
-		this->records.add(-1);
-		cnt = 0;
-		while (cnt != chr.size() + 1) this->records.add(chr[cnt++]);
-		chromosomes[chr] = chromosomes.size();
+void PairedEndCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {
+	if (!records.size()) { 
+		out.resize(0);
+		return;
 	}
+	assert(k <= records.size());
+
+	Array<uint8_t> buffer;
+	for (size_t i = 0; i < k; i++) {
+		buffer.add((uint8_t*)&records[i].pos, sizeof(size_t));
+		buffer.add((uint8_t*)&records[i].tlen, sizeof(int32_t));
+		map<string, char>::iterator c = chromosomes.find(records[i].chr);
+		if (c != chromosomes.end())
+			buffer.add(c->second);
+		else {
+			buffer.add(-1);
+			buffer.add((uint8_t*)this->records[i].chr.c_str(), this->records[i].chr.size() + 1);
+			
+			char id = chromosomes.size();
+			chromosomes[records[i].chr] = id;
+		}
+	}
+	size_t s = stream->compress(buffer.data(), buffer.size(), out, out_offset);
+	out.resize(out_offset + s);
+	////
+	this->records.remove_first_n(k);
 }
 
-
 PairedEndDecompressor::PairedEndDecompressor (int blockSize):
-	GenericDecompressor<uint8_t, GzipDecompressionStream>(blockSize * 13) // 13 - szof PE 
+	GenericDecompressor<PairedEndInfo, GzipDecompressionStream>(blockSize)
 {
 }
 
 PairedEndDecompressor::~PairedEndDecompressor (void) {
 }
 
-PairedEndInfo PairedEndDecompressor::getRecord (void) {
-	assert(hasRecord());
+void PairedEndDecompressor::importRecords (uint8_t *in, size_t in_size) {
+	if (in_size == 0) 
+		return;
+
+	// here, we shouldn't have any leftovers, since all blocks are of the same size
+	assert(recordCount == records.size());
+
+	// decompress
+	Array<uint8_t> au;
+	// !TODO
+	au.resize( 100000000 );
+	size_t s = stream->decompress(in, in_size, au, 0);
 
 	PairedEndInfo pe;
 	char chr;
-
-	pe.pos = *(size_t*)(records.data() + recordCount), recordCount += sizeof(size_t);
-	pe.tlen = *(int32_t*)(records.data() + recordCount), recordCount += sizeof(int32_t);
-	chr = *(records.data() + recordCount), recordCount++;
-
-	if (chr == -1) {
-		string s = "";
-		while (records.data()[recordCount])
-			s += records.data()[recordCount], recordCount++;
-		recordCount++;
-		size_t idx = chromosomes.size();
-		pe.chr = chromosomes[idx] = s;
+	for (size_t i = 0; i < s; ) {
+		pe.pos = *(size_t*)(au.data() + i), i += sizeof(size_t);
+		pe.tlen = *(int32_t*)(au.data() + i), i += sizeof(int32_t);
+		chr = *(au.data() + i), i++;
+		if (chr == -1) {
+			string sx = "";
+			while (au.data()[i])
+				sx += au.data()[i++];
+			i++;
+			chr = chromosomes.size();
+		//	DEBUG("%d->%s",chr,sx.c_str());
+			pe.chr = chromosomes[chr] = sx;
+		}
+		else pe.chr = chromosomes[chr];
+		records.add(pe);
 	}
-	else pe.chr = chromosomes[chr];
-
-	return pe;
+	
+	recordCount = 0;
 }

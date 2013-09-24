@@ -11,8 +11,10 @@ using namespace std;
 
 bool optTest 	= false;
 bool optForce 	= false;
+bool optStdout  = false;
 string optRef 	= "";
 string optInput = "";
+string optRange = "";
 size_t optBlock = 100000;
 
 void parse_opt (int argc, char **argv) {
@@ -22,9 +24,10 @@ void parse_opt (int argc, char **argv) {
 		{ "reference", 1, NULL, 'r' },
 		{ "force",     0, NULL, 'f' },
 		{ "test",      0, NULL, 't' },
+		{ "stdout",    0, NULL, 's' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:tf";
+	const char *short_opt = "hr:tfs";
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
@@ -39,6 +42,8 @@ void parse_opt (int argc, char **argv) {
 			case 'f':
 				optForce = true;
 				break;
+			case 's':
+				optStdout = true;
 			case -1:
 				break;
 			default: {
@@ -47,6 +52,8 @@ void parse_opt (int argc, char **argv) {
 		}
 	} while (opt != -1);
 	optInput = argv[optind];
+	if (optind < argc - 1)
+		optRange = argv[++optind];
 }
 
 int64_t dz_time (void) {
@@ -85,12 +92,12 @@ bool is_dz_file (const string &s) {
 void compress (const string &in, const string &out) {
 	if (is_dz_file(in))
 		throw DZException("Cannot compress DZ file %s", in.c_str());
-	if (file_exists(out))
+	if (file_exists(out)) {
 		if (!optForce)
 			throw DZException("File %s already exists. Use -f to overwrite", out.c_str());
 		else
 			WARN("File %s already exists. Overwriting it.", out.c_str());
-
+	}
 	DEBUG("Using output file %s", out.c_str());
 	LOG("Compressing %s to %s ...", in.c_str(), out.c_str());
 	SAMFileCompressor sc(out, in, optRef, optBlock);
@@ -100,16 +107,19 @@ void compress (const string &in, const string &out) {
 void decompress (const string &in, const string &out) {
 	if (!is_dz_file(in))
 		throw DZException("File %s is not DZ file", in.c_str());
-	if (file_exists(out))
+	if (!optStdout && file_exists(out)) {
 		if (!optForce)
 			throw DZException("File %s already exists. Use -f to overwrite", out.c_str());
 		else
 			WARN("File %s already exists. Overwriting it.", out.c_str());
-
-	DEBUG("Using output file %s", out.c_str());
-	LOG("Decompressing %s to %s ...", in.c_str(), out.c_str());
+	}
+	if (!optStdout) DEBUG("Using output file %s", out.c_str());
+	LOG("Decompressing %s to %s ...", in.c_str(), optStdout ? "stdout" : out.c_str());
 	SAMFileDecompressor sd(in, out, optRef, optBlock);
-	sd.decompress();
+	if (optRange == "")
+		sd.decompress();
+	else
+		sd.decompress(optRange);
 }
 
 void test (const string &s) {
@@ -145,6 +155,8 @@ int main (int argc, char **argv) {
     setlocale(LC_ALL, "");
     parse_opt(argc, argv);
 
+    DEBUG("%d", optStdout);
+
     try {
 	    if (!file_exists(optRef))
 	    	throw DZException("Reference file %s does not exist", optRef.c_str());
@@ -161,7 +173,7 @@ int main (int argc, char **argv) {
 			string output = remove_extension(optInput);	
 			if (!is_dz_file(optInput))
 				compress(optInput, output + ".dz");
-			else
+			else 
 				decompress(optInput, output + ".dz.sam");
 		}
 	}

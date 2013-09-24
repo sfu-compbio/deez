@@ -2,7 +2,6 @@
 #define OptionalField_H
 
 #include "../Common.h"
-#include "../Streams/Stream.h"
 #include "../Streams/GzipStream.h"
 #include "../Engines/StringEngine.h"
 
