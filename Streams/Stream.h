@@ -14,6 +14,7 @@ public:
 	// append compressed data AFTER dest+dest_offset,
 	// return new compressed size!	
 	virtual size_t compress (uint8_t *source, size_t source_sz, Array<uint8_t> &dest, size_t dest_offset) = 0;//uint8_t *dest, size_t dest_sz) = 0;
+	virtual void getCurrentState (Array<uint8_t> &ou) = 0;
 };
 
 class DecompressionStream {
@@ -27,6 +28,7 @@ public:
 	// append decompressed data AFTER dest+dest_offset,
 	// return new decompressed size!
 	virtual size_t decompress (uint8_t *source, size_t source_sz, Array<uint8_t> &dest, size_t dest_offset) = 0;//uint8_t *dest, size_t dest_sz) = 0;
+	virtual void setCurrentState (uint8_t *source, size_t source_sz) = 0;
 };
 
 #endif

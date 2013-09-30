@@ -27,7 +27,7 @@ struct EditOP {
 };
 
 struct GenomePager {
-	static const int GenomePageSize = 256 * KB;
+	static const int GenomePageSize = 1024 * KB;
 
 	size_t start;
 	char fixes[GenomePageSize];
@@ -83,6 +83,7 @@ class SequenceCompressor: public Compressor {
 	Reference reference;
 	EditOperationCompressor editOperation;
 	CompressionStream *fixesStream;
+	CompressionStream *fixesReplaceStream;
 
 	// temporary for the Cigars before the genome fixing
 	CircularArray<EditOP> records;
@@ -103,8 +104,9 @@ public:
 public:
 	void addRecord (size_t loc, const std::string &seq, const std::string &cigar);
 	void outputRecords (Array<uint8_t> &output, size_t out_offset, size_t k);
+	void getIndexData (Array<uint8_t> &out) { out.resize(0); }
 
-	size_t applyFixes (size_t end, size_t&, size_t&);
+	size_t applyFixes (size_t end, size_t&, size_t&, size_t&);
 	
 public:
 	std::string getChromosome (void) const { return chromosome; }
@@ -121,6 +123,7 @@ class SequenceDecompressor: public Decompressor {
 	Reference reference;
 	EditOperationDecompressor editOperation;
 	DecompressionStream *fixesStream;
+	DecompressionStream *fixesReplaceStream;
 
 	char   *fixed;
 	size_t fixed_offset;
@@ -137,10 +140,12 @@ public:
 	EditOP getRecord (size_t loc);
 
 	void importRecords (uint8_t *in, size_t in_size);
+	void setIndexData (uint8_t *, size_t) {}
 
 public:
 	void scanNextChromosome (void);
 	std::string getChromosome (void) const { return chromosome; }
+
 
 private:
 	EditOP getSeqCigar (size_t loc, const std::string &op);	

@@ -16,6 +16,10 @@
 #define VERSION	0x10
 #define MAGIC 	(0x07445A00 | VERSION)
 
+double _zaman_ (void);
+#define ZAMAN_START() {double _____zaman564265=_zaman_();
+#define ZAMAN_END(s) SCREEN("[%s] %.2lf ", s, _zaman_()-_____zaman564265);}
+
 //#define DZ_EVAL
 
 extern bool optStdout;

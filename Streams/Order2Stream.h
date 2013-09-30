@@ -5,35 +5,36 @@
 #include "../Common.h"
 #include "Order0Stream.h"	
 
+template<int AS>
 class AC2CompressionStream: public CompressionStream, public DecompressionStream {
-	AC0CompressionStream mod[128 * 128];
+	AC0CompressionStream<AS> mod[AS * AS];
 
-	uint8_t q1, q2;
+	uint8_t q1;
 	uint32_t context;
 
 public:
 	AC2CompressionStream (void) {
-		q1 = q2 = 0;
+		q1 = 0;
 		context = 0;
 	}
 
 private:
 	void encode (uint8_t q, AC &ac) {
-		assert(context<128*128);
+		assert(context<AS*AS);
 		mod[context].encode(q, ac);
 
-		context  = q1 << 7;
+		context  = q1 * AS;
 		context += q;
-		q2 = q1; q1 = q;
+		q1 = q;
 	}
 
 	uint8_t decode (AC &ac) {
-		assert(context<128*128);
+		assert(context<AS*AS);
 		uint8_t q = mod[context].decode(ac);
 		
-		context  = q1 << 7;
+		context  = q1 * AS;
 		context += q;
-		q2 = q1; q1 = q;
+		q1 = q;
 		
 		return q;
 	}
@@ -60,6 +61,7 @@ public:
 		
 		// ac keeps appending to the array.
 		// thus, just resize dest
+
 		size_t num = *((size_t*)source);
 		AC ac;
 		ac.initDecode(source + sizeof(size_t));
@@ -68,10 +70,29 @@ public:
 			*(dest.data() + i) = decode(ac);
 		}
 		return num;
-		//return 
+	}
+
+	void getCurrentState (Array<uint8_t> &ou) {
+		for (int i = 0; i < AS * AS; i++) 
+			mod[i].getCurrentState(ou);
+		ou.add(q1);
+		ou.add((uint8_t*)&context, sizeof(uint32_t));
+		//printf("<<%d,%u>>\n",q1,context);
+	}
+
+	void setCurrentState (uint8_t *in, size_t sz) {
+		for (int i = 0; i < AS * AS; i++) {
+			// first dictates
+			uint8_t t = *in;
+			size_t sz = 1 + t * (1 + sizeof(int16_t));
+			mod[i].setCurrentState(in, sz);
+			in += sz;
+		}
+		q1 = *in++;
+		context = *(uint32_t*)in;
 	}
 };
 
-typedef AC2CompressionStream AC2DecompressionStream;
+#define AC2DecompressionStream AC2CompressionStream
 
 #endif // AC2Stream_H

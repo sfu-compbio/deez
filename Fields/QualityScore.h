@@ -7,7 +7,7 @@
 #include "../Engines/StringEngine.h"
 
 class QualityScoreCompressor: 
-	public StringCompressor<AC2CompressionStream> 
+	public StringCompressor<AC2CompressionStream<64> > 
 {	
 public:
 	QualityScoreCompressor (int blockSize);
@@ -18,7 +18,7 @@ public:
 };
 
 class QualityScoreDecompressor: 
-	public StringDecompressor<AC2DecompressionStream> 
+	public StringDecompressor<AC2DecompressionStream<64> > 
 {
 public:
 	QualityScoreDecompressor (int blockSize);

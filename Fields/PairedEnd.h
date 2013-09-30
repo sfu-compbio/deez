@@ -9,9 +9,9 @@
 #include "../Engines/GenericEngine.h"
 
 struct PairedEndInfo {
+	std::string chr;
 	size_t pos;
 	int32_t tlen;
-	std::string chr;
 
 	PairedEndInfo (void) {}
 	PairedEndInfo (const std::string &c, size_t p, int32_t t):
@@ -21,8 +21,6 @@ struct PairedEndInfo {
 class PairedEndCompressor: 
 	public GenericCompressor<PairedEndInfo, GzipCompressionStream<6> > 
 {
-	std::map<std::string, char> chromosomes;
-
 public:
 	PairedEndCompressor (int blockSize);
 	virtual ~PairedEndCompressor (void);
@@ -34,8 +32,6 @@ public:
 class PairedEndDecompressor: 
 	public GenericDecompressor<PairedEndInfo, GzipDecompressionStream> 
 {
-	std::map<char, std::string> chromosomes;
-
 public:
 	PairedEndDecompressor (int blockSize);
 	virtual ~PairedEndDecompressor (void);

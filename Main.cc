@@ -15,7 +15,7 @@ bool optStdout  = false;
 string optRef 	= "";
 string optInput = "";
 string optRange = "";
-size_t optBlock = 100000;
+size_t optBlock = 1000;
 
 void parse_opt (int argc, char **argv) {
 	int opt; 
@@ -119,7 +119,7 @@ void decompress (const string &in, const string &out) {
 	if (optRange == "")
 		sd.decompress();
 	else
-		sd.decompress(optRange);
+		sd.decompress(in + "i", optRange);
 }
 
 void test (const string &s) {

@@ -4,28 +4,38 @@
 #include <vector>
 #include <algorithm>
 #include "../Common.h"
+#include "Stream.h"	
 #include "ArithmeticStream.h"	
 using namespace std;
 
+template<int AS>
 class AC2CompressionStream;
 
+template<int AS> 
 class AC0CompressionStream: public CompressionStream, public DecompressionStream {
-	struct Stat {
-		int32_t sym, freq;
-	} stats[256];
-	int64_t sum;
+	static const int RescaleFactor = 32;
+	static const int64_t SUM_LIMIT = 1ll << 15;
 
+	struct Stat {
+		int16_t freq;
+		uint8_t sym;
+		uint8_t used;
+
+		bool operator< (const Stat &s) const { return freq > s.freq; }
+	} stats[AS];
+	int64_t sum;
+	
 public:
 	AC0CompressionStream (void) {
-		for (int i = 0; i < 256; i++)
-			stats[i].sym = i, stats[i].freq = 1;
-		sum = 256;
+		for (int i = 0; i < AS; i++)
+			stats[i].sym = i, stats[i].freq = 1, stats[i].used = 0;
+		sum = AS;
 	}
 
 protected:
 	void rescale (void) {
-		sum = 1 + (stats[0].freq -= (stats[0].freq >> 1));
-    	for (int i = 1; i < 256; i++) {
+		sum = (stats[0].freq -= (stats[0].freq >> 1));
+    	for (int i = 1; i < AS; i++) {
         	sum += (stats[i].freq -= (stats[i].freq >> 1));
         	int j = i - 1;
         	while (j && stats[i].freq > stats[j].freq) j--;
@@ -34,22 +44,24 @@ protected:
 	}
 
 	void encode (uint8_t c, AC &ac) {
+		assert(c < AS);
 		uint32_t l = 0, i;
-		for (i = 0; i < 256; i++)
+		for (i = 0; i < AS; i++)
 			if (stats[i].sym == c) break;
 			else l += stats[i].freq;
 		
 		ac.encode(l, stats[i].freq, sum);
 		sum++; 
 		stats[i].freq++;
+		stats[i].used = 1;
 
-		if (i) {
+		if (i && sum % RescaleFactor == 0) {
 			int j = i - 1;
 			while (j && stats[i].freq > stats[j].freq) j--;
 			swap(stats[i], stats[j + 1]);
 		}
 
-		if (sum > (1ll << 31))
+		if (sum > SUM_LIMIT)
 			rescale();
 	}
 
@@ -58,23 +70,24 @@ protected:
 
 		int i;
 		uint32_t hi = 0;
-		for (i = 0; i < 256; i++) {
+		for (i = 0; i < AS; i++) {
 			hi += stats[i].freq;
 			if (cnt < hi) break;
 		}
-		assert(i!=256);
+		assert(i!=AS);
 
 		uint8_t sym = stats[i].sym;
 		ac.decode(hi - stats[i].freq, stats[i].freq, sum);
 		stats[i].freq++; sum++;
+		stats[i].used = 1;
 
-		if (i) {
+		if (i && sum % RescaleFactor == 0) {
 			int j = i - 1;
 			while (j && stats[i].freq > stats[j].freq) j--;
 			swap(stats[i], stats[j + 1]);
 		}
 
-		if (sum > (1ll << 31))
+		if (sum > SUM_LIMIT)
 			rescale();
 
 		return sym;
@@ -114,9 +127,37 @@ public:
 		//return 
 	}
 
-	friend class AC2CompressionStream;
+	void getCurrentState (Array<uint8_t> &ou) {
+		ou.add(0);
+		uint8_t *c = ou.data() + (ou.size() - 1);
+		for (int i = 0; i < AS; i++) 
+			if (stats[i].used) {
+				(*c)++;
+				// sym, freq
+				ou.add(stats[i].sym);
+				ou.add((uint8_t*)&stats[i].freq, sizeof(stats[i].freq));
+			}
+	}
+
+	void setCurrentState (uint8_t *in, size_t sz) {
+		for (int i = 0; i < AS; i++)
+			stats[i].sym = i, stats[i].freq = 1, stats[i].used = 0;
+		sum = AS;
+
+		uint8_t c = *in++;
+		for (int i = 0; i < c; i++) {
+			uint8_t sym = *in++;
+			int16_t freq = *(int16_t*)in; in += sizeof(stats[sym].freq);
+			sum += freq - 1;
+			stats[sym].freq = freq;
+			stats[sym].used = 1;
+		}
+		sort(stats, stats + AS);
+	}
+
+	friend class AC2CompressionStream<AS>;
 };
 
-typedef AC0CompressionStream AC0DecompressionStream;
+#define AC0DecompressionStream AC0CompressionStream
 
 #endif // AC0Stream_H

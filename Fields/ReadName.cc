@@ -36,6 +36,12 @@ void ReadNameCompressor::detectToken (const string &rn) {
 	//DEBUG("Token character: [%c]", token);
 }
 
+void ReadNameCompressor::getIndexData (Array<uint8_t> &out) {
+	out.resize(0);
+	out.add(token);
+	stream->getCurrentState(out);
+}
+
 void ReadNameCompressor::addTokenizedName (const string &rn, Array<uint8_t> &content, Array<uint8_t> &index) {
 	int tokens[MAX_TOKEN], tc = 0;
 	tokens[tc++] = 0;
@@ -86,8 +92,8 @@ void ReadNameCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, 
 	}
 	assert(k <= records.size());
 
-	Array<uint8_t> buffer;
-	Array<uint8_t> indices;	
+	Array<uint8_t> buffer(this->totalSize, MB);
+	Array<uint8_t> indices(k * 10);	
 
 	for (size_t i = 0; i < k; i++) {
 		if (!token) {
@@ -95,17 +101,32 @@ void ReadNameCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, 
 			indices.add(token);
 		}
 		addTokenizedName(this->records[i], buffer, indices);
+		this->totalSize -= this->records[i].size() + 1;
 	}
 
 	size_t s = indexStream->compress((uint8_t*)indices.data(), 
-		indices.size(), out, out_offset + sizeof(size_t));
-	memcpy(out.data() + out_offset, &s, sizeof(size_t));
+		indices.size(), out, out_offset + 2 * sizeof(size_t));
+	// size of compressed
+	*(size_t*)(out.data() + out_offset) = s;
+	// size of uncompressed
+	*(size_t*)(out.data() + out_offset + sizeof(size_t)) = indices.size();
+
+	out_offset += s + 2 * sizeof(size_t);
+	out.resize(out_offset);
 	
-	size_t sn = stream->compress(buffer.data(), buffer.size(), 
-		out, out_offset + s + 2 * sizeof(size_t));
-	memcpy(out.data() + out_offset + s + sizeof(size_t), &sn, sizeof(size_t));
-	out.resize(out_offset + sn + s + 2 * sizeof(size_t));
+	s = stream->compress(buffer.data(), buffer.size(), 
+		out, out_offset + 2 * sizeof(size_t));
+	// size of compressed
+	*(size_t*)(out.data() + out_offset) = s;
+	// size of uncompressed
+	*(size_t*)(out.data() + out_offset + sizeof(size_t)) = buffer.size();
+	
+	out_offset += s + 2 * sizeof(size_t);
+	out.resize(out_offset);
+
 	//// 
+	for (int i = 0; i < MAX_TOKEN; i++)
+		prevTokens[i] = "";
 	this->records.remove_first_n(k);
 }
 
@@ -126,15 +147,21 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	assert(recordCount == records.size());
 
 	// decompress
-	Array<uint8_t> index, content;
-	index.resize( 51000000 );
-	content.resize( 51000000 );
+	size_t in1 = *(size_t*)in; in += sizeof(size_t);
+	size_t de1 = *(size_t*)in; in += sizeof(size_t);
+	Array<uint8_t> index;
+	index.resize(de1);
+	size_t s1 = indexStream->decompress(in, in1, index, 0);
+	assert(s1 == de1);
+	in += in1;
 
-	size_t in1 = *((size_t*)in);
-	size_t s = indexStream->decompress(in + sizeof(size_t), in1, index, 0);
-	
-	int in2 = *((size_t*)(in + in1 + sizeof(size_t)));
-	size_t s2 = stream->decompress(in + in1 + 2 * sizeof(size_t), in2, content, 0);
+	size_t in2 = *(size_t*)in; in += sizeof(size_t);
+	size_t de2 = *(size_t*)in; in += sizeof(size_t);
+	Array<uint8_t> content;
+	content.resize(de2);
+	size_t s2 = stream->decompress(in, in2, content, 0);
+	assert(s2 == de2);
+	in += in2;
 
 	string tokens[MAX_TOKEN];
 	size_t ic = 0, cc = 0;
@@ -142,7 +169,9 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	if (!token) 
 		token = index.data()[ic++];
 
-	while (ic < s) {
+	records.resize(0);
+	string prevTokens[MAX_TOKEN];
+	while (ic < s1) {
 		int T, t, prevT = 0;
 		while (1) {
 			t = (T = index.data()[ic++]) % MAX_TOKEN;
@@ -180,4 +209,11 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size) {
 			tokens[0] += token + tokens[i];
 		records.add(tokens[0]);
 	}
+
+	recordCount = 0;
+}
+
+void ReadNameDecompressor::setIndexData (uint8_t *in, size_t in_size) {
+	token = *in++; in_size--;
+	stream->setCurrentState(in, in_size);
 }

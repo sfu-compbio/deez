@@ -20,7 +20,8 @@ public:
 public:
 	// Resets out
 	// set out size to compressed size block
-	virtual void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {}
+	virtual void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) = 0;
+	virtual void getIndexData (Array<uint8_t> &out) = 0;
 };
 
 class Decompressor {
@@ -32,7 +33,8 @@ public:
 
 public:
 	virtual bool hasRecord (void) = 0;
-	virtual void importRecords (uint8_t *in, size_t in_size) {} 
+	virtual void importRecords (uint8_t *in, size_t in_size) = 0;
+	virtual void setIndexData (uint8_t *, size_t) = 0;
 };
 
 #endif

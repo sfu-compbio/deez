@@ -25,6 +25,7 @@ public:
 		else 
 			throw DZException("zlib compression error %d", c);
 	}
+	virtual void getCurrentState (Array<uint8_t> &ou) {}
 };
 
 class GzipDecompressionStream: public DecompressionStream {
@@ -35,6 +36,7 @@ public:
 public:
 	virtual size_t decompress (uint8_t *source, size_t source_sz, 
 		Array<uint8_t> &dest, size_t dest_offset); 
+	virtual void setCurrentState (uint8_t *source, size_t source_sz) {}
 };
 
 #endif

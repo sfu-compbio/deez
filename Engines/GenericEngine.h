@@ -16,6 +16,7 @@ public:
 public:
 	virtual void addRecord (const T &rec);
 	virtual void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
+	virtual void getIndexData (Array<uint8_t> &out);
 
 public:
 	virtual size_t size (void) const { return records.size(); }
@@ -35,6 +36,7 @@ public:
 	const T &getRecord (void);
 	virtual bool hasRecord (void);
 	virtual void importRecords (uint8_t *in, size_t in_size);
+	virtual void setIndexData (uint8_t *in, size_t in_size);
 };
 
 template<typename T, typename TStream>
@@ -62,13 +64,21 @@ void GenericCompressor<T, TStream>::outputRecords (Array<uint8_t> &out, size_t o
 		return;
 	}
 	assert(k <= records.size());
-	Array<uint8_t> buffer;
+	Array<uint8_t> buffer(k * sizeof(T));
 	for (size_t i = 0; i < k; i++)
 		buffer.add((uint8_t*)&records[i], sizeof(records[i]));
-	size_t s = stream->compress(buffer.data(), buffer.size(), out, out_offset);
-	out.resize(out_offset + s);
+
+	size_t s = stream->compress(buffer.data(), buffer.size(), out, out_offset + sizeof(size_t));
+	out.resize(out_offset + sizeof(size_t) + s);
+	*(size_t*)(out.data() + out_offset) = buffer.size(); // uncompressed size
 	//// 
 	records.remove_first_n(k);
+}
+
+template<typename T, typename TStream>
+void GenericCompressor<T, TStream>::getIndexData (Array<uint8_t> &out) {
+	out.resize(0);
+	stream->getCurrentState(out);
 }
 
 template<typename T, typename TStream>
@@ -104,14 +114,25 @@ void GenericDecompressor<T, TStream>::importRecords (uint8_t *in, size_t in_size
 	assert(recordCount == records.size());
 
 	// decompress
-	Array<uint8_t> au;
-	// !TODO
-	au.resize( 100000000 );
-	size_t s = stream->decompress(in, in_size, au, 0);
-	assert(s % sizeof(T) == 0);
-	records.add((T*)au.data(), s / sizeof(T));
+	assert(in_size >= sizeof(size_t));
 	
+	size_t uncompressed_size = *(size_t*)in;
+	Array<uint8_t> au;
+	au.resize(uncompressed_size);
+	in += sizeof(size_t);
+	
+	size_t s = stream->decompress(in, in_size, au, 0);
+	assert(s == uncompressed_size);
+	assert(s % sizeof(T) == 0);
+	records.resize(0);
+	records.add((T*)au.data(), s / sizeof(T));
+
 	recordCount = 0;
+}
+
+template<typename T, typename TStream>
+void GenericDecompressor<T, TStream>::setIndexData (uint8_t *in, size_t in_size) {
+	stream->setCurrentState(in, in_size);
 }
 
 #endif

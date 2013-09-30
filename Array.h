@@ -2,6 +2,7 @@
 #define Array_H
 
 #include <cstring>
+#include <algorithm>
 #include <inttypes.h>
 #include <stdlib.h>
 
@@ -15,7 +16,7 @@ class Array {
 
 public:
 	Array (void):
-		_size(0), _records(0), _capacity(0), _extend(100)
+		_records(0), _size(0), _capacity(0), _extend(100)
 	{
 	}
 
@@ -37,7 +38,7 @@ public:
 		if (!_capacity) { _records = 0; return; }
 
 		T *tmp = new T[_capacity];
-		std::memcpy(tmp, _records, _size * sizeof(T));
+		std::copy(_records, _records + _size, tmp);
 		delete[] _records;
 		_records = tmp;
 	}
@@ -59,7 +60,7 @@ public:
 	void add (const T *t, size_t sz) {
 		if (_size + sz > _capacity)
 			realloc(_capacity + sz + _extend);
-		memcpy(_records + _size, t, sz * sizeof(T));
+		std::copy(t, t + sz, _records + _size);
 		_size += sz;
 	}
 

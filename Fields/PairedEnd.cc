@@ -16,7 +16,8 @@ void PairedEndCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset,
 	}
 	assert(k <= records.size());
 
-	Array<uint8_t> buffer;
+	Array<uint8_t> buffer(k * (sizeof(size_t) + sizeof(int32_t) + 1), 1000);
+	std::map<std::string, char> chromosomes;
 	for (size_t i = 0; i < k; i++) {
 		buffer.add((uint8_t*)&records[i].pos, sizeof(size_t));
 		buffer.add((uint8_t*)&records[i].tlen, sizeof(int32_t));
@@ -31,8 +32,9 @@ void PairedEndCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset,
 			chromosomes[records[i].chr] = id;
 		}
 	}
-	size_t s = stream->compress(buffer.data(), buffer.size(), out, out_offset);
-	out.resize(out_offset + s);
+	size_t s = stream->compress(buffer.data(), buffer.size(), out, out_offset + sizeof(size_t));
+	out.resize(out_offset + s + sizeof(size_t));
+	*(size_t*)(out.data() + out_offset) = buffer.size();
 	////
 	this->records.remove_first_n(k);
 }
@@ -53,12 +55,20 @@ void PairedEndDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	assert(recordCount == records.size());
 
 	// decompress
+	assert(in_size >= sizeof(size_t));
+	
+	size_t uncompressed_size = *(size_t*)in;
 	Array<uint8_t> au;
-	// !TODO
-	au.resize( 100000000 );
+	au.resize(uncompressed_size);
+	in += sizeof(size_t);
+
 	size_t s = stream->decompress(in, in_size, au, 0);
+	assert(s == uncompressed_size);
 
 	PairedEndInfo pe;
+	
+	records.resize(0);
+	std::map<char, std::string> chromosomes;
 	char chr;
 	for (size_t i = 0; i < s; ) {
 		pe.pos = *(size_t*)(au.data() + i), i += sizeof(size_t);
@@ -79,3 +89,4 @@ void PairedEndDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	
 	recordCount = 0;
 }
+

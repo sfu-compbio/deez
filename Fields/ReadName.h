@@ -8,11 +8,11 @@
 #include "../Engines/GenericEngine.h"
 #include "../Engines/StringEngine.h"
 
-const int MAX_TOKEN = 10;
-
 class ReadNameCompressor: 
 	public StringCompressor<GzipCompressionStream<6> >  
 {
+	static const int MAX_TOKEN = 10;
+
 	CompressionStream *indexStream;
 	std::string prevTokens[MAX_TOKEN];
 	char token;
@@ -23,6 +23,7 @@ public:
 
 public:
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
+	void getIndexData (Array<uint8_t> &out);
 
 private:
 	void detectToken (const std::string &rn);
@@ -32,8 +33,9 @@ private:
 class ReadNameDecompressor: 
 	public StringDecompressor<GzipDecompressionStream>  
 {
+	static const int MAX_TOKEN = 10;
+
 	DecompressionStream *indexStream;
-	std::string prevTokens[MAX_TOKEN];
 	char token;
 
 public:
@@ -42,6 +44,7 @@ public:
 
 public:
 	void importRecords (uint8_t *in, size_t in_size);
+	void setIndexData (uint8_t *in, size_t in_size);
 };
 
 #endif

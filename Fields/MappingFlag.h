@@ -6,9 +6,9 @@
 #include "../Streams/Order0Stream.h"
 #include "../Engines/GenericEngine.h"
 
-typedef GenericCompressor<uint16_t, AC0CompressionStream>   
+typedef GenericCompressor<uint16_t, GzipCompressionStream<6> >   
 	MappingFlagCompressor;
-typedef GenericDecompressor<uint16_t, AC0DecompressionStream> 
+typedef GenericDecompressor<uint16_t, GzipDecompressionStream> 
 	MappingFlagDecompressor;
 
 #endif

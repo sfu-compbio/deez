@@ -9,11 +9,10 @@
 #include "../Streams/GzipStream.h"
 
 class MappingLocationCompressor: 
-	public GenericCompressor<size_t, AC0CompressionStream> 
+	public GenericCompressor<size_t, AC0CompressionStream<256> > 
 {
 	CompressionStream *stitchStream;
-    uint32_t lastLoc;
-
+   
 public:
 	MappingLocationCompressor (int blockSize);
 	~MappingLocationCompressor (void);
@@ -23,10 +22,9 @@ public:
 };
 
 class MappingLocationDecompressor: 
-	public GenericDecompressor<size_t, AC0DecompressionStream> 
+	public GenericDecompressor<size_t, AC0DecompressionStream<256> > 
 {
 	DecompressionStream	*stitchStream;
-	uint32_t lastLoc;
 
 public:
 	MappingLocationDecompressor (int blockSize);
