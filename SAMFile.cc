@@ -26,9 +26,20 @@ enum Fields {
 };
 
 SAMFileCompressor::SAMFileCompressor (const string &outFile, const string &samFile, const string &genomeFile, int bs): 
-	parser(samFile), 
 	blockSize(bs) 
 {
+//	parser
+	FILE *fi = fopen(samFile.c_str(), "rb");
+	char mc[2];
+	fread(mc, 1, 2, fi);
+	fclose(fi);
+	if (mc[0] == char(0x1f) && mc[1] == char(0x8b)) {
+		LOG("Using BAM file");
+		parser = new BAMParser(samFile);
+	}
+	else
+		parser = new SAMParser(samFile);
+
 	compressor[Sequence] = new SequenceCompressor(genomeFile, bs);
 	compressor[ReadName] = new ReadNameCompressor(bs);
 	compressor[MappingFlag] = new MappingFlagCompressor(bs);
@@ -51,6 +62,7 @@ SAMFileCompressor::SAMFileCompressor (const string &outFile, const string &samFi
 SAMFileCompressor::~SAMFileCompressor (void) {
 	for (int i = 0; i < 8; i++)
 		delete compressor[i];
+	delete parser;
 	fclose(outputFile);
 	gzclose(indexFile);
 }
@@ -61,10 +73,7 @@ void SAMFileCompressor::outputMagic (void) {
 }
 
 void SAMFileCompressor::outputComment (void) {
-	string comment;
-	char *cm;
-	while ((cm = parser.readComment()) != 0)
-		comment += cm;
+	string comment = parser->readComment();
 	size_t arcsz = comment.size();
 	fwrite(&arcsz, sizeof(size_t), 1, outputFile);
 	if (arcsz) {
@@ -82,13 +91,13 @@ void SAMFileCompressor::outputRecords (void) {
 	size_t lastStart;
 	int64_t total = 0;
 	int64_t blockCount = 0;
-	Array<uint8_t> outputBuffer;
+	Array<uint8_t> outputBuffer(0, MB);
 
 	SequenceCompressor* seq = (SequenceCompressor*)(compressor[Sequence]);
 	
-	while (parser.hasNext()) {
+	while (parser->hasNext()) {
 		char op = 0;
-		while (seq->getChromosome() != parser.head())
+		while (seq->getChromosome() != parser->head())
 			seq->scanNextChromosome(), op = 1;
 
 		/// index
@@ -98,13 +107,14 @@ void SAMFileCompressor::outputRecords (void) {
 		// write chromosome id
 		fwrite(&op, sizeof(char), 1, outputFile);
 		if (op) 
-			fwrite(parser.head().c_str(), parser.head().size() + 1, 1, outputFile);
+			fwrite(parser->head().c_str(), parser->head().size() + 1, 1, outputFile);
 
 		//LOG("Loading records ...");
 		for (; seq->size() < blockSize
-							&& parser.hasNext() 
-							&& parser.head() == seq->getChromosome(); total++) {
-			const Record &rc = parser.next();
+							&& parser->hasNext() 
+							&& parser->head() == seq->getChromosome(); total++) {
+			const Record &rc = parser->next();
+			//rc.testRecords();
 
 			size_t loc = rc.getLocation();
 			if (loc == (size_t)-1) loc = 0; // fix for 0 locations in *
@@ -118,7 +128,7 @@ void SAMFileCompressor::outputRecords (void) {
 			((MappingFlagCompressor*)compressor[MappingFlag])->addRecord(rc.getMappingFlag());
 			((MappingLocationCompressor*)compressor[MappingLocation])->addRecord(loc);
 			((MappingQualityCompressor*)compressor[MappingQuality])->addRecord(rc.getMappingQuality());
-			((QualityScoreCompressor*)compressor[QualityScore])->addRecord(rc.getQuality(), rc.getMappingFlag());
+			((QualityScoreCompressor*)compressor[QualityScore])->addRecord(rc.getQuality()/*, rc.getSequence()*/, rc.getMappingFlag());
 			
 			size_t p_loc = rc.getPairLocation();
 			if (p_loc == (size_t)-1) p_loc = 0;
@@ -130,22 +140,25 @@ void SAMFileCompressor::outputRecords (void) {
 			((OptionalFieldCompressor*)compressor[OptionalField])->addRecord(rc.getOptional());
 
 			lastStart = loc;
-			parser.readNext();		
+			parser->readNext();		
 		}
-		SCREEN("\r   Chr %-6s %5.2lf%% [%ld]", parser.head().c_str(), (100.0 * parser.fpos()) / parser.fsize(), blockCount + 1);		
+		SCREEN("\r   Chr %-6s %5.2lf%% [%ld]", seq->getChromosome().c_str(), (100.0 * parser->fpos()) / parser->fsize(), blockCount + 1);		
 		
 		size_t 	currentBlockCount, 
 				currentBlockFirstLoc, 
 				currentBlockLastLoc, 
-				currentBlockLastEndLoc;
-		//ZAMAN_START();
-		currentBlockCount = seq->applyFixes(!parser.hasNext() 
-							|| parser.head() != seq->getChromosome() 
-							|| parser.head() == "*" 
+				currentBlockLastEndLoc,
+				fixedStartPos, fixedEndPos;
+	//	ZAMAN_START();
+		currentBlockCount = seq->applyFixes(!parser->hasNext() 
+							|| parser->head() != seq->getChromosome() 
+							|| parser->head() == "*" 
 						? (size_t)-1 : lastStart - 1, 
-						currentBlockFirstLoc, currentBlockLastLoc, currentBlockLastEndLoc);	
-		SCREEN("\t%s:%'lu-%'lu\t%'lu\n", seq->getChromosome().c_str(), 
-			currentBlockFirstLoc+1, currentBlockLastLoc+1, currentBlockCount);
+						currentBlockFirstLoc, currentBlockLastLoc, currentBlockLastEndLoc,
+						fixedStartPos, fixedEndPos);	
+	//	DEBUG("\n%s:%'lu-%'lu..%'lu\tfx %'lu-%'lu\t%'lu", seq->getChromosome().c_str(), 
+	//		currentBlockFirstLoc+1, currentBlockLastLoc+1, currentBlockLastEndLoc, 
+	//		fixedStartPos, fixedEndPos, currentBlockCount);
 		// cnt
 		gzwrite(indexFile, &currentBlockCount, sizeof(size_t));
 		// chr		
@@ -154,9 +167,15 @@ void SAMFileCompressor::outputRecords (void) {
 		gzwrite(indexFile, &currentBlockFirstLoc, sizeof(size_t));
 		// end pos
 		gzwrite(indexFile, &currentBlockLastLoc, sizeof(size_t));
-		//ZAMAN_END("FIX");
+		// end cover pos
+		// gzwrite(indexFile, &currentBlockLastEndLoc, sizeof(size_t));
+		// fixed start pos
+		gzwrite(indexFile, &fixedStartPos, sizeof(size_t));
+		// fixed end pos
+		gzwrite(indexFile, &fixedEndPos, sizeof(size_t));
+	//	ZAMAN_END("FIX");
 		for (int i = 0; i < 8; i++) {
-		//ZAMAN_START();
+	//	ZAMAN_START();
 			compressor[i]->outputRecords(outputBuffer, 0, currentBlockCount);
 			
 			// dz file
@@ -172,9 +191,11 @@ void SAMFileCompressor::outputRecords (void) {
 			gzwrite(indexFile, &out_sz, sizeof(size_t));
 			if (out_sz) 
 				gzwrite(indexFile, outputBuffer.data(), out_sz);
-		//ZAMAN_END(NAMES[i]);
+	//	ZAMAN_END(NAMES[i]);
 		}
+	//	DEBUGN("\n");
 		blockCount++;
+		fflush(stdout);
 	}
 	SCREEN("\nWritten %'lu lines\n", total);
 	for (int i = 0; i < 8; i++)
@@ -276,16 +297,17 @@ size_t SAMFileDecompressor::getBlock (const string &chromosome, size_t start, si
 		seq->scanNextChromosome();
 
 	Array<uint8_t> in;
+	SCREEN("\n");
 	for (int i = 0; i < 8; i++) {
-	//ZAMAN_START();
+	ZAMAN_START();
 		size_t sz;
 		if (fread(&sz, sizeof(size_t), 1, inFile) != 1)
 			throw "aaargh";
 		in.resize(sz);
 		if (sz) 
 			fread(in.data(), 1, sz, inFile);
-		if(i!=QualityScore) decompressor[i]->importRecords(in.data(), in.size());		
-	//ZAMAN_END(NAMES[i]);
+		decompressor[i]->importRecords(in.data(), in.size());		
+	ZAMAN_END(NAMES[i]);
 	}
 	SCREEN("\n");	
 
@@ -298,13 +320,14 @@ size_t SAMFileDecompressor::getBlock (const string &chromosome, size_t start, si
 		int mqual = ((MappingQualityDecompressor*)decompressor[MappingQuality])->getRecord();
 		EditOP eo = seq->getRecord(loc);
 		if (chr != "*") loc++;
+
 		PairedEndInfo pe = ((PairedEndDecompressor*)decompressor[PairedEnd])->getRecord();
 		if (chr != "*") pe.pos++;
-		string qual = "";//((QualityScoreDecompressor*)decompressor[QualityScore])->getRecord(eo.seq.size(), flag);
+		string qual = ((QualityScoreDecompressor*)decompressor[QualityScore])->getRecord(eo.seq.size(), flag);
 		string optional = ((OptionalFieldDecompressor*)decompressor[OptionalField])->getRecord();
 
-	//	if (loc < start)
-	//		continue;
+		if (loc < start)
+			continue;
 		if (loc > end)
 			return count;
 
@@ -330,7 +353,7 @@ size_t SAMFileDecompressor::getBlock (const string &chromosome, size_t start, si
 				chr.c_str(), (100.0 * ftell(inFile)) / inFileSz);
 		count++;
 	}
-	fprintf(samFile, ">>>>>>>>>>>>>>>>>>>>\n");
+	//fprintf(samFile, ">>>>>>>>>>>>>>>>>>>>\n");
 	//SCREEN("\n");
 	return count;
 }
@@ -369,7 +392,7 @@ void SAMFileDecompressor::decompress (const string &idxFilePath, const string &r
 		end = atol(tok), tok = strtok(0, ":-");
 	else 
 		throw DZException("Range string %s invalid", range.c_str());
-	DEBUG("Seeking to chromosome %s, [%'lu:%'lu]...", chr.c_str(), start, end);
+	SCREEN("Seeking to chromosome %s, [%'lu:%'lu]...\n", chr.c_str(), start, end);
 	start--; end--;
 
 	// read index, detect
@@ -378,6 +401,8 @@ void SAMFileDecompressor::decompress (const string &idxFilePath, const string &r
 		throw DZException("Cannot open the file %s", idxFilePath.c_str());
 	Array<uint8_t> ei[8];
 	bool firstRead = 1;
+	string prevChr;
+	int _bC_=1;
 	while (1) {
 		size_t zpos, currentBlockCount, startPos, endPos;
 		char chrx[100];
@@ -394,24 +419,55 @@ void SAMFileDecompressor::decompress (const string &idxFilePath, const string &r
 			}
 		}
 
+		DEBUG("~~ %d",_bC_++);
 		if (gzread(idxFile, &zpos, sizeof(size_t)) != sizeof(size_t)) 
 			throw DZException("Requested range %s not found", range.c_str());
 		gzread(idxFile, &currentBlockCount, sizeof(size_t));
 		while (gzread(idxFile, c, 1) && *c++);
 		gzread(idxFile, &startPos, sizeof(size_t));
 		gzread(idxFile, &endPos, sizeof(size_t));
-		DEBUG("%s:%'lu-%'lu ...", chrx, startPos, endPos);
-		if (string(chrx) == chr && 
-			(start >= startPos && start <= endPos) ||
-			(start < startPos && end >= startPos) )
-		{
+
+		size_t fS, fE;
+		gzread(idxFile, &fS, sizeof(size_t));
+		gzread(idxFile, &fE, sizeof(size_t));
+
+		if (prevChr != string(chrx)) {
+			startPos = 0;
+			fS = 0;
+			prevChr = string(chrx);
+		}
+
+		SCREEN("%s:%'lu-%'lu ... fixes %'lu-%'lu\n", chrx, startPos, endPos, fS, fE);
+
+		if (string(chrx) == chr && (start >= startPos && start <= endPos)) {
+			
 			fseek(inFile, zpos, SEEK_SET);
+			SCREEN("In...\n");
 			for (int i = 0; i < 8; i++) 
 				if (ei[i].size())
 					decompressor[i]->setIndexData(ei[i].data(), ei[i].size());
 			break;
 		}
-		
+		else if (string(chrx) == chr && (start >= fS && start <= fE)) {
+			fseek(inFile, zpos, SEEK_SET);
+
+			// TODO do import fixes only ...
+			char chflag;
+			fread(&chflag, 1, 1, inFile);
+			while (chflag) fread(&chflag, 1, 1, inFile);
+
+			SequenceDecompressor *seq = (SequenceDecompressor*)decompressor[Sequence];
+			while (chr != seq->getChromosome())
+				seq->scanNextChromosome();
+
+			Array<uint8_t> in;
+			size_t sz;
+			fread(&sz, sizeof(size_t), 1, inFile);
+			in.resize(sz);
+			if (sz) fread(in.data(), 1, sz, inFile);
+			SCREEN("Loading...\n");
+			seq->importFixes(in.data(), in.size());	
+		}
 	}
 	gzclose(idxFile);
 

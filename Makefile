@@ -1,4 +1,4 @@
-CC ?= g++
+CC = g++
 CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
 LDFLAGS = -lz -lpthread
 
@@ -12,7 +12,7 @@ all: $(SOURCES) $(EXECUTABLE)
 debug: CFLAGS += -g -fno-omit-frame-pointer
 debug: $(SOURCES) $(EXECUTABLE)
  
-profile: CFLAGS += -g -pg
+profile: CFLAGS += -g -pg -O3
 profile: LDFLAGS += -pg
 profile: $(SOURCES) $(EXECUTABLE)
 

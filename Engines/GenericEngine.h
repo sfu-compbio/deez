@@ -68,7 +68,8 @@ void GenericCompressor<T, TStream>::outputRecords (Array<uint8_t> &out, size_t o
 	for (size_t i = 0; i < k; i++)
 		buffer.add((uint8_t*)&records[i], sizeof(records[i]));
 
-	size_t s = stream->compress(buffer.data(), buffer.size(), out, out_offset + sizeof(size_t));
+	size_t s = 0;
+	if (buffer.size()) s = stream->compress(buffer.data(), buffer.size(), out, out_offset + sizeof(size_t));
 	out.resize(out_offset + sizeof(size_t) + s);
 	*(size_t*)(out.data() + out_offset) = buffer.size(); // uncompressed size
 	//// 
@@ -121,7 +122,8 @@ void GenericDecompressor<T, TStream>::importRecords (uint8_t *in, size_t in_size
 	au.resize(uncompressed_size);
 	in += sizeof(size_t);
 	
-	size_t s = stream->decompress(in, in_size, au, 0);
+	size_t s = 0;
+	if (in_size) s = stream->decompress(in, in_size, au, 0);
 	assert(s == uncompressed_size);
 	assert(s % sizeof(T) == 0);
 	records.resize(0);

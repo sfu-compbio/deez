@@ -15,6 +15,7 @@ public:
 
 public:
 	void addRecord (std::string qual, int flag);
+	void addRecord (std::string qual, std::string seq, int flag);
 };
 
 class QualityScoreDecompressor: 

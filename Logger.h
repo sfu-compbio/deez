@@ -19,4 +19,6 @@
 	fprintf(stderr, c"\n", ##__VA_ARGS__)
 #define DEBUG(c,...)\
 	fprintf(stdout, c"\n", ##__VA_ARGS__)
+#define DEBUGN(c,...)\
+	fprintf(stdout, c, ##__VA_ARGS__)
 #endif

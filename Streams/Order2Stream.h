@@ -7,25 +7,39 @@
 
 template<int AS>
 class AC2CompressionStream: public CompressionStream, public DecompressionStream {
-	AC0CompressionStream<AS> mod[AS * AS];
+	static const int MOD_SZ = (1<<12)*16*16;
+	AC0CompressionStream<AS> mod[MOD_SZ];
 
-	uint8_t q1;
+	uint8_t q1, q2;
 	uint32_t context;
+	int delta;
+	int pos;
 
 public:
 	AC2CompressionStream (void) {
-		q1 = 0;
+		q1 = q2 = 0;
 		context = 0;
+		pos = 0;
+		delta = 5;
 	}
 
 private:
 	void encode (uint8_t q, AC &ac) {
-		assert(context<AS*AS);
+		assert(q < AS);
+		assert(q < (1 <<6));
+		assert(context<MOD_SZ);
 		mod[context].encode(q, ac);
 
-		context  = q1 * AS;
-		context += q;
-		q1 = q;
+#define QBITS 12
+		context  = ((max(q1,q2)<<6) + q) & ((1<<QBITS)-1);
+		context += (q1==q2)<<QBITS;
+		delta   += (q1>q)*(q1-q);
+		context += min(7,delta>>3) << (QBITS+1);
+		context += (min(pos++ +15,127)&(15<<3))<<(QBITS+1);
+
+		q2 = q1; q1 = q;
+		
+		if(q==0) delta = 5, pos = 0, context = 0, q1 = q2 = 0;
 	}
 
 	uint8_t decode (AC &ac) {
@@ -83,8 +97,8 @@ public:
 	void setCurrentState (uint8_t *in, size_t sz) {
 		for (int i = 0; i < AS * AS; i++) {
 			// first dictates
-			uint8_t t = *in;
-			size_t sz = 1 + t * (1 + sizeof(int16_t));
+			// uint8_t t = *in;
+			size_t sz = AS * (1 + sizeof(uint16_t));
 			mod[i].setCurrentState(in, sz);
 			in += sz;
 		}

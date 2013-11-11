@@ -64,7 +64,8 @@ void StringCompressor<TStream>::outputRecords (Array<uint8_t> &out, size_t out_o
 		totalSize -= this->records[i].size() + 1;
 	}
 
-	size_t s = this->stream->compress(buffer.data(), buffer.size(), out, out_offset + sizeof(size_t));
+	size_t s = 0;
+	if (buffer.size()) s = this->stream->compress(buffer.data(), buffer.size(), out, out_offset + sizeof(size_t));
 	out.resize(out_offset + sizeof(size_t) + s);
 	*(size_t*)(out.data() + out_offset) = buffer.size(); // uncompressed size
 	//// 
@@ -97,7 +98,8 @@ void StringDecompressor<TStream>::importRecords (uint8_t *in, size_t in_size) {
 	au.resize(uncompressed_size);
 	in += sizeof(size_t);
 
-	size_t s = this->stream->decompress(in, in_size, au, 0);
+	size_t s = 0;
+	if (in_size) s = this->stream->decompress(in, in_size, au, 0);
 	assert(s == uncompressed_size);
 	size_t start = 0;
 

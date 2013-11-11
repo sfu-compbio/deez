@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <functional>
 #include "../Common.h"
 #include "Stream.h"	
 #include "ArithmeticStream.h"	
@@ -17,18 +18,20 @@ class AC0CompressionStream: public CompressionStream, public DecompressionStream
 	static const int64_t SUM_LIMIT = 1ll << 15;
 
 	struct Stat {
-		int16_t freq;
-		uint8_t sym;
-		uint8_t used;
-
-		bool operator< (const Stat &s) const { return freq > s.freq; }
+		uint16_t freq;
+		uint8_t  sym;
+		
+		bool operator> (const Stat &s) const { 
+			if (freq == s.freq) return sym > s.sym;
+			return freq > s.freq; 
+		}
 	} stats[AS];
 	int64_t sum;
 	
 public:
 	AC0CompressionStream (void) {
 		for (int i = 0; i < AS; i++)
-			stats[i].sym = i, stats[i].freq = 1, stats[i].used = 0;
+			stats[i].sym = i, stats[i].freq = 1;
 		sum = AS;
 	}
 
@@ -53,8 +56,7 @@ protected:
 		ac.encode(l, stats[i].freq, sum);
 		sum++; 
 		stats[i].freq++;
-		stats[i].used = 1;
-
+		
 		if (i && sum % RescaleFactor == 0) {
 			int j = i - 1;
 			while (j && stats[i].freq > stats[j].freq) j--;
@@ -79,8 +81,7 @@ protected:
 		uint8_t sym = stats[i].sym;
 		ac.decode(hi - stats[i].freq, stats[i].freq, sum);
 		stats[i].freq++; sum++;
-		stats[i].used = 1;
-
+		
 		if (i && sum % RescaleFactor == 0) {
 			int j = i - 1;
 			while (j && stats[i].freq > stats[j].freq) j--;
@@ -112,27 +113,28 @@ public:
 
 	size_t decompress (uint8_t *source, size_t source_sz, 
 			Array<uint8_t> &dest, size_t dest_offset) {
-		
+
 		// ac keeps appending to the array.
 		// thus, just resize dest
+
 		size_t num = *((size_t*)source);
 		if (!num) return 0;
 		AC ac;
 		ac.initDecode(source + sizeof(size_t));
 		dest.resize(dest_offset + num);
-		for (size_t i = 0; i < num; i++) {
-			*(dest.data() + i) = decode(ac);
-		}
+		for (size_t i = 0; i < num; i++) 
+			*(dest.data() + dest_offset + i) = decode(ac);
 		return num;
 		//return 
 	}
 
 	void getCurrentState (Array<uint8_t> &ou) {
-		ou.add(0);
-		uint8_t *c = ou.data() + (ou.size() - 1);
+		//ou.add(0);
+		//uint8_t *c = ou.data() + (ou.size() - 1);
 		for (int i = 0; i < AS; i++) 
-			if (stats[i].used) {
-				(*c)++;
+			//if (stats[i].used) 
+			{
+				// (*c)++;
 				// sym, freq
 				ou.add(stats[i].sym);
 				ou.add((uint8_t*)&stats[i].freq, sizeof(stats[i].freq));
@@ -140,19 +142,16 @@ public:
 	}
 
 	void setCurrentState (uint8_t *in, size_t sz) {
-		for (int i = 0; i < AS; i++)
-			stats[i].sym = i, stats[i].freq = 1, stats[i].used = 0;
-		sum = AS;
-
-		uint8_t c = *in++;
-		for (int i = 0; i < c; i++) {
+		//uint8_t c = *in++;
+		sum = 0;
+		for (int i = 0; i < AS; i++) {
 			uint8_t sym = *in++;
-			int16_t freq = *(int16_t*)in; in += sizeof(stats[sym].freq);
-			sum += freq - 1;
-			stats[sym].freq = freq;
-			stats[sym].used = 1;
+			stats[i].sym = sym;
+			stats[i].freq = *(uint16_t*)in; in += sizeof(stats[i].freq);
+			sum += stats[i].freq;
+			//stats[i].used = 1;
 		}
-		sort(stats, stats + AS);
+		//sort(stats, stats + AS, greater<Stat>());
 	}
 
 	friend class AC2CompressionStream<AS>;

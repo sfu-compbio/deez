@@ -27,6 +27,32 @@ void QualityScoreCompressor::addRecord (string qual, int flag) {
 	StringCompressor<AC2CompressionStream<64> >::addRecord(qual);
 }
 
+void QualityScoreCompressor::addRecord (string qual, string seq, int flag) {
+	size_t sz = qual.size();
+
+	if (flag & 0x10) for (size_t j = 0; j < sz / 2; j++)
+		swap(qual[j], qual[sz - j - 1]), swap(seq[j], seq[sz - j - 1]);
+	if (sz >= 2) {
+		sz -= 2;
+		while (sz && qual[sz] == qual[qual.size() - 1])
+			sz--;
+		sz += 2;
+	}
+	
+	string hai;
+	for (size_t i = 0; i < sz; i++) {
+		if (seq[i] == 'N') {
+		//	if (qual[i] != 33) { 
+		//		DEBUG(">> %s %s\n", seq.c_str(), qual.c_str());
+		//	}
+			continue;
+		}
+		hai += char(qual[i] - 32);
+		assert(qual[i] < 64);
+	}
+	StringCompressor<AC2CompressionStream<64> >::addRecord(hai);
+}
+
 
 QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
 	StringDecompressor<AC2DecompressionStream<64> >(blockSize) 

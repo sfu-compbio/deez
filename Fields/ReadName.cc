@@ -104,7 +104,8 @@ void ReadNameCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, 
 		this->totalSize -= this->records[i].size() + 1;
 	}
 
-	size_t s = indexStream->compress((uint8_t*)indices.data(), 
+	size_t s = 0;
+	if (indices.size()) s = indexStream->compress((uint8_t*)indices.data(), 
 		indices.size(), out, out_offset + 2 * sizeof(size_t));
 	// size of compressed
 	*(size_t*)(out.data() + out_offset) = s;
@@ -114,7 +115,8 @@ void ReadNameCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, 
 	out_offset += s + 2 * sizeof(size_t);
 	out.resize(out_offset);
 	
-	s = stream->compress(buffer.data(), buffer.size(), 
+	s = 0;
+	if (buffer.size()) s = stream->compress(buffer.data(), buffer.size(), 
 		out, out_offset + 2 * sizeof(size_t));
 	// size of compressed
 	*(size_t*)(out.data() + out_offset) = s;
@@ -151,7 +153,8 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	size_t de1 = *(size_t*)in; in += sizeof(size_t);
 	Array<uint8_t> index;
 	index.resize(de1);
-	size_t s1 = indexStream->decompress(in, in1, index, 0);
+	size_t s1 = 0;
+	if (in1) s1 = indexStream->decompress(in, in1, index, 0);
 	assert(s1 == de1);
 	in += in1;
 
@@ -159,7 +162,8 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	size_t de2 = *(size_t*)in; in += sizeof(size_t);
 	Array<uint8_t> content;
 	content.resize(de2);
-	size_t s2 = stream->decompress(in, in2, content, 0);
+	size_t s2 = 0;
+	if (in2) s2 = stream->decompress(in, in2, content, 0);
 	assert(s2 == de2);
 	in += in2;
 

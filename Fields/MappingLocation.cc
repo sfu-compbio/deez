@@ -32,7 +32,8 @@ void MappingLocationCompressor::outputRecords (Array<uint8_t> &out, size_t out_o
 		lastLoc = this->records[i];
 	}
 
-	size_t s = stitchStream->compress((uint8_t*)corrections.data(), 
+	size_t s = 0;
+	if (corrections.size()) s = stitchStream->compress((uint8_t*)corrections.data(), 
 		corrections.size() * sizeof(uint32_t), out, out_offset +  2 * sizeof(size_t));
 	// size of compressed
 	*(size_t*)(out.data() + out_offset) = s;
@@ -42,7 +43,8 @@ void MappingLocationCompressor::outputRecords (Array<uint8_t> &out, size_t out_o
 	out_offset += s + 2 * sizeof(size_t);
 	out.resize(out_offset);
 
-	s = stream->compress(buffer.data(), buffer.size(), 
+	s = 0;
+	if (buffer.size()) s = stream->compress(buffer.data(), buffer.size(), 
 		out, out_offset + 2 * sizeof(size_t));
 	*(size_t*)(out.data() + out_offset) = s;
 	// size of uncompressed
@@ -76,7 +78,8 @@ void MappingLocationDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	size_t de1 = *(size_t*)in; in += sizeof(size_t);
 	Array<uint8_t> au1;
 	au1.resize(de1);
-	size_t s1 = stitchStream->decompress(in, in1, au1, 0);
+	size_t s1 = 0;
+	if (in1) s1 = stitchStream->decompress(in, in1, au1, 0);
 	assert(s1 == de1);
 	in += in1;
 
@@ -84,7 +87,8 @@ void MappingLocationDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	size_t de2 = *(size_t*)in; in += sizeof(size_t);
 	Array<uint8_t> au2;
 	au2.resize(de2);
-	size_t s2 = stream->decompress(in, in2, au2, 0);
+	size_t s2 = 0;
+	if (in2) s2 = stream->decompress(in, in2, au2, 0);
 	assert(s2 == de2);
 	in += in2;
 

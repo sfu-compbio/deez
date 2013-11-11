@@ -18,7 +18,7 @@
 
 double _zaman_ (void);
 #define ZAMAN_START() {double _____zaman564265=_zaman_();
-#define ZAMAN_END(s) SCREEN("[%s] %.2lf ", s, _zaman_()-_____zaman564265);}
+#define ZAMAN_END(s) DEBUGN("[%s] %.2lf ", s, _zaman_()-_____zaman564265);}
 
 //#define DZ_EVAL
 

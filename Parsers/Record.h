@@ -7,26 +7,64 @@
 #include "../Common.h"
 
 const int MAXLEN = 8 * KB;
+
+enum StringField {
+    RN,
+    CHR,
+    CIGAR,
+    P_CHR,
+    SEQ,
+    QUAL,
+    OPT
+};
+enum IntField {
+    MF,
+    LOC,
+    MQ,
+    P_LOC,
+    TLEN
+};
+
 class Record {
     char line[MAXLEN];
-    char *fields[12];
+    char *strFields[7];
+    int32_t intFields[5];
 
 private:
+    friend class BAMParser;
     friend class SAMParser;
 
 public:
-    const char* getReadName() const { return fields[0]; }
-    const int getMappingFlag() const { return std::atoi(fields[1]); }
-    const char* getChromosome() const { return fields[2]; }
-    const size_t getLocation() const { return std::atoll(fields[3]) - 1; }
-    const char getMappingQuality() const { return atoi(fields[4]); }
-    const char* getCigar() const { return fields[5]; }
-    const char* getPairChromosome() const { return fields[6]; }
-    const size_t getPairLocation() const { return std::atoll(fields[7]) - 1; }
-    const int getTemplateLenght() const { return std::atoi(fields[8]); }
-    const char* getSequence() const { return fields[9]; }
-    const char* getQuality() const { return fields[10]; }
-    const char* getOptional() const { return fields[11]; }
+    const char* getReadName() const { return strFields[RN]; }
+    const int getMappingFlag() const { return intFields[MF]; }
+    const char* getChromosome() const { return strFields[CHR]; }
+    const size_t getLocation() const { return intFields[LOC] - 1; }
+    const char getMappingQuality() const { return intFields[MQ]; }
+    const char* getCigar() const { return strFields[CIGAR]; }
+    const char* getPairChromosome() const { return strFields[P_CHR]; }
+    const size_t getPairLocation() const { return intFields[P_LOC] - 1; }
+    const int getTemplateLenght() const { return intFields[TLEN]; }
+    const char* getSequence() const { return strFields[SEQ]; }
+    const char* getQuality() const { return strFields[QUAL]; }
+    const char* getOptional() const { return strFields[OPT]; }
+
+    void testRecords() const {
+        LOG(
+            "%s %d %s %d %d %s %s %d %d %s %s %s\n",
+            getReadName(),
+            getMappingFlag(),
+            getChromosome(),
+            getLocation(),
+            getMappingQuality(),
+            getCigar(),
+            getPairChromosome(),
+            getPairLocation(),
+            getTemplateLenght(),
+            getSequence(),
+            getQuality(),
+            getOptional()
+        );
+    }
 };
 
 #endif // RECORD_H

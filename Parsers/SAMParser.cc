@@ -6,7 +6,7 @@
 using namespace std;
 
 SAMParser::SAMParser (const string &filename) {
-	input = fopen (filename.c_str(), "r");
+	input = fopen(filename.c_str(), "r");
 	if (input == NULL)	
 		throw DZException("Cannot open the file %s", filename.c_str());
 
@@ -19,23 +19,26 @@ SAMParser::~SAMParser (void) {
 	fclose(input);
 }
 
-char *SAMParser::readComment (void)  {
-	fgets(currentRecord.line, MAXLEN, input);
-	if (currentRecord.line[0] != '@') {
-		parse();
-		return 0;
-	}
-	return currentRecord.line;
+string SAMParser::readComment (void)  {
+	string s;
+	while (fgets(currentRecord.line, MAXLEN, input)) 
+		if (currentRecord.line[0] != '@') {
+			parse();
+			break;
+		}
+		else s += currentRecord.line;
+	return s;
 }
 
 bool SAMParser::readNext (void)  {
-	while (fgets(currentRecord.line, MAXLEN, input)) {
+	if (fgets(currentRecord.line, MAXLEN, input)) {
 		assert(currentRecord.line[0] != '@');
 		parse();
 		return true;
 	}
 	return false;
 }
+
 
 bool SAMParser::hasNext (void) {
 	return !feof(input);
@@ -53,18 +56,22 @@ void SAMParser::parse (void) {
 	int l = strlen(currentRecord.line) - 1;
 	while (l && (currentRecord.line[l] == '\r' || currentRecord.line[l] == '\n'))
 		currentRecord.line[l--] = 0;
-	char *c = currentRecord.fields[0] = currentRecord.line;
-	int f = 1;
+	char *c = currentRecord.strFields[0] = currentRecord.line;
+	int f = 1, sfc = 1, ifc = 0;
 	while (*c) {
 		if (*c == '\t') {
-			currentRecord.fields[f++] = c + 1;
+			if (f == 1 || f == 3 || f == 4 || f == 7 || f == 8)
+				currentRecord.intFields[ifc++] = atoi(c + 1);
+			else
+				currentRecord.strFields[sfc++] = c + 1;
+		f++;
 			*c = 0;
 			if (f == 12) break;
 		}
 		c++;
 	}	
 	if (f == 11)
-		currentRecord.fields[11] = c;
+		currentRecord.strFields[sfc++] = c;
 }
 
 const Record &SAMParser::next (void) {

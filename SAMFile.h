@@ -2,6 +2,7 @@
 #define SAMFile_H
 
 #include "Common.h"
+#include "Parsers/BAMParser.h"
 #include "Parsers/SAMParser.h"
 #include "Fields/Sequence.h"
 #include "Fields/ReadName.h"
@@ -13,7 +14,7 @@
 #include "Fields/OptionalField.h"
 
 class SAMFileCompressor {
-	SAMParser parser;
+	Parser *parser;
 	Compressor *compressor[8];
 
 	FILE *outputFile;

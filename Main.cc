@@ -15,7 +15,7 @@ bool optStdout  = false;
 string optRef 	= "";
 string optInput = "";
 string optRange = "";
-size_t optBlock = 1000;
+size_t optBlock = 200000;
 
 void parse_opt (int argc, char **argv) {
 	int opt; 
@@ -154,8 +154,6 @@ void test (const string &s) {
 int main (int argc, char **argv) {
     setlocale(LC_ALL, "");
     parse_opt(argc, argv);
-
-    DEBUG("%d", optStdout);
 
     try {
 	    if (!file_exists(optRef))
