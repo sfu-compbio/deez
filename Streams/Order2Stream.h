@@ -7,7 +7,7 @@
 
 template<int AS>
 class AC2CompressionStream: public CompressionStream, public DecompressionStream {
-	static const int MOD_SZ = (1<<12)*16*16;
+	static const int MOD_SZ = AS*AS; // (1<<12)*16*16;
 	AC0CompressionStream<AS> mod[MOD_SZ];
 
 	uint8_t q1, q2;
@@ -26,11 +26,15 @@ public:
 private:
 	void encode (uint8_t q, AC &ac) {
 		assert(q < AS);
-		assert(q < (1 <<6));
+		//assert(q < (1 <<6));
 		assert(context<MOD_SZ);
 		mod[context].encode(q, ac);
 
-#define QBITS 12
+		context  = q1 * AS;
+		context += q;
+		q1 = q;
+
+/*#define QBITS 12
 		context  = ((max(q1,q2)<<6) + q) & ((1<<QBITS)-1);
 		context += (q1==q2)<<QBITS;
 		delta   += (q1>q)*(q1-q);
@@ -39,7 +43,7 @@ private:
 
 		q2 = q1; q1 = q;
 		
-		if(q==0) delta = 5, pos = 0, context = 0, q1 = q2 = 0;
+		if(q==0) delta = 5, pos = 0, context = 0, q1 = q2 = 0;*/
 	}
 
 	uint8_t decode (AC &ac) {

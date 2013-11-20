@@ -64,7 +64,7 @@ public:
 	
 public:
 	std::string getChromosome (void) const { return chromosome; }
-	void scanNextChromosome (void);
+	void scanChromosome (const std::string &s);
 	size_t size(void) { return records.size(); }
 	
 private:
@@ -95,7 +95,7 @@ public:
 	void setIndexData (uint8_t *, size_t) {}
 
 public:
-	void scanNextChromosome (void);
+	void scanChromosome (const std::string &s);
 	std::string getChromosome (void) const { return chromosome; }
 	size_t importFixes (uint8_t *in, size_t in_size);
 

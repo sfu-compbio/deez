@@ -6,7 +6,7 @@
 #include <cstdlib>
 #include "../Common.h"
 
-const int MAXLEN = 8 * KB;
+const int MAXLEN = 512 * KB;
 
 enum StringField {
     RN,

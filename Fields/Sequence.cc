@@ -1,22 +1,28 @@
 #include "Sequence.h"
 using namespace std;
 
+inline string int2str (int k) {
+	string s = "";
+	while (k) {
+		s = char(k % 10 + '0') + s;
+		k /= 10;
+	}
+	return s;
+}
+
 inline string inttostr (int k) {
     static vector<std::string> mem;
     if (mem.size() == 0) {
-        mem.reserve(10000);
-        mem.push_back("0");
-        for (int i = 1; i < 10000; i++) {
-            string s = "";
-            int p = i;
-            while (p) {
-                s = char(p % 10 + '0') + s;
-                p /= 10;
-            }
-            mem.push_back(s);
-        }
+    	mem.resize(10001);
+		mem[0] = "0";
+		for (int i = 1; i < 10000; i++)
+			mem[i] = int2str(i);
     }
-    return mem[k];
+
+    if (k < 10000)
+    	return mem[k];
+    else
+    	return int2str(k);
 }
 
 inline char getDNAValue (char ch) {
@@ -126,7 +132,7 @@ void SequenceCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, 
 	assert(editOperation.size() == 0);
 }
 
-void SequenceCompressor::scanNextChromosome (void) {
+void SequenceCompressor::scanChromosome (const string &s) {
 	// by here, all should be fixed ...
 	assert(fixes_loc.size() == 0);
 	assert(fixes_replace.size() == 0);
@@ -138,7 +144,7 @@ void SequenceCompressor::scanNextChromosome (void) {
 	fixed = 0;
 	fixedStart = fixedEnd = maxEnd = 0;
 
-	chromosome = reference.scanNextChromosome();
+	chromosome = reference.scanChromosome(s);
 }
 
 // called at the end of the block!
@@ -167,6 +173,8 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin,
 	// previously fixed
 	// fixedGenome: [fixedStart, fixedEnd)
 	// if we have more unfixed location
+	if (records[0].end >= nextBlockBegin)
+		return 0;
 
 	if (chromosome != "*") {
 		// Previously, we fixed all locations
@@ -175,7 +183,6 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin,
 		// so fixingStart indicates where should we start
 		// actual fixing
 		size_t fixingStart = fixedEnd;
-
 		if (nextBlockBegin > fixedEnd) {
 			size_t newFixedEnd   = nextBlockBegin;
 			if (newFixedEnd == (size_t)-1) // chromosome end, fix everything
@@ -183,7 +190,6 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin,
 			size_t newFixedStart = records[0].start;
 			assert(fixedStart <= newFixedStart);
 
-			
 			char *newFixed = new char[newFixedEnd - newFixedStart];
 			// copy old fixes!
 			if (fixed && newFixedStart < fixedEnd) {
@@ -200,12 +206,12 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin,
 			fixed = newFixed;
 		}
 
-	//	SCREEN("Given boundary is %'lu\n", nextBlockBegin);
-	//	SCREEN("Fixing from %'lu to %'lu\n", fixedStart, fixedEnd);
-	//	SCREEN("Reads from %'lu to %'lu\n", records[0].start, records[records.size()-1].end);
+		//	SCREEN("Given boundary is %'lu\n", nextBlockBegin);
+		//	SCREEN("Fixing from %'lu to %'lu\n", fixedStart, fixedEnd);
+		//	SCREEN("Reads from %'lu to %'lu\n", records[0].start, records[records.size()-1].end);
 
 		// obtain statistics
-		Array<int*> stats(5, MB); 
+		Array<int*> stats(0, MB); 
 		stats.resize(fixedEnd - fixedStart);
 		memset(stats.data(), 0, stats.size() * sizeof(int*));
 		for (size_t k = 0; k < records.size(); k++) {
@@ -264,13 +270,12 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin,
 	size_t bound;
 	for (bound = 0; bound < records.size() && records[bound].end <= fixedEnd; bound++)
 		editOperation.addRecord(getEditOP(records[bound].start - fixedStart, records[bound].seq, records[bound].op));
-	
+	assert(bound);
 	start_S = records[0].start;
 	end_S 	= records[bound-1].start;
 	end_E 	= records[bound-1].end;
 	fS = fixedStart;
 	fE = fixedEnd;
-
 	records.remove_first_n(bound);
 	return bound;
 }
@@ -441,7 +446,7 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	editOperation.importRecords(in + off, in_size - off);
 }
 
-void SequenceDecompressor::scanNextChromosome (void) {
+void SequenceDecompressor::scanChromosome (const string &s) {
 	// by here, all should be fixed ...
 // 	TODO more checking
 //	assert(fixes.size() == 0);
@@ -452,7 +457,7 @@ void SequenceDecompressor::scanNextChromosome (void) {
 	delete[] fixed;
 	fixed = 0;
 	fixedStart = fixedEnd = 0;
-	chromosome = reference.scanNextChromosome();
+	chromosome = reference.scanChromosome(s);
 }
 
 EditOP SequenceDecompressor::getSeqCigar (size_t loc, const string &op) {
@@ -521,7 +526,7 @@ EditOP SequenceDecompressor::getSeqCigar (size_t loc, const string &op) {
 					lastOP = 0;
 					lastOPSize = 0;
 				}
-				tmpOP += inttostr(size) + op[pos];
+				tmpOP += inttostr(size) + (op[pos] == 'K' ? 'N' : 'D');
 				genPos += size;
 				size = 0;
 				break;

@@ -6,8 +6,13 @@
 #include "../Streams/Order2Stream.h"
 #include "../Engines/StringEngine.h"
 
+typedef GzipCompressionStream<6>
+	/*AC2CompressionStream<64>*/ QualityCompressionStream;
+typedef GzipDecompressionStream
+	/*AC2DecompressionStream<64>*/ QualityDecompressionStream;
+
 class QualityScoreCompressor: 
-	public StringCompressor<AC2CompressionStream<64> > 
+	public StringCompressor<QualityCompressionStream> 
 {	
 public:
 	QualityScoreCompressor (int blockSize);
@@ -19,7 +24,7 @@ public:
 };
 
 class QualityScoreDecompressor: 
-	public StringDecompressor<AC2DecompressionStream<64> > 
+	public StringDecompressor<QualityDecompressionStream> 
 {
 public:
 	QualityScoreDecompressor (int blockSize);

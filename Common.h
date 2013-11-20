@@ -24,4 +24,15 @@ double _zaman_ (void);
 
 extern bool optStdout;
 
+enum Fields {
+	Sequence, 
+	ReadName, 
+	MappingFlag, 
+	MappingLocation,
+	MappingQuality, 
+	QualityScore, 
+	PairedEnd, 
+	OptionalField
+};
+
 #endif

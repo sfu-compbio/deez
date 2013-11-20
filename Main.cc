@@ -6,7 +6,8 @@
 #include <sys/time.h>
 
 #include "Common.h"
-#include "SAMFile.h"
+#include "Compress.h"
+#include "Decompress.h"
 using namespace std;
 
 bool optTest 	= false;
@@ -15,7 +16,7 @@ bool optStdout  = false;
 string optRef 	= "";
 string optInput = "";
 string optRange = "";
-size_t optBlock = 200000;
+size_t optBlock = 1000000;
 
 void parse_opt (int argc, char **argv) {
 	int opt; 
@@ -100,7 +101,7 @@ void compress (const string &in, const string &out) {
 	}
 	DEBUG("Using output file %s", out.c_str());
 	LOG("Compressing %s to %s ...", in.c_str(), out.c_str());
-	SAMFileCompressor sc(out, in, optRef, optBlock);
+	FileCompressor sc(out, in, optRef, optBlock);
 	sc.compress();
 }
 
@@ -115,7 +116,7 @@ void decompress (const string &in, const string &out) {
 	}
 	if (!optStdout) DEBUG("Using output file %s", out.c_str());
 	LOG("Decompressing %s to %s ...", in.c_str(), optStdout ? "stdout" : out.c_str());
-	SAMFileDecompressor sd(in, out, optRef, optBlock);
+	FileDecompressor sd(in, out, optRef, optBlock);
 	if (optRange == "")
 		sd.decompress();
 	else

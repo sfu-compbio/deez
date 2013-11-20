@@ -2,7 +2,7 @@
 using namespace std;
 
 QualityScoreCompressor::QualityScoreCompressor (int blockSize):
-	StringCompressor<AC2CompressionStream<64> >(blockSize) 
+	StringCompressor<QualityCompressionStream>(blockSize) 
 {
 }
 
@@ -21,10 +21,12 @@ void QualityScoreCompressor::addRecord (string qual, int flag) {
 	}
 	qual = qual.substr(0, sz);
 	for (size_t i = 0; i < sz; i++) {
+		assert(qual[i] > 32);
 		qual[i] -= 32;
 		assert(qual[i] < 64);
 	}
-	StringCompressor<AC2CompressionStream<64> >::addRecord(qual);
+	assert(qual.size()>0);
+	StringCompressor<QualityCompressionStream>::addRecord(qual);
 }
 
 void QualityScoreCompressor::addRecord (string qual, string seq, int flag) {
@@ -50,12 +52,12 @@ void QualityScoreCompressor::addRecord (string qual, string seq, int flag) {
 		hai += char(qual[i] - 32);
 		assert(qual[i] < 64);
 	}
-	StringCompressor<AC2CompressionStream<64> >::addRecord(hai);
+	StringCompressor<QualityCompressionStream>::addRecord(hai);
 }
 
 
 QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
-	StringDecompressor<AC2DecompressionStream<64> >(blockSize) 
+	StringDecompressor<QualityDecompressionStream>(blockSize) 
 {
 }
 
@@ -65,7 +67,7 @@ QualityScoreDecompressor::~QualityScoreDecompressor (void) {
 string QualityScoreDecompressor::getRecord (size_t seq_len, int flag) {
 	assert(hasRecord());
 	
-	string s = string(StringDecompressor<AC2DecompressionStream<64> >::getRecord());
+	string s = string(StringDecompressor<QualityDecompressionStream>::getRecord());
 	for (size_t i = 0; i < s.size(); i++)
 		s[i] += 32;
     char c = s[s.size() - 1];

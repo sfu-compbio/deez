@@ -32,7 +32,7 @@ public:
 
 public:
 	void realloc (size_t sz) {
-		_capacity = sz;
+		_capacity = sz + _extend;
 
 		if (_size > _capacity) _size = _capacity;
 		if (!_capacity) { _records = 0; return; }
@@ -44,22 +44,23 @@ public:
 	}
 
 	void resize (size_t sz) {
-		if (sz > _capacity)
+		if (sz > _capacity) {
 			realloc(sz);
+		}
 		_size = sz;
 	}
 
 	// add element, realloc if needed
 	void add (const T &t) {
 		if (_size == _capacity)
-			realloc(_capacity + _extend);
+			realloc(_capacity);
 		_records[_size++] = t;
 	}
 
 	// add array, realloc if needed
 	void add (const T *t, size_t sz) {
 		if (_size + sz > _capacity)
-			realloc(_capacity + sz + _extend);
+			realloc(_capacity + sz);
 		std::copy(t, t + sz, _records + _size);
 		_size += sz;
 	}

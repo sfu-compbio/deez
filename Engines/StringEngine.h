@@ -59,10 +59,15 @@ void StringCompressor<TStream>::outputRecords (Array<uint8_t> &out, size_t out_o
 	assert(k <= this->records.size());
 	Array<uint8_t> buffer(totalSize);
 	
+	//std::string *it = this->records.head();
 	for (size_t i = 0; i < k; i++) {
 		buffer.add((uint8_t*)this->records[i].c_str(), this->records[i].size() + 1);
 		totalSize -= this->records[i].size() + 1;
 	}
+	/*for (size_t i = 0; i < k; i++, it = this->records.increase(it)) {
+		buffer.add((uint8_t*)it->c_str(), it->size() + 1);
+		totalSize -= it->size() + 1;
+	}*/
 
 	size_t s = 0;
 	if (buffer.size()) s = this->stream->compress(buffer.data(), buffer.size(), out, out_offset + sizeof(size_t));
@@ -87,6 +92,8 @@ void StringDecompressor<TStream>::importRecords (uint8_t *in, size_t in_size) {
 	if (in_size == 0) 
 		return;
 
+	//fprintf(stderr,"%d %d --> ",this->recordCount,this->records.size());
+
 	// here, we shouldn't have any leftovers, since all blocks are of the same size
 	assert(this->recordCount == this->records.size());
 
@@ -109,6 +116,8 @@ void StringDecompressor<TStream>::importRecords (uint8_t *in, size_t in_size) {
 			this->records.add(std::string((char*)au.data() + start, i - start));
 			start = i + 1;
 		}
+
+	//fprintf(stderr, "%d\n",this->records.size());
 	
 	this->recordCount = 0;
 }

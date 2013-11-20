@@ -14,15 +14,17 @@ class Reference {
 	std::string currentChr;
 	size_t currentPos;
 	char c;
+
+	std::map<std::string, size_t> chromosomes;
 	
 public:
 	Reference (const std::string &filename);
 	~Reference (void);
 
 public:
-	std::string getChromosomeName (void) const;
-	std::string scanNextChromosome (void);
-	void load (char *arr, size_t s, size_t e);
+	std::string getChromosomeName(void) const;
+	std::string scanChromosome(const std::string &s);
+	void load(char *arr, size_t s, size_t e);
 };
 
 #endif

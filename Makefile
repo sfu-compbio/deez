@@ -11,6 +11,9 @@ all: $(SOURCES) $(EXECUTABLE)
 
 debug: CFLAGS += -g -fno-omit-frame-pointer
 debug: $(SOURCES) $(EXECUTABLE)
+
+superdebug: CFLAGS += -g -O0 -fno-inline
+superdebug: $(SOURCES) $(EXECUTABLE)
  
 profile: CFLAGS += -g -pg -O3
 profile: LDFLAGS += -pg
