@@ -57,7 +57,6 @@ void GenericCompressor<T, TStream>::addRecord (const T &rec) {
 }
 
 template<typename T, typename TStream>
-// set out size to compressed size block
 void GenericCompressor<T, TStream>::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {
 	if (!records.size()) { 
 		out.resize(0);
@@ -66,19 +65,11 @@ void GenericCompressor<T, TStream>::outputRecords (Array<uint8_t> &out, size_t o
 	assert(k <= records.size());
 	Array<uint8_t> buffer(k * sizeof(T));
 	
-	//T *it = records.head();
 	for (size_t i = 0; i < k; i++)
 		buffer.add((uint8_t*)&records[i], sizeof(T));
-	/*for (size_t i = 0; i < k; i++, it = records.increase(it))
-		buffer.add((uint8_t*)it, sizeof(T));*/
-
-	size_t s = 0;
-	if (buffer.size()) s = stream->compress(buffer.data(), buffer.size(), out, out_offset + sizeof(size_t));
-	out.resize(out_offset + sizeof(size_t) + s);
-	*(size_t*)(out.data() + out_offset) = buffer.size(); // uncompressed size
-	//// 
+	
+	compressArray(stream, buffer, out, out_offset);
 	records.remove_first_n(k);
-	//LOG("out %d~",k);
 }
 
 template<typename T, typename TStream>
@@ -116,28 +107,14 @@ void GenericDecompressor<T, TStream>::importRecords (uint8_t *in, size_t in_size
 	if (in_size == 0) 
 		return;
 
-	//fprintf(stderr,"%d %d --> ",recordCount,records.size());
-
-	// here, we shouldn't have any leftovers, since all blocks are of the same size
 	assert(recordCount == records.size());
-
-	// decompress
 	assert(in_size >= sizeof(size_t));
 	
-	size_t uncompressed_size = *(size_t*)in;
-	Array<uint8_t> au;
-	au.resize(uncompressed_size);
-	in += sizeof(size_t);
-	
-	size_t s = 0;
-	if (in_size) s = stream->decompress(in, in_size, au, 0);
-	assert(s == uncompressed_size);
+	Array<uint8_t> out;
+	size_t s = decompressArray(stream, in, out);
 	assert(s % sizeof(T) == 0);
 	records.resize(0);
-	records.add((T*)au.data(), s / sizeof(T));
-
-	//fprintf(stderr, "%d\n",records.size());
-
+	records.add((T*)out.data(), s / sizeof(T));
 	recordCount = 0;
 }
 

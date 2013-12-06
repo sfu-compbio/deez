@@ -7,7 +7,7 @@
 #include "Fields/Sequence.h"
 #include "Fields/ReadName.h"
 #include "Fields/MappingFlag.h"
-#include "Fields/MappingLocation.h"
+#include "Fields/EditOperation.h"
 #include "Fields/MappingQuality.h"
 #include "Fields/QualityScore.h"
 #include "Fields/PairedEnd.h"
@@ -15,9 +15,17 @@
 
 class FileCompressor {
 	Parser *parser;
-	Compressor *compressor[8];
+	SequenceCompressor *sequence;
+	EditOperationCompressor *editOp;
+	ReadNameCompressor *readName;
+	MappingFlagCompressor *mapFlag;
+	MappingQualityCompressor *mapQual;
+	QualityScoreCompressor *quality;
+	PairedEndCompressor *pairedEnd;
+	OptionalFieldCompressor *optField;
 
 	FILE *outputFile;
+	FILE *indexTmp;
 	gzFile indexFile;
 
 	size_t blockSize;
@@ -37,6 +45,7 @@ private:
 	void outputMagic(void);
 	void outputComment(void);
 	void outputRecords(void);
+	void outputBlock (Compressor *c, Array<uint8_t> &out, size_t count);
 
 public:
 	void compress (void);

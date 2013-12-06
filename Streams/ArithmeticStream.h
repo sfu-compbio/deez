@@ -19,11 +19,11 @@ class AC {
 	Array<uint8_t> *dataO;
 
 private:
-	void setbit (void);
+	int setbit (void);
 	void getbit (void);
 
 public:
-	void encode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq);
+	int encode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq);
 	void decode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq);
 	uint32_t getFreq (uint32_t);
 	void flush (void);

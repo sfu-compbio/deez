@@ -13,9 +13,10 @@ using namespace std;
 bool optTest 	= false;
 bool optForce 	= false;
 bool optStdout  = false;
-string optRef 	= "";
-string optInput = "";
-string optRange = "";
+string optRef 	 = "";
+string optInput  = "";
+string optRange  = "";
+string optOutput = "";
 size_t optBlock = 1000000;
 
 void parse_opt (int argc, char **argv) {
@@ -25,10 +26,11 @@ void parse_opt (int argc, char **argv) {
 		{ "reference", 1, NULL, 'r' },
 		{ "force",     0, NULL, 'f' },
 		{ "test",      0, NULL, 't' },
-		{ "stdout",    0, NULL, 's' },
+		{ "stdout",    0, NULL, 'c' },
+		{ "output",    1, NULL, 'o' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:tfs";
+	const char *short_opt = "hr:tfco:";
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
@@ -43,8 +45,12 @@ void parse_opt (int argc, char **argv) {
 			case 'f':
 				optForce = true;
 				break;
-			case 's':
+			case 'c':
 				optStdout = true;
+				break;
+			case 'o':
+				optOutput = optarg;
+				break;
 			case -1:
 				break;
 			default: {
@@ -97,7 +103,7 @@ void compress (const string &in, const string &out) {
 		if (!optForce)
 			throw DZException("File %s already exists. Use -f to overwrite", out.c_str());
 		else
-			WARN("File %s already exists. Overwriting it.", out.c_str());
+			LOG("File %s already exists. Overwriting it.", out.c_str());
 	}
 	DEBUG("Using output file %s", out.c_str());
 	LOG("Compressing %s to %s ...", in.c_str(), out.c_str());
@@ -112,7 +118,7 @@ void decompress (const string &in, const string &out) {
 		if (!optForce)
 			throw DZException("File %s already exists. Use -f to overwrite", out.c_str());
 		else
-			WARN("File %s already exists. Overwriting it.", out.c_str());
+			LOG("File %s already exists. Overwriting it.", out.c_str());
 	}
 	if (!optStdout) DEBUG("Using output file %s", out.c_str());
 	LOG("Decompressing %s to %s ...", in.c_str(), optStdout ? "stdout" : out.c_str());
@@ -169,11 +175,17 @@ int main (int argc, char **argv) {
 		if (optTest)
 			test(optInput);
 		else {
-			string output = remove_extension(optInput);	
-			if (!is_dz_file(optInput))
-				compress(optInput, output + ".dz");
+			bool isCompress = !is_dz_file(optInput);
+			string output = optOutput;
+			if (output == "" && !optStdout) {
+				output = remove_extension(optInput) + ".dz";
+				if (!isCompress) output += ".sam";
+			}
+			
+			if (isCompress) 
+				compress(optInput, output);
 			else 
-				decompress(optInput, output + ".dz.sam");
+				decompress(optInput, output);
 		}
 	}
 	catch (DZException &e) {

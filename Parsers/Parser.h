@@ -9,7 +9,6 @@
 
 class Parser {
 public:
-
 	virtual std::string readComment (void) = 0;
 	virtual bool readNext (void) = 0;
 	virtual bool hasNext (void) = 0;

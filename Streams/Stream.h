@@ -5,8 +5,10 @@
 
 class CompressionStream {
 protected:
+	size_t compressedCount;
 
 public:
+	CompressionStream(void);
 	virtual ~CompressionStream (void) {}
 
 public:
@@ -15,6 +17,7 @@ public:
 	// return new compressed size!	
 	virtual size_t compress (uint8_t *source, size_t source_sz, Array<uint8_t> &dest, size_t dest_offset) = 0;//uint8_t *dest, size_t dest_sz) = 0;
 	virtual void getCurrentState (Array<uint8_t> &ou) = 0;
+	virtual size_t getCount(void) { return compressedCount; }
 };
 
 class DecompressionStream {

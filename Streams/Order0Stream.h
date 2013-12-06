@@ -27,12 +27,16 @@ class AC0CompressionStream: public CompressionStream, public DecompressionStream
 		}
 	} stats[AS];
 	int64_t sum;
+
+public:
+	size_t encoded;
 	
 public:
 	AC0CompressionStream (void) {
 		for (int i = 0; i < AS; i++)
 			stats[i].sym = i, stats[i].freq = 1;
 		sum = AS;
+		encoded = 0;
 	}
 
 protected:
@@ -46,6 +50,7 @@ protected:
         }
 	}
 
+public:
 	void encode (uint8_t c, AC &ac) {
 		assert(c < AS);
 		uint32_t l = 0, i;
@@ -53,7 +58,7 @@ protected:
 			if (stats[i].sym == c) break;
 			else l += stats[i].freq;
 		
-		ac.encode(l, stats[i].freq, sum);
+		encoded += ac.encode(l, stats[i].freq, sum);
 		sum++; 
 		stats[i].freq++;
 		
@@ -107,6 +112,7 @@ public:
 		for (size_t i = 0; i < source_sz; i++)
 			encode(source[i], ac);
 		ac.flush();
+		this->compressedCount += dest.size() - dest_offset;
 		return dest.size() - dest_offset;
 		//return 
 	}
@@ -153,8 +159,6 @@ public:
 		}
 		//sort(stats, stats + AS, greater<Stat>());
 	}
-
-	friend class AC2CompressionStream<AS>;
 };
 
 #define AC0DecompressionStream AC0CompressionStream

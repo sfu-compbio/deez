@@ -20,8 +20,10 @@ public:
 
 		size_t sz = dest.size() - dest_offset;
 		int c = compress2(dest.data() + dest_offset, &sz, source, source_sz, Level);
-		if (c == Z_OK) 
+		if (c == Z_OK) {
+			this->compressedCount += sz;
 			return sz;
+		}
 		else 
 			throw DZException("zlib compression error %d", c);
 	}

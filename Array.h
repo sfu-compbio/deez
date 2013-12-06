@@ -6,7 +6,6 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
-
 template<class T>
 class Array {
 	T 		*_records;

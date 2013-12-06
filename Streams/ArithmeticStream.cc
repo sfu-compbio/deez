@@ -19,21 +19,25 @@ void AC::initDecode (uint8_t *o) {
 	getbit(), getbit(), getbit();
 }
 
-void AC::setbit (void) {
+int AC::setbit (void) {
+	int w = 0;
+
 	rc_Carry = (Low >> 63) & 1;
 	Low &= 0x7FFFFFFFFFFFFFFFll;
 	rc_LowH = Low >> 31;
 	if (rc_Carry == 1 || rc_LowH < 0xFFFFFFFF) {
 		uint32_t i = rc_Cache + rc_Carry;
-		dataO->add((uint8_t*)&i, 4);
+		dataO->add((uint8_t*)&i, 4), w += 4;
 		for (; rc_FFNum > 0; rc_FFNum--) {
 			i = 0xFFFFFFFF + rc_Carry;
-			dataO->add((uint8_t*)&i, 4);
+			dataO->add((uint8_t*)&i, 4), w += 4;
 		}
 		rc_Cache = rc_LowH;
 	}
 	else rc_FFNum++;
 	Low = (Low & 0x7FFFFFFF) << 32;
+
+	return w;
 }
 
 void AC::getbit (void) {
@@ -42,14 +46,15 @@ void AC::getbit (void) {
 	rc_Carry = rc_Cache << 31;
 }
 
-void AC::encode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq) {
+int AC::encode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq) {
 	Range /= totFreq;
 	Low += Range * cumFreq;
 	Range *= freq;
 	if (Range < 0x80000000) {
 		Range <<= 32;
-		setbit();
+		return setbit();
 	}
+	return 0;
 }
 
 uint32_t AC::getFreq (uint32_t totFreq) {
