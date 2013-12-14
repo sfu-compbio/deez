@@ -60,6 +60,7 @@ FileCompressor::FileCompressor (const string &outFile, const string &samFile, co
 	indexFile = gzdopen(fileno(tmp), "wb6");
 	if (indexFile == Z_NULL)	
 		throw DZException("Cannot open temporary file");
+	//gzwrite(indexFile, "HAMO", 5);
 }
 
 FileCompressor::~FileCompressor (void) {
@@ -84,6 +85,7 @@ void FileCompressor::compress (void) {
 void FileCompressor::outputMagic (void) {
 	uint32_t magic = MAGIC;
 	fwrite(&magic, 4, 1, outputFile);
+	fwrite(&optQuality, 1, 1, outputFile);
 }
 
 void FileCompressor::outputComment (void) {
@@ -116,6 +118,7 @@ void FileCompressor::outputBlock (Compressor *c, Array<uint8_t> &out, size_t cou
 	c->getIndexData(out);
 	out_sz = out.size();
 	gzwrite(indexFile, &out_sz, sizeof(size_t));
+	LOG("%s >> %lu", NAMES[_e_%8], out_sz);
 	if (out_sz) 
 		gzwrite(indexFile, out.data(), out_sz);
 
@@ -128,7 +131,7 @@ void FileCompressor::outputRecords (void) {
 	size_t lastStart = 0;
 	int64_t total = 0;
 	int64_t bsc = blockSize;
-	
+
 	int64_t blockCount = 0;
 	int64_t currentSize = 0;
 	Array<uint8_t> outputBuffer(0, MB);
@@ -159,7 +162,7 @@ void FileCompressor::outputRecords (void) {
 			mapQual->addRecord(rc.getMappingQuality());
 			quality->addRecord(rc.getQuality()/*, rc.getSequence()*/, rc.getMappingFlag());
 			pairedEnd->addRecord(PairedEndInfo(rc.getPairChromosome(), p_loc, rc.getTemplateLenght(), 
-				rc.getLocation(), strlen(rc.getSequence())));
+				sequence->getChromosome(), rc.getLocation())); //, strlen(rc.getSequence())));
 			optField->addRecord(rc.getOptional());
 
 			lastStart = loc;
@@ -173,7 +176,8 @@ void FileCompressor::outputRecords (void) {
 			currentBlockLastLoc, 
 			currentBlockLastEndLoc,
 			fixedStartPos, fixedEndPos;
-		if (_e_%8==0)LOGN("\n# ");
+
+		LOGN("\n# ");
 		ZAMAN_START();
 		currentBlockCount = sequence->applyFixes(
 		 	!parser->hasNext() || parser->head() != sequence->getChromosome() || parser->head() == "*" 
@@ -190,11 +194,13 @@ void FileCompressor::outputRecords (void) {
 
 		// ERROR("Block size %lld...", blockSize);
 		// write chromosome id
+		//LOG("> %lu",ftell(outputFile));
+		size_t zpos = ftell(outputFile);
+
 		fwrite(&op, sizeof(char), 1, outputFile);
 		if (op) 
 			fwrite(chr.c_str(), chr.size() + 1, 1, outputFile);
 
-		size_t zpos = ftell(outputFile);
 		gzwrite(indexFile, &zpos, sizeof(size_t));		
 		//	DEBUG("\n%s:%'lu-%'lu..%'lu\tfx %'lu-%'lu\t%'lu", sequence->getChromosome().c_str(), 
 		//		currentBlockFirstLoc+1, currentBlockLastLoc+1, currentBlockLastEndLoc, 
@@ -234,6 +240,7 @@ void FileCompressor::outputRecords (void) {
 	fwrite("DZIDX", 1, 5, outputFile);
 	char *buffer = (char*)malloc(MB);
 	size_t sz;
+	fseek(indexTmp, 0, SEEK_SET);
 	while (sz = fread(buffer, 1, MB, indexTmp))
 		fwrite(buffer, 1, sz, outputFile);
 	free(buffer);

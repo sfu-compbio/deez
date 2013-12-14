@@ -1,6 +1,6 @@
 CC = g++
-CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
-LDFLAGS = -lz -lpthread
+CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE 
+LDFLAGS = -lz -lpthread 
 
 SOURCES := $(shell find $(SOURCEDIR) -name '*.cc' -not -path "./run/*")
 OBJECTS = $(SOURCES:.cc=.o)
@@ -24,8 +24,11 @@ gprofile: LDFLAGS += -ltcmalloc -lprofiler
 gprofile: CFLAGS += -g
 gprofile: $(SOURCES) $(EXECUTABLE)
 
-test: CFLAGS += -O3 -DNDEBUG
+test: CFLAGS += -O3 -DNDEBUG -std=c++11
 test: $(SOURCES) $(TESTEXE)
+
+testdebug: CFLAGS += -g -std=c++11
+testdebug: $(SOURCES) $(TESTEXE)
 
 $(TESTEXE): OBJECTS := $(subst ./Main.o,,$(OBJECTS))
 $(TESTEXE): $(OBJECTS)

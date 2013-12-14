@@ -36,7 +36,6 @@ BAMParser::~BAMParser (void) {
 string BAMParser::readComment (void)  {
 	int32_t len;
 	gzread(input, &len, sizeof(int32_t));
-
 	char *c = (char*)calloc(len + 1, 1);
 	gzread(input, c, len);
 	strncpy(currentRecord.line, c, len + 1);

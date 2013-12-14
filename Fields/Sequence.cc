@@ -173,8 +173,10 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 				}
 				else {
 					REPEAT(2) fixes_loc.add(0);
-					for (int _ = 64 - 8; _ >= 0; _ -= 8)
-						fixes_loc.add((toadd >> _) & 0xff);
+					fixes_loc.add((toadd >> 24) & 0xff);
+					fixes_loc.add((toadd >> 16) & 0xff);
+					fixes_loc.add((toadd >> 8) & 0xff);
+					fixes_loc.add(toadd & 0xff);
 				}
 				// fixes_loc.add();
 				fixedPrev = fixedStart + i;
@@ -252,8 +254,16 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)  {
 	fixed = newFixed;
 	
 	size_t prevFix = 0;
+	uint8_t *len = fixes_loc.data();
 	for (size_t i = 0; i < fixes_replace.size(); i++) {
-		prevFix += *((uint32_t*)fixes_loc.data() + i);
+		int T = 1;
+		if (!*len) T = 2, len++;
+		if (!*len) T = 4, len++;
+		size_t fl = 0;
+		REPEAT(T) fl |= *len++ << (8 * (T - _ - 1));
+		assert(fl > 0);
+		prevFix += --fl;
+
 		assert(prevFix < fixedEnd);
 		assert(prevFix >= fixedStart);
 		fixed[prevFix - fixedStart] = fixes_replace.data()[i];

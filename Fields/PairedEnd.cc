@@ -1,8 +1,8 @@
 #include "PairedEnd.h"
 using namespace std;
 
-size_t _OK=0;
-size_t _NO=0;
+//size_t _OK=0;
+//size_t _NO=0;
 
 PairedEndCompressor::PairedEndCompressor (int blockSize):
 	GenericCompressor<PairedEndInfo, GzipCompressionStream<6> >(blockSize)
@@ -10,7 +10,7 @@ PairedEndCompressor::PairedEndCompressor (int blockSize):
 }
 
 PairedEndCompressor::~PairedEndCompressor (void) {
-	LOG("OK~ %lu NO~ %lu\n",_OK,_NO);
+//	LOG("OK~ %lu NO~ %lu\n",_OK,_NO);
 }
 
 void PairedEndCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {
@@ -20,15 +20,27 @@ void PairedEndCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset,
 	}
 	assert(k <= records.size());
 
-	Array<uint8_t> buffer(k * (sizeof(size_t) + 2 * sizeof(int32_t) + 1), 1000);
+	Array<uint8_t> buffer(k * (sizeof(size_t) + sizeof(int32_t) + 1), 1000);
 	std::map<std::string, char> chromosomes;
 	for (size_t i = 0; i < k; i++) {
-		if (records[i].notvalid) {
-			_NO++;
-			int t = 1;
-			buffer.add((uint8_t*)&t, sizeof(int32_t));			
+	//	if (records[i].notvalid) {
+	//		_NO++;
+	//		int t = 1;
+	//		buffer.add((uint8_t*)&t, sizeof(int32_t));
+			
+			uint32_t sz = records[i].pos;
+			if (sz < (1 << 16)) {
+				uint16_t sz16 = sz;
+				assert(sz16>0);
+				buffer.add((uint8_t*)&sz16, sizeof(uint16_t));
+			}
+			else {
+				uint16_t sz16 = 0;
+				buffer.add((uint8_t*)&sz16, sizeof(uint16_t));	
+				buffer.add((uint8_t*)&sz, sizeof(uint32_t));	
+			}
 			buffer.add((uint8_t*)&records[i].tlen, sizeof(int32_t));
-			buffer.add((uint8_t*)&records[i].pos, sizeof(size_t));
+			
 			map<string, char>::iterator c = chromosomes.find(records[i].chr);
 			if (c != chromosomes.end())
 				buffer.add(c->second);
@@ -38,11 +50,10 @@ void PairedEndCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset,
 				char id = chromosomes.size();
 				chromosomes[records[i].chr] = id;
 			}
-		}
-		else {
-			_OK++;
-			buffer.add((uint8_t*)&records[i].tlen, sizeof(int32_t));
-		}
+	//	}
+	//	else {
+	//		buffer.add((uint8_t*)&records[i].tlen, sizeof(int32_t));
+	//	}
 	}
 	compressArray(stream, buffer, out, out_offset);
 	this->records.remove_first_n(k);
@@ -56,14 +67,16 @@ PairedEndDecompressor::PairedEndDecompressor (int blockSize):
 PairedEndDecompressor::~PairedEndDecompressor (void) {
 }
 
-const PairedEndInfo &PairedEndDecompressor::getRecord (size_t mateLoc, int mateLen) {
+const PairedEndInfo &PairedEndDecompressor::getRecord (const string &mc, size_t mpos) {
 	assert(hasRecord());
-
 	PairedEndInfo &p = records.data()[recordCount++];
-	if (!p.notvalid) {
-		p.chr = "*";
-		p.pos = mateLoc - p.tlen + mateLen;
+	if (mc == p.chr) {
+		if (p.tlen <= 0)
+			p.pos += mpos;
+		else
+			p.pos = mpos - p.pos;
 	}
+	p.pos--;
 	return p;
 }
 
@@ -83,12 +96,14 @@ void PairedEndDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	std::map<char, std::string> chromosomes;
 	char chr;
 	for (size_t i = 0; i < s; ) {
-		pe.tlen = *(int32_t*)(au.data() + i), i += sizeof(int32_t);
-		pe.notvalid = 0;
-		if (pe.tlen == 1) {
-			pe.notvalid = 1;
+	//	pe.notvalid = 0;
+	//	if (pe.tlen == 1) {
+	//		pe.notvalid = 1;
+	//		pe.tlen = *(int32_t*)(au.data() + i), i += sizeof(int32_t);
+			pe.pos = *(uint16_t*)(au.data() + i), i += sizeof(uint16_t);
+			if (!pe.pos) 
+				pe.pos = *(uint32_t*)(au.data() + i), i += sizeof(uint32_t);
 			pe.tlen = *(int32_t*)(au.data() + i), i += sizeof(int32_t);
-			pe.pos = *(size_t*)(au.data() + i), i += sizeof(size_t);
 			chr = *(au.data() + i), i++;
 			if (chr == -1) {
 				string sx = "";
@@ -101,9 +116,10 @@ void PairedEndDecompressor::importRecords (uint8_t *in, size_t in_size) {
 			}
 			else pe.chr = chromosomes[chr];
 		
-		}	
+	//	}	
 		records.add(pe);
 	}
+	LOG("loaded %d",records.size());
 	
 	recordCount = 0;
 }

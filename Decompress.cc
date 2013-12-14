@@ -14,7 +14,6 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 	readName = new ReadNameDecompressor(bs);
 	mapFlag = new MappingFlagDecompressor(bs);
 	mapQual = new MappingQualityDecompressor(bs);
-	quality = new QualityScoreDecompressor(bs);
 	pairedEnd = new PairedEndDecompressor(bs);
 	optField = new OptionalFieldDecompressor(bs);
 
@@ -38,10 +37,15 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 		throw DZException("Index is corrupted ...%s", indexMagic);
 
 	int idx = dup(fileno(this->inFile));
+	lseek(idx, sz + 5, SEEK_SET); // needed for gzdopen
+
 	idxFile = gzdopen(idx, "rb");
-	if (idxFile == NULL)
+	if (idxFile == Z_NULL)
 		throw DZException("Cannot open the index");
 
+	//gzread(idxFile, indexMagic, 5);
+	//LOG("%s", indexMagic);
+	
 	fseek(this->inFile, 0L, SEEK_SET);
 
 	if (optStdout)
@@ -89,6 +93,8 @@ void FileDecompressor::getMagic (void) {
 		(magic >> 4) & 0xf,
 		magic & 0xf
 	);
+	fread(&optQuality, 1, 1, inFile);
+	quality = new QualityScoreDecompressor(blockSize);
 }
 
 void FileDecompressor::getComment (bool output) {
@@ -126,6 +132,7 @@ size_t FileDecompressor::getBlock (const string &chromosome, size_t start, size_
 		chr = chromosome;
 
 	char chflag;
+	//LOG("> %lu",ftell(inFile));
 	// EOF case
 	if (fread(&chflag, 1, 1, inFile) != 1)
 		return 0;
@@ -162,15 +169,15 @@ size_t FileDecompressor::getBlock (const string &chromosome, size_t start, size_
 		int mqual = mapQual->getRecord();
 		string qual = quality->getRecord(eo.seq.size(), flag);
 		string optional = optField->getRecord();
-
-		if (chr != "*") eo.start++;
-		PairedEndInfo pe = pairedEnd->getRecord(eo.start, eo.seq.size());
-		if (pe.chr != "*") pe.pos++;
+		PairedEndInfo pe = pairedEnd->getRecord(chr, eo.start);
 
 		if (eo.start < start)
 			continue;
 		if (eo.start > end)
 			return count;
+
+		if (chr != "*") eo.start++;
+		if (pe.chr != "*") pe.pos++;
 
 		fprintf(samFile, "%s\t%d\t%s\t%d\t%d\t%s\t%s\t%lu\t%d\t%s\t%s",
 		 	rname.c_str(),
@@ -235,18 +242,18 @@ void FileDecompressor::decompress (const string &idxFilePath, const string &rang
 			size_t x;
 			gzread(idxFile, &x, sizeof(size_t));
 			ei[i].resize(x);
-			if(x) {
-				gzread(idxFile, ei[i].data(), x);
-				// gzseek(idxFile, gztell(idxFile) + x, SEEK_SET);
-			}
+			if (x) gzread(idxFile, ei[i].data(), x);
 		}
 
 		if (gzread(idxFile, &zpos, sizeof(size_t)) != sizeof(size_t)) 
 			throw DZException("Requested range %s not found", range.c_str());
 		gzread(idxFile, &currentBlockCount, sizeof(size_t));
+		LOG("> %lu", currentBlockCount);
 		while (gzread(idxFile, c, 1) && *c++);
 		gzread(idxFile, &startPos, sizeof(size_t));
+		LOG("> %lu", startPos);
 		gzread(idxFile, &endPos, sizeof(size_t));
+		LOG("> %lu", endPos);
 
 		size_t fS, fE;
 		gzread(idxFile, &fS, sizeof(size_t));
@@ -284,11 +291,7 @@ void FileDecompressor::decompress (const string &idxFilePath, const string &rang
 				sequence->scanChromosome(chr);
 
 			Array<uint8_t> in;
-			size_t sz;
-			fread(&sz, sizeof(size_t), 1, inFile);
-			in.resize(sz);
-			if (sz) fread(in.data(), 1, sz, inFile);
-			sequence->importRecords(in.data(), in.size());	
+			readBlock(sequence, in);
 		}
 	}
 

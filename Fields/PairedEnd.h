@@ -12,16 +12,20 @@ struct PairedEndInfo {
 	std::string chr;
 	size_t pos;
 	int32_t tlen;
-	bool notvalid;
-
+	
 	PairedEndInfo (void) {}
-	PairedEndInfo (const std::string &c, size_t p, int32_t t,
-		size_t mateLoc, size_t mateLen):
+	PairedEndInfo (const std::string &c, size_t p, int32_t t, const std::string &mc, size_t mpos):
 		chr(c), pos(p), tlen(t) 
 	{
-		notvalid = !(c == "=" && 
-			mateLoc + t - mateLen == p
-		);
+		if ( (mc == "=") && !((mpos <= pos && tlen <= 0) || (mpos > pos && tlen >= 0)) )
+			throw DZException("Mate position and template length inconsistent! pos=%lu matepos=%lu tlen=%d", mpos, pos, tlen);
+		if (mc == "=") {
+			if (tlen <= 0)
+				pos -= mpos;
+			else
+				pos = mpos - pos;
+		}
+		pos++;
 	}
 };
 
@@ -45,7 +49,7 @@ public:
 	
 public:
 	void importRecords (uint8_t *in, size_t in_size);
-	const PairedEndInfo &getRecord (size_t mateLoc, int mateLen);
+	const PairedEndInfo &getRecord (const std::string &mc, size_t mpos);
 };
 
 #endif

@@ -34,6 +34,7 @@ private:
 public:
 	std::string readComment (void);
 	bool readNext (void);
+	//bool readRaw(Array<uint8_t> &a);
 	bool hasNext (void);
 	size_t fpos (void);
 	size_t fsize (void);

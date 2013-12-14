@@ -18,6 +18,8 @@ string optInput  = "";
 string optRange  = "";
 string optOutput = "";
 size_t optBlock = 1000000;
+char optQuality = 0;
+char optLossy   = 0;
 
 void parse_opt (int argc, char **argv) {
 	int opt; 
@@ -28,9 +30,11 @@ void parse_opt (int argc, char **argv) {
 		{ "test",      0, NULL, 't' },
 		{ "stdout",    0, NULL, 'c' },
 		{ "output",    1, NULL, 'o' },
+		{ "lossy",     1, NULL, 'l' },
+		{ "quality",   1, NULL, 'q' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:tfco:";
+	const char *short_opt = "hr:tfco:q:l:";
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
@@ -50,6 +54,19 @@ void parse_opt (int argc, char **argv) {
 				break;
 			case 'o':
 				optOutput = optarg;
+				break;
+			case 'q':
+				if (!strcmp(optarg, "samcomp") || atoi(optarg) == 1)
+					optQuality = 1;
+				else if (!strcmp(optarg, "test") || atoi(optarg) == 2)
+					optQuality = 2;
+				else 
+					throw DZException("Unknown quality compression mode %s", optarg);
+				break;
+			case 'l':
+				optLossy = atoi(optarg);
+				if (optLossy < 0 || optLossy > 100)
+					throw DZException("Invalid quality lossy sensitivity value %d", optLossy);
 				break;
 			case -1:
 				break;
