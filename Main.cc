@@ -8,9 +8,11 @@
 #include "Common.h"
 #include "Compress.h"
 #include "Decompress.h"
+#include "Sort.h"
 using namespace std;
 
 bool optTest 	= false;
+bool optSort 	= false;
 bool optForce 	= false;
 bool optStdout  = false;
 string optRef 	 = "";
@@ -20,6 +22,8 @@ string optOutput = "";
 size_t optBlock = 1000000;
 char optQuality = 0;
 char optLossy   = 0;
+int optThreads    = 4;
+int optSortMemory = GB;
 
 void parse_opt (int argc, char **argv) {
 	int opt; 
@@ -27,14 +31,17 @@ void parse_opt (int argc, char **argv) {
 		{ "help",      0, NULL, 'h' },
 		{ "reference", 1, NULL, 'r' },
 		{ "force",     0, NULL, 'f' },
-		{ "test",      0, NULL, 't' },
+		{ "test",      0, NULL, 'T' },
+		{ "threads",   1, NULL, 't' },
 		{ "stdout",    0, NULL, 'c' },
 		{ "output",    1, NULL, 'o' },
 		{ "lossy",     1, NULL, 'l' },
+		{ "sort",      0, NULL, 's' },
+		{ "sortmem",   1, NULL, 'M' },
 		{ "quality",   1, NULL, 'q' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:tfco:q:l:";
+	const char *short_opt = "hr:t:Tfco:q:l:sM:";
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
@@ -43,8 +50,17 @@ void parse_opt (int argc, char **argv) {
 			case 'r':
 				optRef = optarg;
 				break;
-			case 't':
+			case 'T':
 				optTest = true;
+				break;
+			case 't':
+				optThreads = atoi(optarg);
+				break;
+			case 's':
+				optSort = true;
+				break;
+			case 'M':
+				optSortMemory = atoi(optarg);
 				break;
 			case 'f':
 				optForce = true;
@@ -147,20 +163,7 @@ void decompress (const string &in, const string &out) {
 }
 
 void test (const string &s) {
-	/*char *t = new char[s.size() + 1];
-	memcpy(t, s.c_str(), s.size() + 1);
-	string dir(dirname(t));
-	memcpy(t, s.c_str(), s.size() + 1);
-	string file(basename(t)); 
-	delete[] t;
-
-	file += ".dztmp_";
-	string tmp = string(tempnam(dir.c_str(), file.c_str()));
-	WARN(">>>>> %s %s %s\n",dir.c_str(),file.c_str(),tmp.c_str());
-	exit(1);*/
-
 	string tmp = s + ".dztemp";
-
 	LOG("Test prefix %s", tmp.c_str());
 
 	int64_t t = dz_time();
@@ -180,29 +183,40 @@ int main (int argc, char **argv) {
     parse_opt(argc, argv);
 
     try {
-	    if (!file_exists(optRef))
-	    	throw DZException("Reference file %s does not exist", optRef.c_str());
-	    DEBUG("Using reference file %s", full_path(optRef).c_str());
-		DEBUG("Using block size %'lu", optBlock);
-
-		if (!file_exists(optInput))
+    	if (!file_exists(optInput))
 			throw DZException("File %s does not exist", optInput.c_str());
 		DEBUG("Using input file %s", full_path(optInput).c_str());
 
-		if (optTest)
-			test(optInput);
-		else {
-			bool isCompress = !is_dz_file(optInput);
-			string output = optOutput;
-			if (output == "" && !optStdout) {
-				output = remove_extension(optInput) + ".dz";
-				if (!isCompress) output += ".sam";
+    	if (optSort) {
+    		if (optStdout)
+    			throw DZException("Sort mode cannot be used with stdout");
+    		string output = optOutput;
+    		if (output == "")
+				output = optInput + ".sort";
+			DEBUG("Sorting %s to %s witn %'lu memory", optInput.c_str(), output.c_str(), optSortMemory);
+    		sortFile(optInput, output, optSortMemory);
+    	}
+    	else {
+	    	if (!file_exists(optRef))
+	    		throw DZException("Reference file %s does not exist", optRef.c_str());
+	    	else DEBUG("Using reference file %s", full_path(optRef).c_str());
+			DEBUG("Using block size %'lu", optBlock);
+
+			if (optTest)
+				test(optInput);
+			else {
+				bool isCompress = !is_dz_file(optInput);
+				string output = optOutput;
+				if (output == "" && !optStdout) {
+					output = remove_extension(optInput) + ".dz";
+					if (!isCompress) output += ".sam";
+				}
+				
+				if (isCompress) 
+					compress(optInput, output);
+				else 
+					decompress(optInput, output);
 			}
-			
-			if (isCompress) 
-				compress(optInput, output);
-			else 
-				decompress(optInput, output);
 		}
 	}
 	catch (DZException &e) {

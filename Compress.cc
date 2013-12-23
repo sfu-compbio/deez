@@ -1,3 +1,4 @@
+#include <thread>
 #include "Compress.h"
 using namespace std;
 
@@ -102,29 +103,23 @@ void FileCompressor::outputComment (void) {
 	}
 }
 
-void FileCompressor::outputBlock (Compressor *c, Array<uint8_t> &out, size_t count) {
-	static int _e_(0);
+void FileCompressor::compressBlock (Compressor *c, Array<uint8_t> &out, Array<uint8_t> &idxOut, size_t count) {
 	ZAMAN_START();
 	c->outputRecords(out, 0, count);
-			
-	// dz file
+	c->getIndexData(idxOut);
+	ZAMAN_END(NAMES[int64_t(c->debugStream)]);
+}
+
+void FileCompressor::outputBlock (Array<uint8_t> &out, Array<uint8_t> &idxOut) {
 	size_t out_sz = out.size();
 	fwrite(&out_sz, sizeof(size_t), 1, outputFile);
 	if (out_sz) 
 		fwrite(out.data(), 1, out_sz, outputFile);
-	// c->compressedCount += out_sz + sizeof(size_t);
-
-	// index file
-	c->getIndexData(out);
-	out_sz = out.size();
-	gzwrite(indexFile, &out_sz, sizeof(size_t));
-	LOG("%s >> %lu", NAMES[_e_%8], out_sz);
-	if (out_sz) 
-		gzwrite(indexFile, out.data(), out_sz);
-
 	
-	ZAMAN_END(NAMES[_e_++%8]);
-	if(_e_%8==0)LOGN("\n");
+	out_sz = idxOut.size();
+	gzwrite(indexFile, &out_sz, sizeof(size_t));
+	if (out_sz) 
+		gzwrite(indexFile, idxOut.data(), out_sz);
 }
 
 void FileCompressor::outputRecords (void) {
@@ -134,14 +129,21 @@ void FileCompressor::outputRecords (void) {
 
 	int64_t blockCount = 0;
 	int64_t currentSize = 0;
-	Array<uint8_t> outputBuffer(0, MB);
+	Array<uint8_t> outputBuffer[8];
+	Array<uint8_t> idxBuffer[8];
+	for (int i = 0; i < 8; i++) {
+		outputBuffer[i].set_extend(MB);
+		idxBuffer[i].set_extend(MB);
+	}
 
+	size_t prev_loc = 0;
 	while (parser->hasNext()) {
 		char op = 0;
 		string chr = parser->head();
 		while (sequence->getChromosome() != parser->head())
 			sequence->scanChromosome(parser->head()), op = 1;
 
+		ZAMAN_START();
 		for (; currentSize < blockSize && parser->hasNext() 
 				&& parser->head() == sequence->getChromosome(); currentSize++) 
 		{
@@ -153,6 +155,10 @@ void FileCompressor::outputRecords (void) {
 			if (loc == (size_t)-1) loc = 0; 
 			size_t p_loc = rc.getPairLocation();
 			if (p_loc == (size_t)-1) p_loc = 0;
+
+			if (loc < prev_loc)
+				throw DZException("Input is not sorted. Please sort it with 'dz --sort' before compressing it");
+			prev_loc = loc;
 
 			EditOperation eo(loc, rc.getSequence(), rc.getCigar());
 			sequence->updateBoundary(eo.end);
@@ -171,13 +177,13 @@ void FileCompressor::outputRecords (void) {
 		total += currentSize;
 		LOGN("\r   Chr %-6s %5.2lf%% [%ld]", sequence->getChromosome().c_str(), (100.0 * parser->fpos()) / parser->fsize(), blockCount + 1);		
 
+		LOGN("\n# ");
+		ZAMAN_END("REQ");
 		size_t currentBlockCount, 
 			currentBlockFirstLoc, 
 			currentBlockLastLoc, 
 			currentBlockLastEndLoc,
 			fixedStartPos, fixedEndPos;
-
-		LOGN("\n# ");
 		ZAMAN_START();
 		currentBlockCount = sequence->applyFixes(
 		 	!parser->hasNext() || parser->head() != sequence->getChromosome() || parser->head() == "*" 
@@ -221,14 +227,23 @@ void FileCompressor::outputRecords (void) {
 		gzwrite(indexFile, &fixedEndPos, sizeof(size_t));
 		ZAMAN_END("FIX");
 
-		outputBlock(sequence, outputBuffer, currentBlockCount);
-		outputBlock(editOp, outputBuffer, currentBlockCount);
-		outputBlock(readName, outputBuffer, currentBlockCount);
-		outputBlock(mapFlag, outputBuffer, currentBlockCount);
-		outputBlock(mapQual, outputBuffer, currentBlockCount);
-		outputBlock(quality, outputBuffer, currentBlockCount);
-		outputBlock(pairedEnd, outputBuffer, currentBlockCount);
-		outputBlock(optField, outputBuffer, currentBlockCount);
+		ZAMAN_START();
+		Compressor *ci[] = { sequence, editOp, readName, mapFlag, mapQual, quality, pairedEnd, optField };
+		thread t[8];
+		for (int ti = 0; ti < 8; ti++) {
+			ci[ti]->debugStream = (FILE*)ti;
+			t[ti] = thread(compressBlock, ci[ti], ref(outputBuffer[ti]), ref(idxBuffer[ti]), currentBlockCount);
+		}
+		for (int ti = 0; ti < 8; ti++)
+			t[ti].join();
+		ZAMAN_END("CALC");
+
+		ZAMAN_START();
+		for (int ti = 0; ti < 8; ti++)
+			outputBlock(outputBuffer[ti], idxBuffer[ti]);
+		ZAMAN_END("IO");
+		
+		LOG("");
 		blockCount++;
 	}
 	LOGN("\nWritten %'lu lines\n", total);

@@ -13,7 +13,7 @@
 #include <string>
 #include <zlib.h>
 #include <climits>
-#include <unordered_map>
+// #include <unordered_map>
 #include <unistd.h>
 #include "Common.h"
 // #include "Parsers/BAMParser.h"
@@ -28,26 +28,26 @@
 // #include "Fields/OptionalField.h"
 using namespace std;
 
-bool optTest 	= false;
-bool optForce 	= false;
-bool optStdout  = false;
-string optRef 	 = "";
-string optInput  = "";
-string optRange  = "";
-string optOutput = "";
-size_t optBlock = 1000000;
-char optQuality = 0;
-char optLossy   = 0;
+// bool optTest 	= false;
+// bool optForce 	= false;
+// bool optStdout  = false;
+// string optRef 	 = "";
+// string optInput  = "";
+// string optRange  = "";
+// string optOutput = "";
+// size_t optBlock = 1000000;
+// char optQuality = 0;
+// char optLossy   = 0;
 
-static const char *NAMES[8] = {
-	"SQ","RN","MF","ML", 
-	"MQ","QQ","PE","OF" 
-};
+// static const char *NAMES[8] = {
+// 	"SQ","RN","MF","ML", 
+// 	"MQ","QQ","PE","OF" 
+// };
 
-#include "Sort.h"
+// #include "Sort.h"
 
 int main (int argc, char **argv) {
-	sortFile(argv[1], (string(argv[1]) + "._sort").c_str(), atoi(argv[2]) * MB);
+//	sortFile(argv[1], (string(argv[1]) + "._sort").c_str(), atoi(argv[2]) * MB);
 
 	// SAMParser *parser = new SAMParser(argv[1]);
 	// QualityScoreCompressor *sq = new QualityScoreCompressor(optBlock);

@@ -1,3 +1,5 @@
+#include <thread>
+#include <utility>
 #include "Sequence.h"
 using namespace std;
 
@@ -49,6 +51,7 @@ void SequenceCompressor::scanChromosome (const string &s) {
 }
 
 // called at the end of the block!
+// IS NOT ATOMIC!
 inline void SequenceCompressor::updateGenomeLoc (size_t loc, char ch, Array<int*> &stats) {
 	assert(loc < stats.size());
 	if (!stats.data()[loc]) {
@@ -56,6 +59,49 @@ inline void SequenceCompressor::updateGenomeLoc (size_t loc, char ch, Array<int*
 		memset(stats.data()[loc], 0, sizeof(int) * 6);
 	}
 	stats.data()[loc][getDNAValue(ch)]++;
+}
+
+void SequenceCompressor::applyFixesThread(EditOperationCompressor &editOperation, Array<int*> &stats, size_t fixedStart, size_t offset, size_t size) {
+	ZAMAN_START();
+	for (size_t k = 0; k < editOperation.size(); k++) {
+		if (editOperation[k].op == "*") 
+			continue;
+		if (editOperation[k].start >= offset + size)
+			break;
+		if (editOperation[k].end <= offset)
+			continue;
+		
+		size_t genPos = editOperation[k].start;
+		size_t num = 0;
+		size_t seqPos = 0;
+		for (size_t pos = 0; genPos < offset + size && pos < editOperation[k].op.length(); pos++) {
+			if (isdigit(editOperation[k].op[pos])) {
+				num = num * 10 + (editOperation[k].op[pos] - '0');
+				continue;
+			}
+			switch (editOperation[k].op[pos]) {
+				case 'M':
+				case '=':
+				case 'X':
+					for (size_t i = 0; genPos < offset + size && i < num; i++, genPos++, seqPos++)
+						if (genPos >= offset)
+							updateGenomeLoc(genPos - fixedStart, editOperation[k].seq[seqPos], stats);
+					break;
+				case 'D':
+				case 'N':
+					for (size_t i = 0; genPos < offset + size && i < num; i++, genPos++)
+						if (genPos>= offset)
+							updateGenomeLoc(genPos - fixedStart, '.', stats);
+					break;
+				case 'I':
+				case 'S':
+					seqPos += num;
+					break;
+			}
+			num = 0;
+		}
+	}
+	ZAMAN_END("T~");
 }
 
 size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompressor &editOperation,
@@ -84,7 +130,9 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 		// New reads locations may overlap fixed locations
 		// so fixingStart indicates where should we start
 		// actual fixing
+
 		size_t fixingStart = fixedEnd;
+		ZAMAN_START();
 		if (nextBlockBegin > fixedEnd) {
 			size_t newFixedEnd   = nextBlockBegin;
 			if (newFixedEnd == (size_t)-1) // chromosome end, fix everything
@@ -107,15 +155,32 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 			delete[] fixed;
 			fixed = newFixed;
 		}
+		ZAMAN_END("S1");
 
 		//	SCREEN("Given boundary is %'lu\n", nextBlockBegin);
 		//	SCREEN("Fixing from %'lu to %'lu\n", fixedStart, fixedEnd);
 		//	SCREEN("Reads from %'lu to %'lu\n", records[0].start, records[records.size()-1].end);
 
 		// obtain statistics
+
+		LOG("");
+		
 		Array<int*> stats(0, MB); 
+		ZAMAN_START();
 		stats.resize(fixedEnd - fixedStart);
 		memset(stats.data(), 0, stats.size() * sizeof(int*));
+
+		vector<std::thread> t;
+		size_t sz = stats.size() / optThreads + 1;
+		for (int i = 0; i < optThreads; i++)
+			t.push_back(thread(applyFixesThread, 
+				ref(editOperation), ref(stats), fixedStart, 
+				fixedStart + i * sz, min(sz, stats.size() - i * sz)
+			));
+		for (int i = 0; i < optThreads; i++)
+			t[i].join();
+
+		/*
 		for (size_t k = 0; k < editOperation.size(); k++) {
 			if (editOperation[k].op == "*") 
 				continue;
@@ -132,7 +197,7 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 					case '=':
 					case 'X':
 						for (size_t i = 0; genPos < fixedEnd && i < size; i++)
-							if (genPos >= fixingStart)
+						//	if (genPos >= fixingStart)
 								updateGenomeLoc(genPos++ - fixedStart, editOperation[k].seq[seqPos++], stats);
 						break;
 					case 'I':
@@ -142,16 +207,19 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 					case 'D':
 					case 'N':
 						for (size_t i = 0; genPos < fixedEnd && i < size; i++)
-							if (genPos >= fixingStart)
+						//	if (genPos >= fixingStart)
 								updateGenomeLoc(genPos++ - fixedStart, '.', stats);
 						break;
 				}
 				size = 0;
 			}
 		}
+		*/
+		ZAMAN_END("S2"); LOG("");
 
 		// patch reference genome
 		size_t fixedPrev = 0;
+		ZAMAN_START();
 		fixes_loc.resize(0);
 		fixes_replace.resize(0);
 		for (size_t i = 0; i < fixedEnd - fixedStart; i++) if (stats.data()[i]) {
@@ -185,6 +253,7 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 			}
 			delete[] stats.data()[i];
 		}
+		ZAMAN_END("S3");
 	}
 
 	// generate new cigars

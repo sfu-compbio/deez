@@ -15,6 +15,7 @@
 #include <climits>
 #include <unordered_map>
 #include <unistd.h>
+#include "Sort.h"
 #include "Common.h"
 using namespace std;
 
@@ -159,15 +160,17 @@ int detectFileType (const string &path) {
 	fclose(fx);
 	if (mc[0] == char(0x1f) && mc[1] == char(0x8b)) 
 		return 1;
-	else if ((*(uint32_t*)mc) & 0xffffff00 == 0x07445A00)
+	else if (((*(uint32_t*)mc) & 0xffffff00) == (MAGIC & 0xffffff00))
 		return 2;
 	else 
 		return 0;
 }
 
 void sortFile (const string &path, const string &pathNew, size_t memLimit) {
-	isBAM = (detectFileType(path) == 1);
-	LOG("%d\n", isBAM);
+	int ft = detectFileType(path);
+	if (ft == 1) isBAM = true;
+	if (ft == 2)
+		throw DZException("File %s is DZ file, and it is already sorted", path.c_str());
 
 	file *finput;
 	vector<char> header;

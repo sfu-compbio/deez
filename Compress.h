@@ -47,6 +47,9 @@ private:
 	void outputRecords(void);
 	void outputBlock (Compressor *c, Array<uint8_t> &out, size_t count);
 
+	static void compressBlock (Compressor *c, Array<uint8_t> &out, Array<uint8_t> &idxOut, size_t count);
+	void outputBlock (Array<uint8_t> &out, Array<uint8_t> &idxOut);
+
 public:
 	void compress (void);
 };

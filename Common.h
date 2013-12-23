@@ -25,6 +25,7 @@ double _zaman_ (void);
 //#define DZ_EVAL
 
 extern bool optStdout;
+extern int  optThreads;
 
 #define LOGN(c,...)\
 	fprintf(stderr, c, ##__VA_ARGS__)

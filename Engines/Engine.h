@@ -14,7 +14,7 @@ public:
 
 public:
 	Compressor () { debugStream = 0; }
-	virtual ~Compressor (void) { if (debugStream) fclose(debugStream); }
+	virtual ~Compressor (void) {/* if (debugStream) fclose(debugStream); */}
 
 public:
 	// Resets out

@@ -52,7 +52,8 @@ public:
 	void scanChromosome (const std::string &s);
 	
 private:
-	void updateGenomeLoc (size_t loc, char ch, Array<int*> &stats);
+	static void applyFixesThread(EditOperationCompressor &editOperation, Array<int*> &stats, size_t fixedStart, size_t offset, size_t size);
+	static void updateGenomeLoc (size_t loc, char ch, Array<int*> &stats);
 };
 
 class SequenceDecompressor: public Decompressor {

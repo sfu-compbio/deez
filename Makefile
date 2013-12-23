@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE 
+CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE  -std=c++0x
 LDFLAGS = -lz -lpthread 
 
 SOURCES := $(shell find $(SOURCEDIR) -name '*.cc' -not -path "./run/*")
