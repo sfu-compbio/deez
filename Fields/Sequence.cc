@@ -163,8 +163,6 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 
 		// obtain statistics
 
-		LOG("");
-		
 		Array<int*> stats(0, MB); 
 		ZAMAN_START();
 		stats.resize(fixedEnd - fixedStart);
@@ -215,7 +213,7 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 			}
 		}
 		*/
-		ZAMAN_END("S2"); LOG("");
+		ZAMAN_END("S2"); 
 
 		// patch reference genome
 		size_t fixedPrev = 0;

@@ -46,11 +46,13 @@ void EditOperationCompressor::addOperation (char op, int size,
 	if (size < (1 << 8))
 		lengths.add(size);
 	else if (size < (1 << 16)) {
+		LOG("..");
 		lengths.add(0);
 		lengths.add((size >> 8) & 0xff);
 		lengths.add(size & 0xff);
 	}
 	else {
+		LOG("``");
 		REPEAT(2) lengths.add(0);
 		lengths.add((size >> 24) & 0xff);
 		lengths.add((size >> 16) & 0xff);

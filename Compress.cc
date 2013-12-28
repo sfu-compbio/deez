@@ -141,7 +141,7 @@ void FileCompressor::outputRecords (void) {
 		char op = 0;
 		string chr = parser->head();
 		while (sequence->getChromosome() != parser->head())
-			sequence->scanChromosome(parser->head()), op = 1;
+			sequence->scanChromosome(parser->head()), op = 1, prev_loc = 0;
 
 		ZAMAN_START();
 		for (; currentSize < blockSize && parser->hasNext() 
@@ -177,7 +177,7 @@ void FileCompressor::outputRecords (void) {
 		total += currentSize;
 		LOGN("\r   Chr %-6s %5.2lf%% [%ld]", sequence->getChromosome().c_str(), (100.0 * parser->fpos()) / parser->fsize(), blockCount + 1);		
 
-		LOGN("\n# ");
+		//LOGN("\n# ");
 		ZAMAN_END("REQ");
 		size_t currentBlockCount, 
 			currentBlockFirstLoc, 
@@ -243,7 +243,7 @@ void FileCompressor::outputRecords (void) {
 			outputBlock(outputBuffer[ti], idxBuffer[ti]);
 		ZAMAN_END("IO");
 		
-		LOG("");
+		//LOG("");
 		blockCount++;
 	}
 	LOGN("\nWritten %'lu lines\n", total);

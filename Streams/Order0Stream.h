@@ -35,7 +35,7 @@ public:
 	AC0CompressionStream (void) {
 		for (int i = 0; i < AS; i++)
 			stats[i].sym = i, stats[i].freq = 1;
-		sum = AS;
+		sum = AS; 
 		encoded = 0;
 	}
 
@@ -48,6 +48,13 @@ protected:
         	while (j && stats[i].freq > stats[j].freq) j--;
         	swap(stats[i], stats[j + 1]);
         }
+        /*sum = 0;
+    	for (int i = 0; i < AS; i++) {
+        	sum += (stats[i].freq -= (stats[i].freq >> 1));
+        //	int j = i - 1;
+        //	while (j && stats[i].freq > stats[j].freq) j--;
+        //	swap(stats[i], stats[j + 1]);
+        }*/
 	}
 
 public:
@@ -61,8 +68,10 @@ public:
 		encoded += ac.encode(l, stats[i].freq, sum);
 		sum++; 
 		stats[i].freq++;
-		
+
+		// if (i && (sum & 15) == 0 && stats[i].freq > stats[i - 1].freq) 
 		if (i && sum % RescaleFactor == 0) {
+			// swap(stats[i], stats[i - 1]);
 			int j = i - 1;
 			while (j && stats[i].freq > stats[j].freq) j--;
 			swap(stats[i], stats[j + 1]);

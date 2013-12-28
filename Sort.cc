@@ -60,6 +60,9 @@ struct SAMNode {
 	SAMNode(): chr(0), pos(0), data(0), data_sz(0) {
 	}
 
+	static bool sortComp (const SAMNode &x, const SAMNode &y) {
+		return x.chr < y.chr || (x.chr == y.chr && x.pos < y.pos);
+	}
 	bool operator< (const SAMNode &s) const {
 		return chr > s.chr || (chr == s.chr && pos > s.pos);
 	}
@@ -72,15 +75,15 @@ struct SAMNode {
 		while (data_sz < sz && data[data_sz] != '\t') data_sz++; data_sz++;
 		size_t e = data_sz;
 		while (data_sz < sz && data[data_sz] != '\t') data_sz++; 
-		if (data_sz == sz) return -1;
+		if (data_sz >= sz) return -1;
 		string chrs = string(data + e, data_sz - e);
 		e = ++data_sz;
 		while (data_sz < sz && data[data_sz] != '\t') data_sz++;
-		if (data_sz == sz) return -1;
+		if (data_sz >= sz) return -1;
 		data[data_sz] = 0; pos = atoi(data + e); data[data_sz] = '\t'; data_sz++;
 
 		while (data_sz < sz && data[data_sz] != '\n') data_sz++;
-		if (data_sz == sz || data[data_sz] != '\n') return -1;
+		if (data_sz >= sz || data[data_sz] != '\n') return -1;
 		
 		if (string(chrs) == "*")
 			chr = INT_MAX;
@@ -112,6 +115,7 @@ static char *buffer;
 static size_t bufsz;
 
 size_t mergeSort (file **f, size_t fsz, file *fo, char *buffer, size_t bufsz) {
+	LOG("MS~");
 	size_t cnt = 0;
 	size_t bsz = bufsz / fsz;
 	vector<size_t> counts(fsz, 1);
@@ -237,7 +241,7 @@ void sortFile (const string &path, const string &pathNew, size_t memLimit) {
 		}
 
 		ZAMAN_START();
-		sort(nodes.data(), nodes.data() + nodes.size());
+		sort(nodes.data(), nodes.data() + nodes.size(), SAMNode::sortComp);
 		//radixSort(nodes, 0, 0, nodes.size());
 		ZAMAN_END("SORT");
 

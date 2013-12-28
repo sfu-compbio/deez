@@ -44,7 +44,8 @@ void ReadNameCompressor::addTokenizedName (const string &rn, Array<uint8_t> &con
 	int tokens[MAX_TOKEN], tc = 0;
 	tokens[tc++] = 0;
 	for (size_t i = 0; i < rn.size(); i++)
-		if (rn[i] == this->token && tc < MAX_TOKEN)
+		if (tc < MAX_TOKEN && (rn[i] == this->token || 
+				(this->token == '.' && i && isdigit(rn[i]) && !isdigit(rn[i - 1]))))
 			tokens[tc++] = i + 1;
 	tokens[tc] = rn.size() + 1;
 	for (int i = 0; i < tc; i++) {
