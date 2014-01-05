@@ -229,22 +229,8 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 				//LOG("$FIX %c -> %c %lu %lu", fixed[i], pos[".ACGTN"],
 				//	fixedStart + i, fixedStart + i - fixedPrev);
 
-				size_t toadd = fixedStart + i - fixedPrev + 1;
-				if (toadd < (1 << 8))
-					fixes_loc.add(toadd);
-				else if (toadd < (1 << 16)) {
-					fixes_loc.add(0);
-					fixes_loc.add((toadd >> 8) & 0xff);
-					fixes_loc.add(toadd & 0xff);
-				}
-				else {
-					REPEAT(2) fixes_loc.add(0);
-					fixes_loc.add((toadd >> 24) & 0xff);
-					fixes_loc.add((toadd >> 16) & 0xff);
-					fixes_loc.add((toadd >> 8) & 0xff);
-					fixes_loc.add(toadd & 0xff);
-				}
-				// fixes_loc.add();
+				// +1 for 0 termninator avoid
+				addEncoded(fixedStart + i - fixedPrev + 1, fixes_loc);
 				fixedPrev = fixedStart + i;
 				fixes_replace.add(fixed[i] = pos[".ACGTN"]);
 				
@@ -295,6 +281,7 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)  {
 	size_t newFixedStart = *(size_t*)in; in += sizeof(size_t);
 	size_t newFixedEnd   = *(size_t*)in; in += sizeof(size_t);
 	//size_t readsStart    = *(size_t*)in; in += sizeof(size_t);
+	//LOG(">>%lu %lu<<",newFixedStart,newFixedEnd);
 
 	Array<uint8_t> fixes_loc;
 	decompressArray(fixesStream, in, fixes_loc);
@@ -323,14 +310,7 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)  {
 	size_t prevFix = 0;
 	uint8_t *len = fixes_loc.data();
 	for (size_t i = 0; i < fixes_replace.size(); i++) {
-		int T = 1;
-		if (!*len) T = 2, len++;
-		if (!*len) T = 4, len++;
-		size_t fl = 0;
-		REPEAT(T) fl |= *len++ << (8 * (T - _ - 1));
-		assert(fl > 0);
-		prevFix += --fl;
-
+		prevFix += getEncoded(len) - 1;
 		assert(prevFix < fixedEnd);
 		assert(prevFix >= fixedStart);
 		fixed[prevFix - fixedStart] = fixes_replace.data()[i];

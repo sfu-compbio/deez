@@ -119,7 +119,7 @@ void PairedEndDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	//	}	
 		records.add(pe);
 	}
-	LOG("loaded %d",records.size());
+	//LOG("loaded %d",records.size());
 	
 	recordCount = 0;
 }

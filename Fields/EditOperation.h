@@ -45,6 +45,74 @@ struct EditOperation {
 	}
 };
 
+struct ACTGStream {
+	Array<uint8_t> seqvec, Nvec;
+	int seqcnt, Ncnt;
+	uint8_t seq, N;
+	uint8_t *pseq, *pN;
+
+	ACTGStream() {}
+	ACTGStream(size_t cap, size_t ext):
+		seqvec(cap, ext), Nvec(cap, ext) {}
+
+	void initEncode (void) {
+		seqcnt = 0, Ncnt = 0, seq = 0, N = 0;
+	}
+
+	void initDecode (void) {
+		seqcnt = 6, pseq = seqvec.data();
+		Ncnt = 7, pN = Nvec.data();
+	}
+
+	void add (char c) {
+		assert(isupper(c));
+		if (seqcnt == 4) 
+			seqvec.add(seq), seqcnt = 0;
+		if (Ncnt == 8)
+			Nvec.add(N), Ncnt = 0;
+		if (c == 'N') {
+			seq <<= 2, seqcnt++;
+			N <<= 1, N |= 1, Ncnt++;
+			return;
+		}
+		if (c == 'A')
+			N <<= 1, Ncnt++;
+		seq <<= 2;
+		seq |= "\0\0\001\0\0\0\002\0\0\0\0\0\0\0\0\0\0\0\0\003"[c - 'A'];
+		seqcnt++;
+	}
+
+	void add (const char *str, size_t len)  {
+		for (size_t i = 0; i < len; i++) 
+			add(str[i]);
+	}
+
+	void flush (void) {
+		while (seqcnt != 4) seq <<= 2, seqcnt++;
+		seqvec.add(seq), seqcnt = 0;
+		while (Ncnt != 8) N <<= 1, Ncnt++;
+		Nvec.add(N), Ncnt = 0;
+	}
+
+	void get (string &out, size_t sz) {
+		const char *DNA = "ACGT";
+		const char *AN  = "AN";
+
+		for (int i = 0; i < sz; i++) {
+			char c = (*pseq >> seqcnt) & 3;
+			if (!c) {
+				out += AN[(*pN >> Ncnt) & 1];
+				if (Ncnt == 0) Ncnt = 7, pN++;
+				else Ncnt--;
+			}
+			else out += DNA[c];
+			
+			if (seqcnt == 0) seqcnt = 6, pseq++;
+			else seqcnt -= 2;
+		}
+	}
+};
+
 class EditOperationCompressor: 
 	public GenericCompressor<EditOperation, GzipCompressionStream<6> >
 {
@@ -56,11 +124,6 @@ class EditOperationCompressor:
 
 	char *fixed;
 	size_t fixedStart;
-
-private:
-	uint8_t sequence;
-	uint8_t Nfixes;
-	int sequencePos, NfixesPos;
 
 public:
 	EditOperationCompressor(int blockSize);
@@ -88,13 +151,10 @@ private:
 	void setFixed(char *f, size_t fs);
 	const EditOperation &operator[] (int idx);
 	
-	void addOperation(char op, int size,
+	void addOperation(char op, int seqPos, int size,
 		Array<uint8_t> &operands, Array<uint8_t> &lengths);
-	void addSequence (const char *seq, size_t len, 
-		Array<uint8_t> &nucleotides, Array<uint8_t> &unknowns);
 	void addEditOperation(const EditOperation &eo,
-		Array<uint8_t> &nucleotides, Array<uint8_t> &unknowns, 
-		Array<uint8_t> &operands, Array<uint8_t> &lengths);
+		ACTGStream &nucleotides, Array<uint8_t> &operands, Array<uint8_t> &lengths);
 
 };
 
@@ -111,11 +171,6 @@ class EditOperationDecompressor:
 	char *fixed;
 	size_t fixedStart;
 
-private:
-	const uint8_t *sequence;
-	const uint8_t *Nfixes;
-	int sequencePos, NfixesPos;
-
 public:
 	EditOperationDecompressor(int blockSize);
 	virtual ~EditOperationDecompressor(void);
@@ -125,8 +180,7 @@ public:
 	void setIndexData (uint8_t *in, size_t in_size);
 
 private:
-	void getSequence(std::string &out, size_t sz);
-	EditOperation getEditOperation (size_t loc, uint8_t *&op, uint8_t *&len);
+	EditOperation getEditOperation (size_t loc, ACTGStream &nucleotides, uint8_t *&op, uint8_t *&len);
 
 	friend class SequenceDecompressor;
 	void setFixed(char *f, size_t fs);

@@ -36,9 +36,18 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 	if (strcmp(indexMagic, "DZIDX"))
 		throw DZException("Index is corrupted ...%s", indexMagic);
 
-	int idx = dup(fileno(this->inFile));
-	lseek(idx, sz + 5, SEEK_SET); // needed for gzdopen
 
+	size_t idxToRead = inFileSz - ftell(this->inFile) - sizeof(size_t);
+	FILE *tmp = tmpfile();
+	char *buffer = (char*)malloc(MB);
+	while (idxToRead && (sz = fread(buffer, 1, min((size_t)MB, idxToRead), this->inFile))) {
+		fwrite(buffer, 1, sz, tmp);
+		idxToRead -= sz;
+	}
+	free(buffer);
+	
+	int idx = dup(fileno(tmp)); //  dup(fileno(this->inFile));
+	lseek(idx, 0/*sz + 5*/, SEEK_SET); // needed for gzdopen
 	idxFile = gzdopen(idx, "rb");
 	if (idxFile == Z_NULL)
 		throw DZException("Cannot open the index");
@@ -224,6 +233,8 @@ void FileDecompressor::decompress (const string &idxFilePath, const string &rang
 		end = atol(tok), tok = strtok(0, ":-");
 	else 
 		throw DZException("Range string %s invalid", range.c_str());
+	if (end < start)
+		swap(start, end);
 	LOG("Seeking to chromosome %s, [%'lu:%'lu]...", chr.c_str(), start, end);
 	start--; end--;
 
@@ -241,19 +252,22 @@ void FileDecompressor::decompress (const string &idxFilePath, const string &rang
 		else for (int i = 0; i < 8; i++) {
 			size_t x;
 			gzread(idxFile, &x, sizeof(size_t));
-			ei[i].resize(x);
-			if (x) gzread(idxFile, ei[i].data(), x);
+			ei[i].resize(x+2);
+			//LOGN("%'lu ", x);
+			if (x) gzread(idxFile, ei[i].data(), x); //LOGN("<%'lu>", gzread(idxFile, ei[i].data(), x));
+			//LOGN("%d | ",gzeof(idxFile));
 		}
 
 		if (gzread(idxFile, &zpos, sizeof(size_t)) != sizeof(size_t)) 
 			throw DZException("Requested range %s not found", range.c_str());
 		gzread(idxFile, &currentBlockCount, sizeof(size_t));
-		LOG("> %lu", currentBlockCount);
+		//LOGN("ZP %'lu ", zpos);
+		//LOGN("BC %'lu ", currentBlockCount);
 		while (gzread(idxFile, c, 1) && *c++);
 		gzread(idxFile, &startPos, sizeof(size_t));
-		LOG("> %lu", startPos);
+		//LOGN("SP %'lu ", startPos);
 		gzread(idxFile, &endPos, sizeof(size_t));
-		LOG("> %lu", endPos);
+		//LOGN("EP %'lu ", endPos);
 
 		size_t fS, fE;
 		gzread(idxFile, &fS, sizeof(size_t));
@@ -265,18 +279,13 @@ void FileDecompressor::decompress (const string &idxFilePath, const string &rang
 			prevChr = string(chrx);
 		}
 
-		LOG("%s:%'lu-%'lu ... fixes %'lu-%'lu", chrx, startPos, endPos, fS, fE);
+		//LOG(" ... %s:%'lu-%'lu ... fixes %'lu-%'lu", chrx, startPos, endPos, fS, fE);
 
 		if (string(chrx) == chr && (start >= startPos && start <= endPos)) {		
 			fseek(inFile, zpos, SEEK_SET);
-			if (ei[0].size()) sequence->setIndexData(ei[0].data(), ei[0].size());
-			if (ei[1].size()) editOp->setIndexData(ei[1].data(), ei[1].size());
-			if (ei[2].size()) readName->setIndexData(ei[2].data(), ei[2].size());
-			if (ei[3].size()) mapFlag->setIndexData(ei[3].data(), ei[3].size());
-			if (ei[4].size()) mapQual->setIndexData(ei[4].data(), ei[4].size());
-			if (ei[5].size()) quality->setIndexData(ei[5].data(), ei[5].size());
-			if (ei[6].size()) pairedEnd->setIndexData(ei[6].data(), ei[6].size());
-			if (ei[7].size()) optField->setIndexData(ei[7].data(), ei[7].size());
+			Decompressor *di[] = { sequence, editOp, readName, mapFlag, mapQual, quality, pairedEnd, optField };
+			for (int ti = 0; ti < 8; ti++)
+				if (ei[ti].size()) di[ti]->setIndexData(ei[ti].data(), ei[ti].size());
 			break;
 		}
 		else if (string(chrx) == chr && (start >= fS && start <= fE)) {

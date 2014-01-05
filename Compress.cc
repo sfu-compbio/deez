@@ -105,7 +105,9 @@ void FileCompressor::outputComment (void) {
 
 void FileCompressor::compressBlock (Compressor *c, Array<uint8_t> &out, Array<uint8_t> &idxOut, size_t count) {
 	ZAMAN_START();
+	out.resize(0);
 	c->outputRecords(out, 0, count);
+	idxOut.resize(0);
 	c->getIndexData(idxOut);
 	ZAMAN_END(NAMES[int64_t(c->debugStream)]);
 }
@@ -184,6 +186,7 @@ void FileCompressor::outputRecords (void) {
 			currentBlockLastLoc, 
 			currentBlockLastEndLoc,
 			fixedStartPos, fixedEndPos;
+		size_t zpos;
 		ZAMAN_START();
 		currentBlockCount = sequence->applyFixes(
 		 	!parser->hasNext() || parser->head() != sequence->getChromosome() || parser->head() == "*" 
@@ -201,7 +204,7 @@ void FileCompressor::outputRecords (void) {
 		// ERROR("Block size %lld...", blockSize);
 		// write chromosome id
 		//LOG("> %lu",ftell(outputFile));
-		size_t zpos = ftell(outputFile);
+		zpos = ftell(outputFile);
 
 		fwrite(&op, sizeof(char), 1, outputFile);
 		if (op) 
@@ -241,6 +244,7 @@ void FileCompressor::outputRecords (void) {
 		ZAMAN_START();
 		for (int ti = 0; ti < 8; ti++)
 			outputBlock(outputBuffer[ti], idxBuffer[ti]);
+		//LOG("ZP %'lu ", zpos);
 		ZAMAN_END("IO");
 		
 		//LOG("");
@@ -260,6 +264,7 @@ void FileCompressor::outputRecords (void) {
 		fwrite(buffer, 1, sz, outputFile);
 	free(buffer);
 	fclose(indexTmp);
+
 	fwrite(&pos, sizeof(size_t), 1, outputFile);
 
 	#define VERBOSE(x) LOG("%s: %lu", #x, x->compressedSize())

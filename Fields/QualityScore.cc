@@ -162,6 +162,9 @@ void QualityScoreCompressor::outputRecords (Array<uint8_t> &out, size_t out_offs
 			for (int j = 0; j < this->records[i].size(); j++)
 				this->records[i][j] = lossy[this->records[i][j]];
 	} 
+
+	//delete stream;
+	//stream = new QualityCompressionStream();
 	StringCompressor<QualityCompressionStream>::outputRecords(out, out_offset, k);
 }
 

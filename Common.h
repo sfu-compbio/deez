@@ -42,4 +42,7 @@ std::string int2str (int k);
 std::string inttostr (int k);
 char getDNAValue (char ch);
 
+void addEncoded (int n, Array<uint8_t> &o);
+size_t getEncoded (uint8_t *&len);
+
 #endif
