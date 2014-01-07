@@ -46,13 +46,14 @@ void ReadNameCompressor::addTokenizedName (const string &rn, Array<uint8_t> &con
 
 	bool specialSRRCase = false;
 	for (size_t i = 0; i < rn.size(); i++)
-		if (tc < MAX_TOKEN)
+		if (tc < MAX_TOKEN) {
 			if (rn[i] == this->token)
 				tokens[tc++] = i + 1;
 			else if (i && tc == 1 && this->token == '.' && rn[i] > '1' && rn[i] <= '9') {
 				tokens[tc++] = i;
 				specialSRRCase = true;
 			}
+		}
 
 	tokens[tc] = rn.size() + 1;
 	for (int i = 0; i < tc; i++) {
@@ -137,7 +138,7 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	Array<uint8_t> index;
 	size_t s1 = decompressArray(indexStream, in, index);
 	Array<uint8_t> content;
-	decompressArray(indexStream, in, content);
+	decompressArray(stream, in, content);
 
 	string tokens[MAX_TOKEN];
 	size_t ic = 0, cc = 0;
@@ -171,7 +172,8 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size) {
 					break;
 				}
 				case 5: 
-					while (content.data()[cc]) 
+					tokens[t] = "";
+					while (content.data()[cc])  
 						tokens[t] += content.data()[cc++];
 					cc++;
 					break;
@@ -182,7 +184,8 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size) {
 			prevT = t;
 		}
 		if (t > 1 && token == '.' //&& tokens[0].size() && !isdigit(tokens[0][tokens[0].size() - 1]) 
-				&& tokens[1][0] >= '1' && tokens[1][0] <= '9') {
+				&& tokens[1][0] >= '1' && tokens[1][0] <= '9') 
+		{
 			tokens[0] += tokens[1];
 			for(int i = 2; i < t; i++)
 				tokens[0] += token + tokens[i];

@@ -23,7 +23,7 @@ size_t optBlock = 1000000;
 char optQuality = 0;
 char optLossy   = 0;
 int optThreads    = 4;
-int optSortMemory = GB;
+size_t optSortMemory = GB;
 
 void parse_opt (int argc, char **argv) {
 	int opt; 
@@ -59,9 +59,14 @@ void parse_opt (int argc, char **argv) {
 			case 's':
 				optSort = true;
 				break;
-			case 'M':
-				optSortMemory = atoi(optarg);
+			case 'M': {
+				char c = optarg[strlen(optarg) - 1];
+				optSortMemory = atol(optarg);
+				if (c == 'K') optSortMemory *= KB;	
+				if (c == 'M') optSortMemory *= MB;
+				if (c == 'G') optSortMemory *= GB;
 				break;
+			}
 			case 'f':
 				optForce = true;
 				break;

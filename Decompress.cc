@@ -137,6 +137,9 @@ void FileDecompressor::readBlock (Decompressor *d, Array<uint8_t> &in) {
 
 size_t FileDecompressor::getBlock (const string &chromosome, size_t start, size_t end) {
 	static string chr;
+	static bool done(false);
+	if (done)
+		return 0;
 	if (chromosome != "")
 		chr = chromosome;
 
@@ -182,8 +185,10 @@ size_t FileDecompressor::getBlock (const string &chromosome, size_t start, size_
 
 		if (eo.start < start)
 			continue;
-		if (eo.start > end)
+		if (eo.start > end) {
+			done = true;
 			return count;
+		}
 
 		if (chr != "*") eo.start++;
 		if (pe.chr != "*") pe.pos++;

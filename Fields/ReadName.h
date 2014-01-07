@@ -11,7 +11,7 @@
 class ReadNameCompressor: 
 	public StringCompressor<GzipCompressionStream<6> >  
 {
-	static const int MAX_TOKEN = 10;
+	static const int MAX_TOKEN = 20;
 
 	CompressionStream *indexStream;
 	std::string prevTokens[MAX_TOKEN];

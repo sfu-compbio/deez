@@ -28,6 +28,7 @@ public:
 template<typename T>
 void compressArray (CompressionStream *c, Array<T> &in, Array<uint8_t> &out, size_t &outOffset) {
 	size_t s = 0;
+	out.resize(outOffset + 2 * sizeof(size_t));
 	if (in.size()) s = c->compress((uint8_t*)in.data(), 
 		in.size() * sizeof(T), out, outOffset + 2 * sizeof(size_t));
 	*(size_t*)(out.data() + outOffset) = s;
