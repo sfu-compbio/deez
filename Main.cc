@@ -202,9 +202,9 @@ int main (int argc, char **argv) {
     		sortFile(optInput, output, optSortMemory);
     	}
     	else {
-	    	if (!file_exists(optRef))
-	    		throw DZException("Reference file %s does not exist", optRef.c_str());
-	    	else DEBUG("Using reference file %s", full_path(optRef).c_str());
+	    //	if (!file_exists(optRef))
+	    //		throw DZException("Reference file %s does not exist", optRef.c_str());
+	    //	else DEBUG("Using reference file %s", full_path(optRef).c_str());
 			DEBUG("Using block size %'lu", optBlock);
 
 			if (optTest)

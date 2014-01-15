@@ -1,12 +1,27 @@
 #include "Reference.h"
+#include <sys/stat.h>
 using namespace std;
 
 static const int MAX_CHROMOSOME = 400 * MB;
 
+string full_path (const string &s);
+
 Reference::Reference (const string &filename) {
+	chromosomes["*"] = 0;
+
+	struct stat st;
+	lstat(filename.c_str(), &st);
+	if (filename == "" || S_ISDIR(st.st_mode)) {
+		directory = (filename == "") ? "." : filename;
+		LOG("Using directory %s for searching chromosome FASTA files", directory.c_str());
+		input = 0;
+		return;
+	}
+
 	input = fopen(filename.c_str(), "rb");
 	if (input == NULL)
 		throw DZException("Cannot open the file %s", filename.c_str());
+	DEBUG("Loaded reference file %s", full_path(filename).c_str());
 	//c = fgetc(input);
 	//chromosome.reserve(MAX_CHROMOSOME);
 
@@ -35,11 +50,10 @@ Reference::Reference (const string &filename) {
 		fseek(input, 0, SEEK_SET);
 	}
 	fclose(fastaidx);
-	chromosomes["*"] = 0;
 }
 
 Reference::~Reference (void) {
-	fclose(input);
+	if (input) fclose(input);
 }
 
 string Reference::getChromosomeName (void) const {
@@ -47,13 +61,23 @@ string Reference::getChromosomeName (void) const {
 }
 
 std::string Reference::scanChromosome (const string &s) {
-	map<string, size_t>::iterator it = chromosomes.find(s);
-	if (it == chromosomes.end())
-		throw DZException("Chromosome %s not found in the reference!", s.c_str());
 	if (s == "*")
 		return currentChr = "*";
-	
-	fseek(input, it->second, SEEK_SET);
+	if (directory == "") {
+		map<string, size_t>::iterator it = chromosomes.find(s);
+		if (it == chromosomes.end())
+			throw DZException("Chromosome %s not found in the reference!", s.c_str());
+		fseek(input, it->second, SEEK_SET);
+	}
+	else {
+		string filename = directory + "/" + s + ".fa";
+		if (input) fclose(input);
+		input = fopen(filename.c_str(), "rb");
+		if (input == NULL)
+			throw DZException("Cannot open chromosome file %s", filename.c_str());
+		DEBUG("Loaded reference file %s", full_path(filename).c_str());
+		fgetc(input);
+	}
 	//c = fgetc(input);
 	//if(c!='>') throw DZException("eeee %c", c);
 	//assert(c == '>');
@@ -70,7 +94,6 @@ std::string Reference::scanChromosome (const string &s) {
 	if (c == '>' || c == EOF)
 		throw DZException("Empty chromosome %s", currentChr.c_str());
 	currentPos = 0;
-
 	return currentChr;
 }
 

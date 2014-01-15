@@ -11,6 +11,7 @@
 
 class Reference {
 	FILE *input;
+	std::string directory;
 	std::string currentChr;
 	size_t currentPos;
 	char c;

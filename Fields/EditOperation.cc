@@ -1,45 +1,6 @@
 #include "EditOperation.h"
 using namespace std;
 
-/*
-
-
-5352665512
-
-chr22 0.0028169058885142606
- chr1 0.020060273476696183
-
-
--rw-rw-r--. 1 inumanag inumanag  473880886 Dec 31 19:11 chr22.sam.zam
--rw-rw-r--. 1 inumanag inumanag  607536607 Dec 31 19:08 chr22.sam.dz
-496691922
-
-  sam_comp            dz
-  4,083,339 FLAG   5,688,662
-  1,683,690 MAPQ   1,945,322
- 56,885,522 NAME  46,937,691
-382,315,585 QUAL 410,214,532
- 28,913,032 SEQ   29,895,066
-
-   29,013,787 FLAG     40,603,233
-   11,161,338 MAPQ     12,988,311
-  403,176,553 NAME    335,279,247
-2,455,970,325 QUAL  2,661,549,908
-  184,382,852 SEQ     195,564,580
-
-[FIX 1723769 REP 31148156]sequence: 32871925
-[NUC 31227619 UNK 834623 OP 41809889 LEN 52781070 LOC 36036140 STI 3314]editOp: 162692655
-[IDX 14974821 S 320304426]readName: 335279247
-mapFlag: 40603233
-mapQual: 12988311
-quality: 2661549908
-pairedEnd: 383876380
-optField: 346516718
-
-real    27m22.176s
-
-*/
-
 EditOperationCompressor::EditOperationCompressor (int blockSize):
 	GenericCompressor<EditOperation, GzipCompressionStream<6> >(blockSize),
 	fixed(0), fixedStart(0)
