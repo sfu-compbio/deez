@@ -50,6 +50,7 @@ public:
 public:
 	std::string getChromosome (void) const { return chromosome; }
 	void scanChromosome (const std::string &s);
+	size_t getChromosomeLength (void) const { return reference.getChromosomeLength(chromosome); }
 	
 private:
 	static void applyFixesThread(EditOperationCompressor &editOperation, Array<int*> &stats, size_t fixedStart, size_t offset, size_t size);

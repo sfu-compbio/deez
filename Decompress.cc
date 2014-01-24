@@ -1,10 +1,58 @@
 #include "Decompress.h"
+#include <thread>
 using namespace std;
 
 static const char *NAMES[8] = {
 	"SQ","RN","MF","ML", 
 	"MQ","QQ","PE","OF" 
 };
+
+void FileDecompressor::printStats (const string &path, int filterFlag) {
+	FILE *inFile = fopen(path.c_str(), "rb");
+	if (inFile == NULL)
+		throw DZException("Cannot open the file %s", path.c_str());
+
+	fseek(inFile, 0L, SEEK_END);
+	size_t inFileSz = ftell(inFile);
+
+	// seek to index
+	fseek(inFile, inFileSz - sizeof(size_t), SEEK_SET);
+	size_t statPos;
+	fread(&statPos, sizeof(size_t), 1, inFile);
+	
+	char magic[10] = {0};
+	fseek(inFile, statPos, SEEK_SET);
+	fread(magic, 1, 7, inFile);
+	if (strcmp(magic, "DZSTATS"))
+		throw DZException("Stats are corrupted ...%s", magic);
+
+	size_t sz;
+	fread(&sz, 1, 8, inFile);
+	Array<uint8_t> in(sz);
+	in.resize(sz);
+	fread(in.data(), 1, sz, inFile);
+	Stats *stats = new Stats(in);
+
+	LOG("%'16lu reads", stats->getReadCount());
+	LOG("%'16lu mapped reads", stats->getStats(-4));
+	LOG("%'16lu unmapped reads", stats->getStats(4));
+	LOG("%'16lu chromosomes in reference file", stats->getChromosomeCount());
+	if (filterFlag) {
+		size_t p = stats->getStats(filterFlag);
+		if (filterFlag > 0)
+			LOG("%'16lu records with flag %d(0x%x)", p, filterFlag, filterFlag);
+		else
+			LOG("%'16lu records without flag %d(0x%x)", p, -filterFlag, -filterFlag);
+	}
+	else {
+		for (int i = 0; i < Stats::FLAGCOUNT; i++) {
+			size_t p = stats->getFlagCount(i);
+			if (p) LOG("%4d 0x%04x: %'16lu", i, i, p);
+		}
+	}
+
+	fclose(inFile);
+}
 
 FileDecompressor::FileDecompressor (const string &inFile, const string &outFile, const string &genomeFile, int bs): 
 	blockSize(bs)
@@ -28,14 +76,26 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 	// seek to index
 
 	fseek(this->inFile, inFileSz - sizeof(size_t), SEEK_SET);
-	size_t sz;
-	fread(&sz, sizeof(size_t), 1, this->inFile);
-	fseek(this->inFile, sz, SEEK_SET);
-	char indexMagic[6] = {0};
-	fread(indexMagic, 1, 5, this->inFile);
-	if (strcmp(indexMagic, "DZIDX"))
-		throw DZException("Index is corrupted ...%s", indexMagic);
+	size_t statPos;
+	fread(&statPos, sizeof(size_t), 1, this->inFile);
+	
+	char magic[10] = {0};
+	fseek(this->inFile, statPos, SEEK_SET);
+	fread(magic, 1, 7, this->inFile);
+	if (strcmp(magic, "DZSTATS"))
+		throw DZException("Stats are corrupted ...%s", magic);
 
+	size_t sz;
+	fread(&sz, 1, 8, this->inFile);
+	Array<uint8_t> in(sz);
+	in.resize(sz);
+	fread(in.data(), 1, sz, this->inFile);
+	stats = new Stats(in);
+
+	magic[5] = 0;
+	fread(magic, 1, 5, this->inFile);
+	if (strcmp(magic, "DZIDX"))
+		throw DZException("Index is corrupted ...%s", magic);
 
 	size_t idxToRead = inFileSz - ftell(this->inFile) - sizeof(size_t);
 	FILE *tmp = tmpfile();
@@ -52,8 +112,8 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 	if (idxFile == Z_NULL)
 		throw DZException("Cannot open the index");
 
-	//gzread(idxFile, indexMagic, 5);
-	//LOG("%s", indexMagic);
+	//gzread(idxFile, magic, 5);
+	//LOG("%s", magic);
 	
 	fseek(this->inFile, 0L, SEEK_SET);
 
@@ -75,18 +135,18 @@ FileDecompressor::~FileDecompressor (void) {
 	delete quality;
 	delete pairedEnd;
 	delete optField;
-	gzclose(idxFile);
-	fclose(samFile);
-	fclose(inFile);
+	if (idxFile) gzclose(idxFile);
+	if (samFile) fclose(samFile);
+	if (inFile) fclose(inFile);
 }
 
-void FileDecompressor::decompress (void) {
+void FileDecompressor::decompress (int filterFlag) {
 	getMagic();
 	getComment(true);
 	size_t blockSz = 0, 
 		   totalSz = 0, 
 		   blockCount = 0;
-	while ((blockSz = getBlock("", 0, -1)) != 0) {
+	while ((blockSz = getBlock("", 0, -1, filterFlag)) != 0) {
 		totalSz += blockSz;
 		blockCount++;
 	}
@@ -135,7 +195,13 @@ void FileDecompressor::readBlock (Decompressor *d, Array<uint8_t> &in) {
 	d->importRecords(in.data(), in.size());
 }
 
-size_t FileDecompressor::getBlock (const string &chromosome, size_t start, size_t end) {
+void readBlockThread (Decompressor *d, Array<uint8_t> &in) {
+	d->importRecords(in.data(), in.size());
+}
+
+size_t FileDecompressor::getBlock (const string &chromosome, 
+	size_t start, size_t end, int filterFlag) 
+{
 	static string chr;
 	static bool done(false);
 	if (done)
@@ -162,16 +228,32 @@ size_t FileDecompressor::getBlock (const string &chromosome, size_t start, size_
 	while (chr != sequence->getChromosome())
 		sequence->scanChromosome(chr);
 
-	Array<uint8_t> in;
-	readBlock(sequence, in);
+//	__DC=0; 
+	Array<uint8_t> in[8];
+	readBlock(sequence, in[7]);
 	sequence->setFixed(*editOp);
-	readBlock(editOp, in);
-	readBlock(readName, in);
-	readBlock(mapFlag, in);
-	readBlock(mapQual, in);
-	readBlock(quality, in);
-	readBlock(pairedEnd, in);
-	readBlock(optField, in);
+
+	Decompressor *di[] = { editOp, readName, mapFlag, mapQual, quality, pairedEnd, optField };
+	thread t[7];
+	for (int ti = 0; ti < 7; ti++) {
+		size_t sz;
+		if (fread(&sz, sizeof(size_t), 1, inFile) != 1)
+			throw "File reading failed";
+		in[ti].resize(sz);
+		if (sz) 
+			fread(in[ti].data(), 1, sz, inFile);
+		t[ti] = thread(readBlockThread, di[ti], ref(in[ti]));
+	}
+	for (int ti = 0; ti < 7; ti++)
+		t[ti].join();
+
+	// readBlock(editOp, in);  //05
+	// readBlock(readName, in); //67
+	// readBlock(mapFlag, in);  //8
+	// readBlock(mapQual, in);  //9
+	// readBlock(quality, in);  //10
+	// readBlock(pairedEnd, in); // 11
+	// readBlock(optField, in); // 12
 
 	size_t count = 0;
 	while (editOp->hasRecord()) {
@@ -183,6 +265,12 @@ size_t FileDecompressor::getBlock (const string &chromosome, size_t start, size_
 		string optional = optField->getRecord();
 		PairedEndInfo pe = pairedEnd->getRecord(chr, eo.start);
 
+		if (filterFlag) {
+			if (filterFlag > 0 && (flag & filterFlag) != filterFlag)
+				continue;
+			if (filterFlag < 0 && (flag & -filterFlag) == -filterFlag)
+				continue;
+		}
 		if (eo.start < start)
 			continue;
 		if (eo.start > end) {
@@ -217,7 +305,9 @@ size_t FileDecompressor::getBlock (const string &chromosome, size_t start, size_
 	return count;
 }
 
-void FileDecompressor::decompress (const string &idxFilePath, const string &range) {
+void FileDecompressor::decompress (const string &idxFilePath, 
+	const string &range, int filterFlag) 
+{
 	getMagic();
 	getComment(false);
 
@@ -312,7 +402,7 @@ void FileDecompressor::decompress (const string &idxFilePath, const string &rang
 	size_t 	blockSz = 0, 
 			totalSz = 0, 
 			blockCount = 0;
-	while ((blockSz = getBlock(chr, start, end)) != 0) {
+	while ((blockSz = getBlock(chr, start, end, filterFlag)) != 0) {
 		totalSz += blockSz;
 		blockCount++;
 	}

@@ -3,6 +3,9 @@
 #include <string>
 using namespace std;
 
+int __DC = 0;
+FILE **____debug_file;
+
 string int2str (int k) {
 	string s = "";
 	while (k) {
@@ -66,4 +69,15 @@ size_t getEncoded (uint8_t *&len) {
 	REPEAT(T) size |= *len++ << (8 * (T-_-1));
 	assert(size > 0);
 	return size;
+}
+
+string S (const char* fmt, ...) {
+	char *ptr = 0;
+    va_list args;
+    va_start(args, fmt);
+    vasprintf(&ptr, fmt, args);
+    va_end(args);
+    string s = ptr;
+    free(ptr);
+    return s;
 }

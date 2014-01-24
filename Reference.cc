@@ -60,6 +60,14 @@ string Reference::getChromosomeName (void) const {
 	return currentChr;
 }
 
+size_t Reference::getChromosomeLength(const std::string &s) const {
+	auto it = chromosomes.find(s);
+	if (it != chromosomes.end())
+		return it->second;
+	else
+		throw DZException("Chromosome %s not found", s.c_str());
+}
+
 std::string Reference::scanChromosome (const string &s) {
 	if (s == "*")
 		return currentChr = "*";
@@ -76,6 +84,20 @@ std::string Reference::scanChromosome (const string &s) {
 		if (input == NULL)
 			throw DZException("Cannot open chromosome file %s", filename.c_str());
 		DEBUG("Loaded reference file %s", full_path(filename).c_str());
+
+		char c;
+		while ((c = fgetc(input)) != EOF) {
+			if (c == '>') {
+				string chr;
+				size_t pos = ftell(input);
+				c = fgetc(input);
+				while (!isspace(c) && c != EOF) 
+					chr += c, c = fgetc(input);
+			//	LOG("%s", chr.c_str());
+				chromosomes[chr] = pos;
+			}
+		}
+		fseek(input, 0, SEEK_SET);
 		fgetc(input);
 	}
 	//c = fgetc(input);

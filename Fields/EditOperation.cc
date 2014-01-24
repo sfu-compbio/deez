@@ -225,18 +225,24 @@ void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size) {
 
 	Array<uint8_t> stitches;
 	decompressArray(stitchStream, in, stitches);
+__debug_fwrite(stitches.data(), 1, stitches.size(), ____debug_file[__DC++]);
 	Array<uint8_t> locations;
 	size_t sz = decompressArray(locationStream, in, locations);
+__debug_fwrite(locations.data(), 1, locations.size(), ____debug_file[__DC++]);
 
 	ACTGStream nucleotides;
 	decompressArray(stream, in, nucleotides.seqvec);
 	decompressArray(stream, in, nucleotides.Nvec);
 	nucleotides.initDecode();
+__debug_fwrite(nucleotides.seqvec.data(), 1, nucleotides.seqvec.size(), ____debug_file[__DC++]);
+__debug_fwrite(nucleotides.Nvec.data(), 1, nucleotides.Nvec.size(), ____debug_file[__DC++]);
 
 	Array<uint8_t> operands;
 	decompressArray(operandStream, in, operands);
+__debug_fwrite(operands.data(), 1, operands.size(), ____debug_file[__DC++]);
 	Array<uint8_t> lengths;
 	decompressArray(lengthStream, in, lengths);
+__debug_fwrite(lengths.data(), 1, lengths.size(), ____debug_file[__DC++]);
 
 	records.resize(0);
 

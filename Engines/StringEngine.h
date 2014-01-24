@@ -88,6 +88,7 @@ void StringDecompressor<TStream>::importRecords (uint8_t *in, size_t in_size) {
 	
 	Array<uint8_t> out;
 	size_t s = decompressArray(this->stream, in, out);
+__debug_fwrite(out.data(), 1, out.size(), ____debug_file[__DC++]);
 	size_t start = 0;
 
 	this->records.resize(0);

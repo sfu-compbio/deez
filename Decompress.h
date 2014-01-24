@@ -2,6 +2,7 @@
 #define Decompress_H
 
 #include "Common.h"
+#include "Stats.h"
 #include "Parsers/BAMParser.h"
 #include "Parsers/SAMParser.h"
 #include "Fields/Sequence.h"
@@ -27,8 +28,12 @@ class FileDecompressor {
 	FILE *inFile;
 	gzFile idxFile;
 	
+	Stats *stats;
 	size_t inFileSz;
     size_t blockSize;
+
+public:
+	static void printStats (const std::string &inFile, int filterFlag);
 
 public:
 	FileDecompressor (const std::string &inFile, const std::string &outFile, const std::string &genomeFile, int bs);
@@ -37,12 +42,12 @@ public:
 private:
 	void getMagic (void);
 	void getComment (bool output);
-	size_t getBlock (const std::string &chromosome, size_t start, size_t end);
+	size_t getBlock (const std::string &chromosome, size_t start, size_t end, int filterFlag);
 	void readBlock (Decompressor *d, Array<uint8_t> &in);
 
 public:
-	void decompress (void);
-	void decompress (const std::string &idxFilePath, const std::string &range);
+	void decompress (int filterFlag);
+	void decompress (const std::string &idxFilePath, const std::string &range, int filterFlag);
 };
 
 #endif // Decompress_H

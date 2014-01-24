@@ -2,6 +2,7 @@
 #define Compress_H
 
 #include "Common.h"
+#include "Stats.h"
 #include "Parsers/BAMParser.h"
 #include "Parsers/SAMParser.h"
 #include "Fields/Sequence.h"

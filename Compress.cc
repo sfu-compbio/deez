@@ -125,6 +125,8 @@ void FileCompressor::outputBlock (Array<uint8_t> &out, Array<uint8_t> &idxOut) {
 }
 
 void FileCompressor::outputRecords (void) {
+	Stats stats;
+
 	size_t lastStart = 0;
 	int64_t total = 0;
 	int64_t bsc = blockSize;
@@ -142,8 +144,10 @@ void FileCompressor::outputRecords (void) {
 	while (parser->hasNext()) {
 		char op = 0;
 		string chr = parser->head();
-		while (sequence->getChromosome() != parser->head())
+		while (sequence->getChromosome() != parser->head()) 
 			sequence->scanChromosome(parser->head()), op = 1, prev_loc = 0;
+		if (op)
+			stats.addChromosome(sequence->getChromosome(), sequence->getChromosomeLength());
 
 		ZAMAN_START();
 		for (; currentSize < blockSize && parser->hasNext() 
@@ -172,6 +176,8 @@ void FileCompressor::outputRecords (void) {
 			pairedEnd->addRecord(PairedEndInfo(rc.getPairChromosome(), p_loc, rc.getTemplateLenght(), 
 				sequence->getChromosome(), rc.getLocation())); //, strlen(rc.getSequence())));
 			optField->addRecord(rc.getOptional());
+
+			stats.addRecord(rc.getMappingFlag());
 
 			lastStart = loc;
 			parser->readNext();		
@@ -251,22 +257,26 @@ void FileCompressor::outputRecords (void) {
 		blockCount++;
 	}
 	LOGN("\nWritten %'lu lines\n", total);
-
 	fflush(outputFile);
-	size_t pos = ftell(outputFile);
+	
+	size_t posStats = ftell(outputFile);
+	fwrite("DZSTATS", 1, 7, outputFile);
+	stats.writeStats(outputBuffer[0]);
+	size_t sz = outputBuffer->size();
+	fwrite(&sz, 8, 1, outputFile);
+	fwrite(outputBuffer->data(), 1, outputBuffer->size(), outputFile);
+	
 	gzclose(indexFile);
-
 	fwrite("DZIDX", 1, 5, outputFile);
 	char *buffer = (char*)malloc(MB);
-	size_t sz;
 	fseek(indexTmp, 0, SEEK_SET);
 	while (sz = fread(buffer, 1, MB, indexTmp))
 		fwrite(buffer, 1, sz, outputFile);
 	free(buffer);
 	fclose(indexTmp);
 
-	fwrite(&pos, sizeof(size_t), 1, outputFile);
-
+	fwrite(&posStats, sizeof(size_t), 1, outputFile);
+	
 	#define VERBOSE(x) LOG("%s: %lu", #x, x->compressedSize())
 	VERBOSE(sequence);
 	VERBOSE(editOp);

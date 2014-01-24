@@ -8,11 +8,16 @@
 #include "../Engines/GenericEngine.h"
 #include "../Engines/StringEngine.h"
 
+// typedef StringCompressor<GzipCompressionStream<6> >    
+// 	ReadNameCompressor;
+// typedef StringDecompressor<GzipDecompressionStream> 
+// 	ReadNameDecompressor;
+
+const int MAX_TOKEN = 20;
+
 class ReadNameCompressor: 
 	public StringCompressor<GzipCompressionStream<6> >  
 {
-	static const int MAX_TOKEN = 20;
-
 	CompressionStream *indexStream;
 	std::string prevTokens[MAX_TOKEN];
 	char token;
@@ -37,8 +42,6 @@ private:
 class ReadNameDecompressor: 
 	public StringDecompressor<GzipDecompressionStream>  
 {
-	static const int MAX_TOKEN = 10;
-
 	DecompressionStream *indexStream;
 	char token;
 

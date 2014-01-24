@@ -15,6 +15,7 @@ bool optTest 	= false;
 bool optSort 	= false;
 bool optForce 	= false;
 bool optStdout  = false;
+bool optStats   = false;
 string optRef 	 = "";
 string optInput  = "";
 string optRange  = "";
@@ -22,26 +23,30 @@ string optOutput = "";
 size_t optBlock = 1000000;
 char optQuality = 0;
 char optLossy   = 0;
-int optThreads    = 4;
+int optThreads  = 4;
+int optFlag     = 0;
 size_t optSortMemory = GB;
 
 void parse_opt (int argc, char **argv) {
 	int opt; 
 	struct option long_opt[] = {
-		{ "help",      0, NULL, 'h' },
-		{ "reference", 1, NULL, 'r' },
-		{ "force",     0, NULL, 'f' },
-		{ "test",      0, NULL, 'T' },
-		{ "threads",   1, NULL, 't' },
-		{ "stdout",    0, NULL, 'c' },
-		{ "output",    1, NULL, 'o' },
-		{ "lossy",     1, NULL, 'l' },
-		{ "sort",      0, NULL, 's' },
-		{ "sortmem",   1, NULL, 'M' },
-		{ "quality",   1, NULL, 'q' },
+		{ "help",        0, NULL, 'h' },
+		{ "reference",   1, NULL, 'r' },
+		{ "force",       0, NULL, '!' },
+		{ "test",        0, NULL, 'T' },
+		{ "threads",     1, NULL, 't' },
+		{ "stdout",      0, NULL, 'c' },
+		{ "output",      1, NULL, 'o' },
+		{ "lossy",       1, NULL, 'l' },
+		{ "sort",        0, NULL, 's' },
+		{ "sortmem",     1, NULL, 'M' },
+		{ "withoutflag", 1, NULL, 'F' },
+		{ "withflag",    1, NULL, 'f' },
+		{ "stats",       0, NULL, 'S' },
+		{ "quality",     1, NULL, 'q' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:t:Tfco:q:l:sM:";
+	const char *short_opt = "hr:t:T!co:q:l:sM:Sf:F:";
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
@@ -67,7 +72,7 @@ void parse_opt (int argc, char **argv) {
 				if (c == 'G') optSortMemory *= GB;
 				break;
 			}
-			case 'f':
+			case '!':
 				optForce = true;
 				break;
 			case 'c':
@@ -88,6 +93,15 @@ void parse_opt (int argc, char **argv) {
 				optLossy = atoi(optarg);
 				if (optLossy < 0 || optLossy > 100)
 					throw DZException("Invalid quality lossy sensitivity value %d", optLossy);
+				break;
+			case 'S':
+				optStats = true;
+				break;
+			case 'F':
+				optFlag = -atoi(optarg);
+				break;
+			case 'f':
+				optFlag = atoi(optarg);
 				break;
 			case -1:
 				break;
@@ -152,9 +166,14 @@ void compress (const string &in, const string &out) {
 void decompress (const string &in, const string &out) {
 	if (!is_dz_file(in))
 		throw DZException("File %s is not DZ file", in.c_str());
+	if (optStats) {
+		FileDecompressor::printStats(in, optFlag);
+		return;
+	}
+
 	if (!optStdout && file_exists(out)) {
 		if (!optForce)
-			throw DZException("File %s already exists. Use -f to overwrite", out.c_str());
+			throw DZException("File %s already exists. Use -! to overwrite", out.c_str());
 		else
 			LOG("File %s already exists. Overwriting it.", out.c_str());
 	}
@@ -162,9 +181,9 @@ void decompress (const string &in, const string &out) {
 	LOG("Decompressing %s to %s ...", in.c_str(), optStdout ? "stdout" : out.c_str());
 	FileDecompressor sd(in, out, optRef, optBlock);
 	if (optRange == "")
-		sd.decompress();
+		sd.decompress(optFlag);
 	else
-		sd.decompress(in + "i", optRange);
+		sd.decompress(in + "i", optRange, optFlag);
 }
 
 void test (const string &s) {

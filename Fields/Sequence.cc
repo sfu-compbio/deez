@@ -285,8 +285,10 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)  {
 
 	Array<uint8_t> fixes_loc;
 	decompressArray(fixesStream, in, fixes_loc);
+__debug_fwrite(fixes_loc.data(), 1, fixes_loc.size(), ____debug_file[__DC++]);
 	Array<uint8_t> fixes_replace;
 	decompressArray(fixesReplaceStream, in, fixes_replace);
+__debug_fwrite(fixes_replace.data(), 1, fixes_replace.size(), ____debug_file[__DC++]);
 
 	////////////
 	// now move

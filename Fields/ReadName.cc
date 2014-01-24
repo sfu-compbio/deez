@@ -40,6 +40,42 @@ void ReadNameCompressor::getIndexData (Array<uint8_t> &out) {
 	stream->getCurrentState(out);
 }
 
+void encodeUInt(uint64_t e, Array<uint8_t> &index, Array<uint8_t> &content, int i) {
+//	content.add((uint8_t*)&e, 8);
+//	index.add(i);
+
+	if (e < (1 << 8)) {
+		content.add(e);
+		index.add(i);
+	}
+	else if (e < (1 << 16)) {
+		REPEAT(2) content.add(e & 0xff), e >>= 8;
+		index.add(i + 1 * MAX_TOKEN);
+	}
+	else if (e < (1 << 24)) {
+		REPEAT(3) content.add(e & 0xff), e >>= 8;
+		index.add(i + 2 * MAX_TOKEN);
+	}
+	else if (e < (1ll << 32)) {
+		REPEAT(4) content.add(e & 0xff), e >>= 8;
+		index.add(i + 3 * MAX_TOKEN);
+	}
+	else {
+		REPEAT(8) content.add(e & 0xff), e >>= 8;
+		index.add(i + 4 * MAX_TOKEN);
+	}
+}
+
+uint64_t decodeUInt (int T, Array<uint8_t> &content, size_t &cc) {
+//	assert(T==0);
+	uint64_t e = 0; //*(uint64_t*)(content.data() + cc);
+//	cc += 8;
+	
+	if (T == 4) T += 3;
+	REPEAT(T + 1) e |= content.data()[cc++] << (8 * _);
+	return e;	
+}
+
 void ReadNameCompressor::addTokenizedName (const string &rn, Array<uint8_t> &content, Array<uint8_t> &index) {
 	int tokens[MAX_TOKEN], tc = 0;
 	tokens[tc++] = 0;
@@ -60,33 +96,15 @@ void ReadNameCompressor::addTokenizedName (const string &rn, Array<uint8_t> &con
 		string tk = rn.substr(tokens[i], tokens[i + 1] - tokens[i] - 1);
 		if (i == 0 && specialSRRCase) tk += rn[tk.size()];
 		if (tk != prevTokens[i]) {
-			uint64_t e = atol(tk.c_str());
+			uint64_t e = atol(tk.c_str()); // >!TODO!< BUGGY BASTARD!
 			if (e == 0) {
 				for (int j = 0; j < tk.size(); j++) 
 					content.add(tk[j]);
 				content.add(0);
 				index.add(i + 5 * MAX_TOKEN);
 			}
-			else if (e < (1 << 8)) {
-				content.add(e);
-				index.add(i);
-			}
-			else if (e < (1 << 16)) {
-				REPEAT(2) content.add(e & 0xff), e >>= 8;
-				index.add(i + 1 * MAX_TOKEN);
-			}
-			else if (e < (1 << 24)) {
-				REPEAT(3) content.add(e & 0xff), e >>= 8;
-				index.add(i + 2 * MAX_TOKEN);
-			}
-			else if (e < (1ll << 32)) {
-				REPEAT(4) content.add(e & 0xff), e >>= 8;
-				index.add(i + 3 * MAX_TOKEN);
-			}
-			else {
-				REPEAT(8) content.add(e & 0xff), e >>= 8;
-				index.add(i + 4 * MAX_TOKEN);
-			}
+			else 
+				encodeUInt(e, index, content, i);
 			prevTokens[i] = tk;
 		}
 	}
@@ -137,8 +155,10 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size) {
 
 	Array<uint8_t> index;
 	size_t s1 = decompressArray(indexStream, in, index);
+__debug_fwrite(index.data(), 1, index.size(), ____debug_file[__DC++]);
 	Array<uint8_t> content;
 	decompressArray(stream, in, content);
+__debug_fwrite(content.data(), 1, content.size(), ____debug_file[__DC++]);
 
 	string tokens[MAX_TOKEN];
 	size_t ic = 0, cc = 0;
@@ -163,10 +183,7 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size) {
 				case 2:
 				case 3:
 				case 4: {
-					uint64_t e = 0;
-					if (T == 4) T += 3;
-					REPEAT(T + 1) e |= content.data()[cc++] << (8 * _);
-					//assert(tokens[t].size() == 0);
+					uint64_t e = decodeUInt(T, content, cc);
 					tokens[t] = "";
 					while (e) tokens[t] = char('0' + e % 10) + tokens[t], e /= 10;
 					break;

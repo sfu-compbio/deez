@@ -26,6 +26,7 @@ public:
 	std::string getChromosomeName(void) const;
 	std::string scanChromosome(const std::string &s);
 	void load(char *arr, size_t s, size_t e);
+	size_t getChromosomeLength(const std::string &s) const;
 };
 
 #endif

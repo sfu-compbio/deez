@@ -89,6 +89,7 @@ void PairedEndDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	
 	Array<uint8_t> au;
 	size_t s = decompressArray(stream, in, au);
+__debug_fwrite(au.data(), 1, au.size(), ____debug_file[__DC++]);
 
 	PairedEndInfo pe;
 	size_t vi = 0;
