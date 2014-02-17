@@ -3,7 +3,8 @@ using namespace std;
 
 QualityScoreCompressor::QualityScoreCompressor (int blockSize):
 	StringCompressor<QualityCompressionStream>(blockSize),
-	statMode(true)
+	statMode(true),
+	offset(63)
 {
 	memset(lossy, 0, 128 * sizeof(int));
 	memset(stat, 0, 128 * sizeof(int));
@@ -106,6 +107,11 @@ void QualityScoreCompressor::lossyTransform (string &qual) {
 }
 
 void QualityScoreCompressor::addRecord (string qual, int flag) {
+	if (qual == "*") {
+		StringCompressor<QualityCompressionStream>::addRecord(string());
+		return;
+	}
+
 	size_t sz = qual.size();
 	if (flag & 0x10) for (size_t j = 0; j < sz / 2; j++)
 		swap(qual[j], qual[sz - j - 1]);
@@ -119,39 +125,17 @@ void QualityScoreCompressor::addRecord (string qual, int flag) {
 	}
 	qual = qual.substr(0, sz);
 	for (size_t i = 0; i < sz; i++) {
-		assert(qual[i] > 32);
-		qual[i] -= 32;
-		assert(qual[i] < 64);
+		if (qual[i] <= offset)
+			offset = 33;
+		if (qual[i] <= offset)
+			throw DZException("Quality scores out of range with offset %d", offset);
+		qual[i] -= offset;
+		if (qual[i] >= 64)
+			throw DZException("Quality scores out of range with offset %d", offset);
 	}
 	
 	assert(qual.size()>0);
 	StringCompressor<QualityCompressionStream>::addRecord(qual);
-}
-
-void QualityScoreCompressor::addRecord (string qual, string seq, int flag) {
-	size_t sz = qual.size();
-
-	if (flag & 0x10) for (size_t j = 0; j < sz / 2; j++)
-		swap(qual[j], qual[sz - j - 1]), swap(seq[j], seq[sz - j - 1]);
-	if (sz >= 2) {
-		sz -= 2;
-		while (sz && qual[sz] == qual[qual.size() - 1])
-			sz--;
-		sz += 2;
-	}
-	
-	string hai;
-	for (size_t i = 0; i < sz; i++) {
-		if (seq[i] == 'N') {
-		//	if (qual[i] != 33) { 
-		//		DEBUG(">> %s %s\n", seq.c_str(), qual.c_str());
-		//	}
-			continue;
-		}
-		hai += char(qual[i] - 32);
-		assert(qual[i] < 64);
-	}
-	StringCompressor<QualityCompressionStream>::addRecord(hai);
 }
 
 void QualityScoreCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {
@@ -165,10 +149,9 @@ void QualityScoreCompressor::outputRecords (Array<uint8_t> &out, size_t out_offs
 
 	//delete stream;
 	//stream = new QualityCompressionStream();
+	out.add(offset); out_offset++;
 	StringCompressor<QualityCompressionStream>::outputRecords(out, out_offset, k);
 }
-
-
 
 QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
 	StringDecompressor<QualityDecompressionStream>(blockSize) 
@@ -196,8 +179,11 @@ string QualityScoreDecompressor::getRecord (size_t seq_len, int flag) {
 	assert(hasRecord());
 	
 	string s = string(StringDecompressor<QualityDecompressionStream>::getRecord());
+	if (s == "")
+		return "*";
+
 	for (size_t i = 0; i < s.size(); i++)
-		s[i] += 32;
+		s[i] += offset;
     char c = s[s.size() - 1];
     while (s.size() < seq_len)
 		s += c;
@@ -205,3 +191,11 @@ string QualityScoreDecompressor::getRecord (size_t seq_len, int flag) {
 		swap(s[i], s[seq_len - i - 1]);
     return s;
 }
+
+void QualityScoreDecompressor::importRecords (uint8_t *in, size_t in_size) {
+	if (in_size == 0) 
+		return;
+	offset = *in;
+	StringDecompressor<QualityDecompressionStream>::importRecords(in + 1, in_size - 1);
+}
+

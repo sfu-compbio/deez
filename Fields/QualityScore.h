@@ -23,6 +23,7 @@ typedef
 class QualityScoreCompressor: 
 	public StringCompressor<QualityCompressionStream> 
 {	
+	char offset;
 	int stat[128];
 	int lossy[128];
 	bool statMode;
@@ -33,7 +34,6 @@ public:
 
 public:
 	void addRecord (std::string qual, int flag);
-	void addRecord (std::string qual, std::string seq, int flag);
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
 	
 private:
@@ -45,12 +45,15 @@ private:
 class QualityScoreDecompressor: 
 	public StringDecompressor<QualityDecompressionStream> 
 {
+	char offset;
+
 public:
 	QualityScoreDecompressor (int blockSize);
 	virtual ~QualityScoreDecompressor (void);
 
 public:
 	std::string getRecord (size_t seq_len, int flag);
+	void importRecords (uint8_t *in, size_t in_size);
 };
 
 #endif

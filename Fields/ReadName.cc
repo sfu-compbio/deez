@@ -26,11 +26,12 @@ void ReadNameCompressor::detectToken (const string &rn) {
 	char al[256] = { 0 };
 	for (int i = 0; i < rn.size(); i++)
 		al[rn[i]]++;
-	// only . and :
-	if (al['.'] > al[':'])
-		token = '.';
-	else
+	// only .:_
+	token = '.';
+	if (al[':'] > al[token])
 		token = ':';
+	if (al['_'] > al[token])
+		token = '_';
 	//DEBUG("Token character: [%c]", token);
 }
 
@@ -96,15 +97,17 @@ void ReadNameCompressor::addTokenizedName (const string &rn, Array<uint8_t> &con
 		string tk = rn.substr(tokens[i], tokens[i + 1] - tokens[i] - 1);
 		if (i == 0 && specialSRRCase) tk += rn[tk.size()];
 		if (tk != prevTokens[i]) {
-			uint64_t e = atol(tk.c_str()); // >!TODO!< BUGGY BASTARD!
-			if (e == 0) {
+			char *p;
+			long e = strtol(tk.c_str(), &p, 10);
+			if (*p || e < 0) {
 				for (int j = 0; j < tk.size(); j++) 
 					content.add(tk[j]);
 				content.add(0);
-				index.add(i + 5 * MAX_TOKEN);
-			}
-			else 
-				encodeUInt(e, index, content, i);
+				index.add(i + 5 * MAX_TOKEN);			
+			}				
+			else {
+			    encodeUInt(e, index, content, i);
+			}				
 			prevTokens[i] = tk;
 		}
 	}
@@ -185,6 +188,7 @@ __debug_fwrite(content.data(), 1, content.size(), ____debug_file[__DC++]);
 				case 4: {
 					uint64_t e = decodeUInt(T, content, cc);
 					tokens[t] = "";
+					if (!e) tokens[t] = "0";
 					while (e) tokens[t] = char('0' + e % 10) + tokens[t], e /= 10;
 					break;
 				}

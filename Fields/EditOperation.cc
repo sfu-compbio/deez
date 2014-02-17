@@ -37,18 +37,20 @@ void EditOperationCompressor::setFixed (char *f, size_t fs) {
 void EditOperationCompressor::addOperation (char op, int seqPos, int size,
 	Array<uint8_t> &operands, Array<uint8_t> &lengths) 
 {
-	//LOGN(" <%c %d %d> ", op, seqPos, size);
+	// LOGN(" <%c %d %d> ", op, seqPos, size);
 	if (op == '=' || op == '*') 
 		return;
+	seqPos++; // Avoid zeros
 	addEncoded(seqPos, lengths);
 	if (op == 'N') {
 		operands.add(op);
 		assert(size > 0);
 		addEncoded(size, lengths);
 	}
-	// seems to be working very well for XISD
+	// seems to be working very well for XISD  [HP]
 	else for (int i = 0; i < size; i++) 
-		operands.add(op); operands.add(0);
+		operands.add(op); 
+	operands.add(0);
 }
 
 void EditOperationCompressor::addEditOperation(const EditOperation &eo,
@@ -57,7 +59,7 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 	if (eo.op == "*") {
 		nucleotides.add(eo.seq.c_str(), eo.seq.size());
 		operands.add('*');
-		addEncoded(eo.seq.size(), lengths);
+		addEncoded(eo.seq.size() + 1, lengths);
 		operands.add(0);
 		return;
 	}
@@ -79,35 +81,11 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 		lastOP = 0;
 		lastOPSize = 0;
 		// M -> X=
-		// =,X,I,S,D,N -> same
-		// H,P -> not supported
+		// =,X,I,S,D,N,H,P -> same
 		switch (eo.op[pos]) {
 			case 'M': // any
 			case '=': // match
 			case 'X': // mismatch
-				/*
-				for (size_t i = 0; i < size; i++) {
-					if (eo.seq[seqPos] == fixed[genPos]) {
-						if (lastOP == '=')
-							lastOPSize++;
-						else {
-							if (lastOP) addOperation(lastOP, lastOPSize, operands, lengths);
-							lastOP = '=', lastOPSize = 1;
-						}
-					}
-					else if (lastOP == 'X')
-						nucleotides.add(eo.seq.c_str() + seqPos, 1), lastOPSize++;
-					else {
-						if (lastOP) addOperation(lastOP, lastOPSize, operands, lengths);
-						nucleotides.add(eo.seq.c_str() + seqPos, 1);
-						lastOP = 'X', lastOPSize = 1;
-					}
-					genPos++;
-					seqPos++;
-				}
-				if (lastOP)
-					addOperation(lastOP, lastOPSize, operands, lengths);
-				*/
 				for (size_t i = 0; i < size; i++) {
 					if (eo.seq[seqPos] == fixed[genPos]) {
 						if (lastOP == '=')
@@ -143,14 +121,15 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 				break;
 			case 'H':
 			case 'P':
-				throw DZException("Not Supported");
+				addOperation(eo.op[pos], seqPos, size, operands, lengths);
+				break;
 			default:
 				throw DZException("Bad CIGAR detected: %s", eo.op.c_str());
 		}
 		size = 0;
 	}
 	operands.add(0);
-	addEncoded(eo.seq.size(), lengths);
+	addEncoded(eo.seq.size() + 1, lengths);
 	//LOG("");
 }
 
@@ -265,10 +244,6 @@ EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStrea
 	assert(fixed != NULL);
 	assert(loc >= fixedStart);
 
-	size_t genPos = loc - fixedStart;
-	char lastOP = 0;
-	int  lastOPSize = 0;
-
 	EditOperation eo;
 	eo.start = loc;
 	eo.end = loc; 
@@ -281,58 +256,54 @@ EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStrea
 
 	int prevloc = 0;
 	while (1) {
-
 		// maybe gzip can catch this?
 		size_t endPos = getEncoded(len);
-		//LOGN(" <%c %d ", *op, endPos);
-		if (!*op) { // end... len = readsize
-			if (endPos > prevloc) {
-				opChr.add('=');
-				opLen.add(endPos - prevloc);
-				//LOGN(" [%c %d] ", '=', endPos - prevloc);
-				//eo.op += '=' + inttostr(endPos-prevloc);
-			}
+		endPos--; // Avoid zeros fix
+		
+		// End case. Check is prevloc at end. If not, add = and exit
+		if (!*op) { 
+			if (endPos > prevloc)  
+				opChr.add('='), opLen.add(endPos - prevloc);
 			op++;
 			break;
 		}
+		// Unmapped case. Just add * and exit
 		else if (*op == '*') {
-			opChr.add('*');
-			opLen.add(endPos);
-			//LOGN(" [%c %d] ", '*', endPos);
-			//eo.op += '*' + inttostr(endPos);
-			op++; op++; break;
+			opChr.add('*'), opLen.add(endPos);
+			op++; op++; 
+			break;
 		}
+		// Other cases
 		else {
+			// Get op
 			char c = *op;
-			
+			// Get length
 			int l = 0;
 			if (*op == 'N')
 				l = getEncoded(len), op++;
 			else while (*op == c)
-				l++, op++; op++;
+				l++, op++; 
+			op++; // 0
 
-			if ((c == 'N' || c == 'D') && endPos > prevloc) {
-				opChr.add('=');
-				opLen.add(endPos - prevloc);
-				//LOGN(" [%c %d] ", '=', endPos - prevloc);
-			}
-			else if (c != 'N' && c != 'D' && (int)endPos - l > prevloc) { // we
-				opChr.add('=');
-				opLen.add(endPos - l - prevloc);
-				//LOGN(" [%c %d] ", '=', endPos - l - prevloc);
-				//eo.op += '=' + inttostr(endPos-l-prevloc);
-			}
+			// Do we have trailing = ?
+			if ((c == 'N' || c == 'D' || c == 'H' || c == 'P') && endPos > prevloc) 
+				opChr.add('='), opLen.add(endPos - prevloc);
+			else if (c != 'N' && c != 'D' && c != 'H' && c != 'P' && (int)endPos - l > prevloc) 
+				opChr.add('='), opLen.add(endPos - l - prevloc);
 			
 			prevloc = endPos;
-			opChr.add(c);
-			opLen.add(l);
-			//eo.op += c + inttostr(l);
-			//LOGN(" [%c %d] ", c, l);
+			opChr.add(c), opLen.add(l);
 		} 
 	}
-	//eo.op+="_";
-	//LOG("");
 
+	//for (int i = 0; i < opChr.size(); i++) 
+	//	LOGN("%d%c ", opLen[i], opChr[i]);
+	//LOG("");
+ 
+
+	size_t genPos = loc - fixedStart;
+	char lastOP = 0;
+	int  lastOPSize = 0;
 	for (int i = 0; i < opChr.size(); i++) {
 		// restore original part
 		switch (opChr[i]) {
@@ -371,6 +342,18 @@ EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStrea
 					if (opChr[i] != 'S' && opChr[i] != 'I')
 						eo.end += lastOPSize;
 				}
+				break;
+
+			case 'H':
+			case 'P':
+				if (lastOP != 0) {
+					eo.op += inttostr(lastOPSize) + lastOP;
+					if (lastOP != 'S' && lastOP != 'I')
+						eo.end += lastOPSize;
+					lastOP = 0, lastOPSize = 0;
+				}
+				eo.op += inttostr(opLen[i]) + char(opChr[i]);
+			//	genPos += opLen[i];
 				break;
 
 			case 'D':
