@@ -33,6 +33,7 @@ void FileDecompressor::printStats (const string &path, int filterFlag) {
 	fread(in.data(), 1, sz, inFile);
 	Stats *stats = new Stats(in);
 
+	LOG("Index size %'lu bytes", inFileSz - statPos);
 	LOG("%'16lu reads", stats->getReadCount());
 	LOG("%'16lu mapped reads", stats->getStats(-4));
 	LOG("%'16lu unmapped reads", stats->getStats(4));

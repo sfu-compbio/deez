@@ -203,6 +203,7 @@ void FileCompressor::outputRecords (void) {
 		);
 		if (currentBlockCount == 0) {
 			blockSize += bsc;
+			LOG("Retrying...");
 			continue;
 		}
 		currentSize -= currentBlockCount;
