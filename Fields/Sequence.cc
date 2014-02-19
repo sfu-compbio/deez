@@ -104,25 +104,36 @@ void SequenceCompressor::applyFixesThread(EditOperationCompressor &editOperation
 	ZAMAN_END("T~");
 }
 
+/*
+ * in  nextBlockBegin: we retrieved all reads starting before nextBlockBegin
+ * out start_S
+ */
 size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompressor &editOperation,
-	size_t &start_S, size_t &end_S, size_t &end_E, size_t &fS, size_t &fE) {
-	/////////////////////////////////////////////////////////////////////////////
+	size_t &start_S, size_t &end_S, size_t &end_E, size_t &fS, size_t &fE) 
+{
 	if (editOperation.size() == 0) 
 		return 0;
 
-	/*    
-	prev fixed 			**************
-	cur reads start  			##########################      [fully covered positions]
-	cur outblock         		##############
-	new fixed                     	  *******************
-	*/
-	// fully covered
 	// [records[0].start, records[last].start)
 	// previously fixed
 	// fixedGenome: [fixedStart, fixedEnd)
 	// if we have more unfixed location
-	if (editOperation[0].end >= nextBlockBegin)
-		return 0;
+/*
+	int k = 0.8 * editOperation.size();
+	// so either whole block or at least 80% of it if it is bad
+	int nx = nextBlockBegin;
+	for (int i = 0; i < k; i++)
+		nx = max(nx, (int)editOperation[i].end);
+	for (int i = k; i < editOperation.size() && editOperation[i].end <= nextBlockBegin; i++)
+		nx = max(nx, (int)editOperation[i].end);
+	nextBlockBegin = nx;
+*/
+
+	// old version
+	// if (editOperation[0].end >= nextBlockBegin) {
+	// 	// this is BAD BAD BAD
+	// 	return 0;
+	// }
 
 	if (chromosome != "*") {
 		// Previously, we fixed all locations
@@ -131,15 +142,18 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 		// so fixingStart indicates where should we start
 		// actual fixing
 
+		// If we can fix anything
 		size_t fixingStart = fixedEnd;
 		ZAMAN_START();
-		if (nextBlockBegin > fixedEnd) {
-			size_t newFixedEnd   = nextBlockBegin;
-			if (newFixedEnd == (size_t)-1) // chromosome end, fix everything
-				newFixedEnd = maxEnd; // records[records.size() - 1].end;
+		// Do we have new region to fix?
+
+		if (maxEnd > fixedEnd) {
+			// Determine new fixing boundaries
+			size_t newFixedEnd = maxEnd;
 			size_t newFixedStart = editOperation[0].start;
 			assert(fixedStart <= newFixedStart);
 
+			// Update fixing table
 			char *newFixed = new char[newFixedEnd - newFixedStart];
 			// copy old fixes!
 			if (fixed && newFixedStart < fixedEnd) {
@@ -155,6 +169,30 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 			delete[] fixed;
 			fixed = newFixed;
 		}
+		/*if (nextBlockBegin > fixedEnd) {
+			// Determine new fixing boundaries
+			size_t newFixedEnd = nextBlockBegin;
+			if (newFixedEnd == (size_t)-1) // chromosome end, fix everything
+				newFixedEnd = maxEnd; // records[records.size() - 1].end;
+			size_t newFixedStart = editOperation[0].start;
+			assert(fixedStart <= newFixedStart);
+
+			// Update fixing table
+			char *newFixed = new char[newFixedEnd - newFixedStart];
+			// copy old fixes!
+			if (fixed && newFixedStart < fixedEnd) {
+				memcpy(newFixed, fixed + (newFixedStart - fixedStart), 
+					fixedEnd - newFixedStart);
+				reference.load(newFixed + (fixedEnd - newFixedStart), 
+					fixedEnd, newFixedEnd);
+			}
+			else reference.load(newFixed, newFixedStart, newFixedEnd);
+
+			fixedStart = newFixedStart;
+			fixedEnd = newFixedEnd;
+			delete[] fixed;
+			fixed = newFixed;
+		}*/
 		ZAMAN_END("S1");
 
 		//	SCREEN("Given boundary is %'lu\n", nextBlockBegin);
@@ -177,42 +215,6 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 			));
 		for (int i = 0; i < optThreads; i++)
 			t[i].join();
-
-		/*
-		for (size_t k = 0; k < editOperation.size(); k++) {
-			if (editOperation[k].op == "*") 
-				continue;
-			size_t size = 0;
-			size_t genPos = editOperation[k].start;
-			size_t seqPos = 0;
-			for (size_t pos = 0; genPos < fixedEnd && pos < editOperation[k].op.length(); pos++) {
-				if (isdigit(editOperation[k].op[pos])) {
-					size = size * 10 + (editOperation[k].op[pos] - '0');
-					continue;
-				}
-				switch (editOperation[k].op[pos]) {
-					case 'M':
-					case '=':
-					case 'X':
-						for (size_t i = 0; genPos < fixedEnd && i < size; i++)
-						//	if (genPos >= fixingStart)
-								updateGenomeLoc(genPos++ - fixedStart, editOperation[k].seq[seqPos++], stats);
-						break;
-					case 'I':
-					case 'S':
-						seqPos += size;
-						break;
-					case 'D':
-					case 'N':
-						for (size_t i = 0; genPos < fixedEnd && i < size; i++)
-						//	if (genPos >= fixingStart)
-								updateGenomeLoc(genPos++ - fixedStart, '.', stats);
-						break;
-				}
-				size = 0;
-			}
-		}
-		*/
 		ZAMAN_END("S2"); 
 
 		// patch reference genome
@@ -249,6 +251,7 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 	fS = fixedStart;
 	fE = fixedEnd;
 	editOperation.setFixed(fixed, fixedStart);
+	LOG(" ~ %d", int(bound*100.0/editOperation.size()));
 	return bound;
 }
 

@@ -126,12 +126,12 @@ void QualityScoreCompressor::addRecord (string qual, int flag) {
 	qual = qual.substr(0, sz);
 	for (size_t i = 0; i < sz; i++) {
 		if (qual[i] <= offset)
-			offset = 33;
+			offset = 32;
 		if (qual[i] <= offset)
-			throw DZException("Quality scores out of range with offset %d", offset);
+			throw DZException("Quality scores out of range with offset %d [%d]", offset, qual[i]);
 		qual[i] -= offset;
 		if (qual[i] >= 64)
-			throw DZException("Quality scores out of range with offset %d", offset);
+			throw DZException("Quality scores out of range with offset %d [%d]", offset, qual[i]);
 	}
 	
 	assert(qual.size()>0);
