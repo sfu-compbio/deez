@@ -3,8 +3,7 @@ using namespace std;
 
 QualityScoreCompressor::QualityScoreCompressor (int blockSize):
 	StringCompressor<QualityCompressionStream>(blockSize),
-	statMode(true),
-	offset(63)
+	statMode(true)
 {
 	memset(lossy, 0, 128 * sizeof(int));
 	memset(stat, 0, 128 * sizeof(int));
@@ -36,12 +35,17 @@ bool statSort (const pair<char, int> &a, const pair<char, int> &b) {
 	return (a.second > b.second || (a.second == b.second && a.first < b.first));
 }
 
-void QualityScoreCompressor::calculateLossyTable (int percentage) {
-	int offset = 64;
-	for (int i = 33; i < 64; i++) if (stat[i]) {
-		offset = 33;
-		break;
+char QualityScoreCompressor::calculateOffset (void) {
+	for (int i = 33; i < 64; i++) {
+		if (i < 59 && stat[i]) return 33;
+		if (stat[i]) return 59;
 	}
+	return 64;
+}
+
+void QualityScoreCompressor::calculateLossyTable (int percentage) {
+	if (!offset)
+		throw DZException("Offset not calculated");
 
 	// calculate replacements
 	for (int c = 0; c < 128; c++)
@@ -99,10 +103,10 @@ void QualityScoreCompressor::calculateLossyTable (int percentage) {
 }
 
 void QualityScoreCompressor::lossyTransform (string &qual) {
-	if (!optLossy) return;
-	if (statMode) for (size_t i = 0; i < qual.size(); i++)
+	/*if (statMode) */ for (size_t i = 0; i < qual.size(); i++)
 		stat[qual[i]]++;
-	else for (size_t i = 0; i < qual.size(); i++)
+	if (!optLossy) return;
+	if (!statMode) for (size_t i = 0; i < qual.size(); i++)
 		qual[i] = lossy[qual[i]];
 }
 
@@ -124,7 +128,7 @@ void QualityScoreCompressor::addRecord (string qual, int flag) {
 		sz += 2;
 	}
 	qual = qual.substr(0, sz);
-	for (size_t i = 0; i < sz; i++) {
+	/*for (size_t i = 0; i < sz; i++) {
 		if (qual[i] <= offset)
 			offset = 32;
 		if (qual[i] <= offset)
@@ -132,13 +136,16 @@ void QualityScoreCompressor::addRecord (string qual, int flag) {
 		qual[i] -= offset;
 		if (qual[i] >= 64)
 			throw DZException("Quality scores out of range with offset %d [%d]", offset, qual[i]);
-	}
-	
+	}*/
 	assert(qual.size()>0);
 	StringCompressor<QualityCompressionStream>::addRecord(qual);
 }
 
 void QualityScoreCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {
+	if (!offset) {
+		offset = calculateOffset();
+	//	LOG("Quality offset is %d", offset);
+	}
 	if (optLossy && statMode) {
 		calculateLossyTable(optLossy);
 		statMode = false;	
@@ -150,7 +157,19 @@ void QualityScoreCompressor::outputRecords (Array<uint8_t> &out, size_t out_offs
 	//delete stream;
 	//stream = new QualityCompressionStream();
 	out.add(offset); out_offset++;
+//	for (int i = 0; i < k; i++)  LOG("%s",this->records[i].c_str());
+	for (int i = 0; i < k; i++) 
+		for (int j = 0; j < this->records[i].size(); j++) {
+			char &c = this->records[i][j];
+			if (c <= offset)
+				throw DZException("Quality scores out of range with offset %d [%c]", offset, c);
+			c = (c - offset) + 1;
+			if (c >= 64)
+				throw DZException("Quality scores out of range with offset %d [%c]", offset, c);
+		}
 	StringCompressor<QualityCompressionStream>::outputRecords(out, out_offset, k);
+	memset(stat, 0, 128 * sizeof(int));
+	offset = 0;
 }
 
 QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
@@ -183,7 +202,7 @@ string QualityScoreDecompressor::getRecord (size_t seq_len, int flag) {
 		return "*";
 
 	for (size_t i = 0; i < s.size(); i++)
-		s[i] += offset;
+		s[i] += offset - 1;
     char c = s[s.size() - 1];
     while (s.size() < seq_len)
 		s += c;

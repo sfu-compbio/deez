@@ -57,9 +57,13 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 	ACTGStream &nucleotides, Array<uint8_t> &operands, Array<uint8_t> &lengths) 
 {
 	if (eo.op == "*") {
-		nucleotides.add(eo.seq.c_str(), eo.seq.size());
+		if (eo.seq != "*") {
+			nucleotides.add(eo.seq.c_str(), eo.seq.size());
+			addEncoded(eo.seq.size() + 1, lengths);
+		}
+		else 
+			addEncoded(1, lengths);
 		operands.add('*');
-		addEncoded(eo.seq.size() + 1, lengths);
 		operands.add(0);
 		return;
 	}
@@ -241,8 +245,8 @@ __debug_fwrite(lengths.data(), 1, lengths.size(), ____debug_file[__DC++]);
 }
 
 EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStream &nucleotides, uint8_t *&op, uint8_t *&len) {
-	assert(fixed != NULL);
-	assert(loc >= fixedStart);
+//	assert(fixed != NULL);
+//	assert(loc >= fixedStart);
 
 	EditOperation eo;
 	eo.start = loc;
@@ -375,6 +379,8 @@ EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStrea
 			eo.end += lastOPSize;
 	}
 
+	if (eo.seq == "")
+		eo.seq = "*";
 	return eo;
 }
 

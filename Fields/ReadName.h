@@ -20,7 +20,8 @@ class ReadNameCompressor:
 {
 	CompressionStream *indexStream;
 	std::string prevTokens[MAX_TOKEN];
-	char token;
+	char prevCharTokens[MAX_TOKEN];
+//	char token;
 
 public:
 	ReadNameCompressor(int blockSize);
@@ -35,7 +36,7 @@ public:
 	}
 
 private:
-	void detectToken (const std::string &rn);
+//	void detectToken (const std::string &rn);
 	void addTokenizedName (const std::string &rn, Array<uint8_t> &content, Array<uint8_t> &index);
 };
 
@@ -43,7 +44,7 @@ class ReadNameDecompressor:
 	public StringDecompressor<GzipDecompressionStream>  
 {
 	DecompressionStream *indexStream;
-	char token;
+//	char token;
 
 public:
 	ReadNameDecompressor(int blockSize);

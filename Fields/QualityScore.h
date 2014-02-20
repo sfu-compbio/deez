@@ -38,6 +38,7 @@ public:
 	
 private:
 	static double phredScore (char c, int offset);
+	char calculateOffset (void);
 	void calculateLossyTable (int percentage);
 	void lossyTransform (string &qual);
 };

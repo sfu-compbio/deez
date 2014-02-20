@@ -251,7 +251,7 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 	fS = fixedStart;
 	fE = fixedEnd;
 	editOperation.setFixed(fixed, fixedStart);
-	LOG(" ~ %d", int(bound*100.0/editOperation.size()));
+//	LOG(" ~ %d", int(bound*100.0/editOperation.size()));
 	return bound;
 }
 
