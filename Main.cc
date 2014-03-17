@@ -110,7 +110,8 @@ void parse_opt (int argc, char **argv) {
 			}
 		}
 	} while (opt != -1);
-	optInput = argv[optind];
+	if (optind < argc)
+		optInput = argv[optind];
 	if (optind < argc - 1)
 		optRange = argv[++optind];
 }
@@ -207,6 +208,8 @@ int main (int argc, char **argv) {
     parse_opt(argc, argv);
 
     try {
+    	if (optInput == "")
+    		throw DZException("Input not specified. Please run dz --help for all options");
     	if (!file_exists(optInput))
 			throw DZException("File %s does not exist", optInput.c_str());
 		DEBUG("Using input file %s", full_path(optInput).c_str());
