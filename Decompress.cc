@@ -76,15 +76,20 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 
 	// seek to index
 
-	fseek(this->inFile, inFileSz - sizeof(size_t), SEEK_SET);
+	if (fseek(this->inFile, inFileSz - sizeof(size_t), SEEK_SET))
+		throw DZException("fseek failed ... %d", ferror(this->inFile));
 	size_t statPos;
-	fread(&statPos, sizeof(size_t), 1, this->inFile);
+	if (fread(&statPos, sizeof(size_t), 1, this->inFile) != sizeof(size_t))
+		throw DZException("fread failed ... %lu", statPos);
 	
 	char magic[10] = {0};
-	fseek(this->inFile, statPos, SEEK_SET);
-	fread(magic, 1, 7, this->inFile);
+	if (fseek(this->inFile, statPos, SEEK_SET))
+		throw DZException("fseek failed ... %d", ferror(this->inFile));
+
+	if (fread(magic, 1, 7, this->inFile) != 7)
+		throw DZException("MAGIC fread failed");	
 	if (strcmp(magic, "DZSTATS"))
-		throw DZException("Stats are corrupted ...%s", magic);
+		throw DZException("Stats are corrupted ...%c%c%c%c%c%c%c", magic[0], magic[1], magic[2], magic[3], magic[4], magic[5], magic[6]);
 
 	size_t sz;
 	fread(&sz, 1, 8, this->inFile);
