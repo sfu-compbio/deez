@@ -79,7 +79,7 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 	if (fseek(this->inFile, inFileSz - sizeof(size_t), SEEK_SET))
 		throw DZException("fseek failed ... %d", ferror(this->inFile));
 	size_t statPos;
-	if (fread(&statPos, sizeof(size_t), 1, this->inFile) != sizeof(size_t))
+	if (fread(&statPos, sizeof(size_t), 1, this->inFile) != 1)
 		throw DZException("fread failed ... %lu", statPos);
 	
 	char magic[10] = {0};
