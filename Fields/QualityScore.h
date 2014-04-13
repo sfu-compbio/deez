@@ -11,13 +11,15 @@
 extern char optQuality;
 extern char optLossy;
 
+const int QualRange = 96;
+
 typedef 
 	//GzipCompressionStream<6>
-	AC2CompressionStream<64>
+	AC2CompressionStream<QualRange>
 	QualityCompressionStream;
 typedef 
 	//GzipDecompressionStream
-	AC2DecompressionStream<64>
+	AC2DecompressionStream<QualRange>
 	QualityDecompressionStream;
 
 class QualityScoreCompressor: 
