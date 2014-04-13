@@ -7,23 +7,28 @@
 
 template<int AS>
 class AC2CompressionStream: public CompressionStream, public DecompressionStream {
-	static const int MOD_SZ = AS*AS;
+	static const int MOD_SZ = AS * AS;
 	AC0CompressionStream<AS> mod[MOD_SZ];
 
+	uint8_t loq, hiq;
 	uint8_t q1;
 	uint32_t context;
 
 public:
 	AC2CompressionStream (void) {
-		q1 = 0;
+		q1 = loq = hiq = 0;
 		context = 0;
 	}
 
 private:
 	void encode (uint8_t q, AC &ac) {
 		assert(q < AS);
-		assert(context<MOD_SZ);
+		assert(context < MOD_SZ);
 		mod[context].encode(q, ac);
+		
+		// squeeze index
+		loq = min(loq, q);
+		hiq = max(hiq, q);
 
 		context  = q1 * AS;
 		context += q;
@@ -31,9 +36,9 @@ private:
 	}
 
 	uint8_t decode (AC &ac) {
-		assert(context<AS*AS);
+		assert(context < AS * AS);
 		uint8_t q = mod[context].decode(ac);
-		
+
 		context  = q1 * AS;
 		context += q;
 		q1 = q;
@@ -43,8 +48,8 @@ private:
 
 public:
 	size_t compress (uint8_t *source, size_t source_sz, 
-			Array<uint8_t> &dest, size_t dest_offset) {
-		
+			Array<uint8_t> &dest, size_t dest_offset) 
+	{	
 		// ac keeps appending to the array.
 		// thus, just resize dest
 		dest.resize(dest_offset + sizeof(size_t));
@@ -60,8 +65,8 @@ public:
 	}
 
 	size_t decompress (uint8_t *source, size_t source_sz, 
-			Array<uint8_t> &dest, size_t dest_offset) {
-		
+			Array<uint8_t> &dest, size_t dest_offset) 
+	{	
 		// ac keeps appending to the array.
 		// thus, just resize dest
 
@@ -76,21 +81,27 @@ public:
 	}
 
 	void getCurrentState (Array<uint8_t> &ou) {
-		for (int i = 0; i < AS * AS; i++) 
-			mod[i].getCurrentState(ou);
+		ou.add(loq);
+		ou.add(hiq);
+		for (int i = loq; i <= hiq; i++) 
+			for (int j = loq; j <= hiq; j++)
+				mod[i * j].getCurrentState(ou);
 		ou.add(q1);
 		ou.add((uint8_t*)&context, sizeof(uint32_t));
 		//printf("<<%d,%u>>\n",q1,context);
 	}
 
 	void setCurrentState (uint8_t *in, size_t sz) {
-		for (int i = 0; i < AS * AS; i++) {
-			// first dictates
-			// uint8_t t = *in;
-			size_t sz = AS * (1 + sizeof(uint16_t));
-			mod[i].setCurrentState(in, sz);
-			in += sz;
-		}
+		loq = *in++;
+		hiq = *in++;
+		for (int i = loq; i <= hiq; i++) 
+			for (int j = loq; j <= hiq; j++) {
+				// first dictates
+				// uint8_t t = *in;
+				size_t sz = AS * (1 + sizeof(uint16_t));
+				mod[i * j].setCurrentState(in, sz);
+				in += sz;
+			}
 		q1 = *in++;
 		context = *(uint32_t*)in;
 	}

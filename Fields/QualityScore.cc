@@ -128,16 +128,7 @@ void QualityScoreCompressor::addRecord (string qual, int flag) {
 		sz += 2;
 	}
 	qual = qual.substr(0, sz);
-	/*for (size_t i = 0; i < sz; i++) {
-		if (qual[i] <= offset)
-			offset = 32;
-		if (qual[i] <= offset)
-			throw DZException("Quality scores out of range with offset %d [%d]", offset, qual[i]);
-		qual[i] -= offset;
-		if (qual[i] >= 64)
-			throw DZException("Quality scores out of range with offset %d [%d]", offset, qual[i]);
-	}*/
-	assert(qual.size()>0);
+	assert(qual.size() > 0);
 	StringCompressor<QualityCompressionStream>::addRecord(qual);
 }
 
@@ -154,8 +145,8 @@ void QualityScoreCompressor::outputRecords (Array<uint8_t> &out, size_t out_offs
 				this->records[i][j] = lossy[this->records[i][j]];
 	} 
 
-	//delete stream;
-	//stream = new QualityCompressionStream();
+//	delete stream;
+//	stream = new QualityCompressionStream();
 	out.add(offset); out_offset++;
 //	for (int i = 0; i < k; i++)  LOG("%s",this->records[i].c_str());
 	for (int i = 0; i < k; i++) 
@@ -180,11 +171,11 @@ QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
 			break;
 		case 1:
 			delete this->stream;
-			this->stream = new SAMCompStream<64>();
+			this->stream = new SAMCompStream<QualRange>();
 			break;
 		case 2:
 			//delete stream;
-			//stream = new MyCompressionStream<64>();
+			//stream = new MyCompressionStream<QualRange>();
 			break;
 	}
 	const char* qualities[] = { "default", "samcomp", "test" };
