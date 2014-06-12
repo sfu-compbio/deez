@@ -4,8 +4,8 @@ LDFLAGS = -lz -lpthread
 
 SOURCES := $(shell find $(SOURCEDIR) -name '*.cc' -not -path "./run/*")
 OBJECTS = $(SOURCES:.cc=.o)
-EXECUTABLE = dz
-TESTEXE = dztest
+EXECUTABLE = deez
+TESTEXE = deeztest
 
 all: CFLAGS += -O3 -DNDEBUG
 all: $(SOURCES) $(EXECUTABLE)
@@ -43,4 +43,4 @@ $(EXECUTABLE): $(OBJECTS)
 
 clean:
 	find -name '*.o' -delete
-	rm -rf dz dztest
+	rm -rf $(EXECUTABLE) $(TESTEXE)

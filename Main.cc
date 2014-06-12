@@ -51,6 +51,9 @@ void parse_opt (int argc, char **argv) {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
 			case 'h':
+				LOG("Compression: deez -r [reference] [input.sam] -o [output]");
+				LOG("Decompression: deez -r [reference] [input.dz] -o [output] ([region])");
+				LOG("For additional parameter explanation, please consult the man page (man deez or man ./deez.man)");
 				exit(0);
 			case 'r':
 				optRef = optarg;
@@ -209,7 +212,7 @@ int main (int argc, char **argv) {
 
     try {
     	if (optInput == "")
-    		throw DZException("Input not specified. Please run dz --help for all options");
+    		throw DZException("Input not specified. Please run dz --help for explanation");
     	if (!file_exists(optInput))
 			throw DZException("File %s does not exist", optInput.c_str());
 		DEBUG("Using input file %s", full_path(optInput).c_str());
