@@ -44,6 +44,7 @@ void parse_opt (int argc, char **argv) {
 		{ "withflag",    1, NULL, 'f' },
 		{ "stats",       0, NULL, 'S' },
 		{ "quality",     1, NULL, 'q' },
+		{ "block",       1, NULL, 'B' },
 		{ NULL, 0, NULL, 0 }
 	};
 	const char *short_opt = "hr:t:T!co:q:l:sM:Sf:F:";
@@ -77,6 +78,10 @@ void parse_opt (int argc, char **argv) {
 			}
 			case '!':
 				optForce = true;
+				break;
+			case 'B':
+				optBlock = atoi(optarg);
+				LOG("Block size changed to %'lu", optBlock);
 				break;
 			case 'c':
 				optStdout = true;
