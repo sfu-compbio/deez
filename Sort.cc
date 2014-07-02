@@ -45,7 +45,15 @@ public:
 	gzfile(const char* fn, const char* m) { open(fn, m); }
 	virtual void open(const char* fn, const char* m) { f = gzopen(fn, m); /*gzbuffer(f, 128 * 1024);*/ }
 	virtual void close() { gzclose(f); }
-	virtual ssize_t read(void* d, size_t s) { return gzread(f, d, s); }
+	virtual ssize_t read(void* d, size_t s) { 
+		const size_t offset = 1 * (size_t)GB;
+		if (s > offset) {
+			return gzread(f, d, offset) + this->read((char*)d + offset, s - offset); 
+		}
+		else {
+			return gzread(f, d, s);
+		}
+	}
 	virtual ssize_t write(void* d, size_t s) { return gzwrite(f, d, s); }
 	virtual bool eof() { return gzeof(f); }
 };
@@ -218,7 +226,7 @@ void sortFile (const string &path, const string &pathNew, size_t memLimit) {
 
 	bufsz = memLimit;
 	buffer = (char*)malloc(memLimit + 1);
-	
+
 	vector<file*> files;
 	vector<string> fileNames;
 
@@ -227,6 +235,8 @@ void sortFile (const string &path, const string &pathNew, size_t memLimit) {
 	Array<SAMNode> nodes(0, MB);
 	while (!finput->eof()) {
 		size_t sz = finput->read(buffer + offset, bufsz - offset) + offset;
+		//DEBUG(">>>> %'llu %'llu", sz, bufsz - offset);
+
 		ssize_t i;
 		for (i = 0; i < sz; ) {
 			SAMNode n;
