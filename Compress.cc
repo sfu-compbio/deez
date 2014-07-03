@@ -48,8 +48,8 @@ FileCompressor::FileCompressor (const string &outFile, const string &samFile, co
 	}
 
 	string idxFile = outFile + "idx";
-	indexFile = gzopen(idxFile.c_str(), "wb6");
-/*
+//	indexFile = gzopen(idxFile.c_str(), "wb6");
+
 	FILE *tmp = tmpfile();
 	
 	// char filePath[1024] = {0};
@@ -63,7 +63,7 @@ FileCompressor::FileCompressor (const string &outFile, const string &samFile, co
 	indexFile = gzdopen(fileno(tmp), "wb6");
 	if (indexFile == Z_NULL)	
 		throw DZException("Cannot open temporary file");
-	//gzwrite(indexFile, "HAMO", 5);*/
+	//gzwrite(indexFile, "HAMO", 5);
 }
 
 FileCompressor::~FileCompressor (void) {
@@ -275,16 +275,19 @@ void FileCompressor::outputRecords (void) {
 	fwrite(&sz, 8, 1, outputFile);
 	fwrite(outputBuffer->data(), 1, outputBuffer->size(), outputFile);
 	
-	gzclose(indexFile);
-	/*LOG("gzstatus %d", gzclose(indexFile));
+	//gzclose(indexFile);
+	LOG("gzstatus %d", gzclose(indexFile));
 	fwrite("DZIDX", 1, 5, outputFile);
 	char *buffer = (char*)malloc(MB);
+
+	fseek(indexTmp, 0, SEEK_END);
+	LOG("Index gz'd sz=%'lu", ftell(indexTmp));
 	fseek(indexTmp, 0, SEEK_SET);
 	while (sz = fread(buffer, 1, MB, indexTmp))
 		fwrite(buffer, 1, sz, outputFile);
 	free(buffer);
 	fclose(indexTmp);
-	*/
+	
 	fwrite(&posStats, sizeof(size_t), 1, outputFile);
 	
 	#define VERBOSE(x) LOG("%s: %lu", #x, x->compressedSize())

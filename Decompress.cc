@@ -98,7 +98,7 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 	fread(in.data(), 1, sz, this->inFile);
 	stats = new Stats(in);
 
-	/*magic[5] = 0;
+	magic[5] = 0;
 	fread(magic, 1, 5, this->inFile);
 	if (strcmp(magic, "DZIDX"))
 		throw DZException("Index is corrupted ...%s", magic);
@@ -106,6 +106,7 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 	size_t idxToRead = inFileSz - ftell(this->inFile) - sizeof(size_t);
 	FILE *tmp = tmpfile();
 	char *buffer = (char*)malloc(MB);
+
 	while (idxToRead && (sz = fread(buffer, 1, min((size_t)MB, idxToRead), this->inFile))) {
 		fwrite(buffer, 1, sz, tmp);
 		idxToRead -= sz;
@@ -113,13 +114,18 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 	free(buffer);
 	
 	int idx = dup(fileno(tmp)); //  dup(fileno(this->inFile));
+
+	fseek(tmp, 0, SEEK_END);
+	LOG("Index gz'd sz=%'lu", ftell(tmp));
+	fseek(tmp, 0, SEEK_SET);
+
 	lseek(idx, 0, SEEK_SET); // needed for gzdopen
 	idxFile = gzdopen(idx, "rb");
 	if (idxFile == Z_NULL)
 		throw DZException("Cannot open the index");
-	*/
-	string idxFileF = inFile + "idx";
-	idxFile = gzopen(idxFileF.c_str() ,"rb");
+	
+	//string idxFileF = inFile + "idx";
+	//idxFile = gzopen(idxFileF.c_str() ,"rb");
 	//gzread(idxFile, magic, 5);
 	//LOG("%s", magic);
 	
