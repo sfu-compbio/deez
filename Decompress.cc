@@ -98,7 +98,7 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 	fread(in.data(), 1, sz, this->inFile);
 	stats = new Stats(in);
 
-	magic[5] = 0;
+	/*magic[5] = 0;
 	fread(magic, 1, 5, this->inFile);
 	if (strcmp(magic, "DZIDX"))
 		throw DZException("Index is corrupted ...%s", magic);
@@ -113,11 +113,13 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 	free(buffer);
 	
 	int idx = dup(fileno(tmp)); //  dup(fileno(this->inFile));
-	lseek(idx, 0/*sz + 5*/, SEEK_SET); // needed for gzdopen
+	lseek(idx, 0, SEEK_SET); // needed for gzdopen
 	idxFile = gzdopen(idx, "rb");
 	if (idxFile == Z_NULL)
 		throw DZException("Cannot open the index");
-
+	*/
+	string idxFileF = inFile + "idx";
+	idxFile = gzopen(idxFileF.c_str() ,"rb");
 	//gzread(idxFile, magic, 5);
 	//LOG("%s", magic);
 	
@@ -249,6 +251,7 @@ size_t FileDecompressor::getBlock (const string &chromosome,
 		if (sz) 
 			fread(in[ti].data(), 1, sz, inFile);
 		t[ti] = thread(readBlockThread, di[ti], ref(in[ti]));
+		//readBlockThread(di[ti],in[ti]);
 	}
 	for (int ti = 0; ti < 7; ti++)
 		t[ti].join();
@@ -322,20 +325,28 @@ void FileDecompressor::decompress (const string &idxFilePath,
 	char *dup = strdup(range.c_str());
 	char *tok = strtok(dup, ":-");
 	
-	if (tok) 
+	if (tok) {
 		chr = tok, tok = strtok(0, ":-");
-	else 
+		if (tok) {
+			start = atol(tok), tok = strtok(0, ":-");
+			if (tok) 
+				end = atol(tok), tok = strtok(0, ":-");
+			else 
+				end = -1;
+		}
+		else {
+			start = 1; end = -1;
+		//	throw DZException("Range string %s invalid", range.c_str());
+		}
+	}
+	else {
+	//	chr = range;
+	//	start = 1; end = -1;
 		throw DZException("Range string %s invalid", range.c_str());
-	if (tok) 
-		start = atol(tok), tok = strtok(0, ":-");
-	else 
-		throw DZException("Range string %s invalid", range.c_str());
-	if (tok) 
-		end = atol(tok), tok = strtok(0, ":-");
-	else 
-		throw DZException("Range string %s invalid", range.c_str());
+	}
 	if (end < start)
 		swap(start, end);
+
 	LOG("Seeking to chromosome %s, [%'lu:%'lu]...", chr.c_str(), start, end);
 	start--; end--;
 
@@ -353,9 +364,12 @@ void FileDecompressor::decompress (const string &idxFilePath,
 		else for (int i = 0; i < 8; i++) {
 			size_t x;
 			gzread(idxFile, &x, sizeof(size_t));
-			ei[i].resize(x+2);
+			ei[i].resize(x); //+2);
 			//LOGN("%'lu ", x);
-			if (x) gzread(idxFile, ei[i].data(), x); //LOGN("<%'lu>", gzread(idxFile, ei[i].data(), x));
+			if (x) {
+			//LOG("~%d %d", x,
+				gzread(idxFile, ei[i].data(), x); //); 
+			}//LOGN("<%'lu>", gzread(idxFile, ei[i].data(), x));
 			//LOGN("%d | ",gzeof(idxFile));
 		}
 
@@ -374,19 +388,25 @@ void FileDecompressor::decompress (const string &idxFilePath,
 		gzread(idxFile, &fS, sizeof(size_t));
 		gzread(idxFile, &fE, sizeof(size_t));
 
+		//LOG("%d %d %s %d %d %d %d",zpos, currentBlockCount,chrx,
+		///	startPos,endPos,fS,fE);
+
+
 		if (prevChr != string(chrx)) {
 			startPos = 0;
 			fS = 0;
 			prevChr = string(chrx);
 		}
 
-		//LOG(" ... %s:%'lu-%'lu ... fixes %'lu-%'lu", chrx, startPos, endPos, fS, fE);
+		LOG(" ... %s:%'lu-%'lu ... fixes %'lu-%'lu", chrx, startPos, endPos, fS, fE);
 
 		if (string(chrx) == chr && (start >= startPos && start <= endPos)) {		
 			fseek(inFile, zpos, SEEK_SET);
 			Decompressor *di[] = { sequence, editOp, readName, mapFlag, mapQual, quality, pairedEnd, optField };
-			for (int ti = 0; ti < 8; ti++)
+			for (int ti = 0; ti < 8; ti++) {
+			//	LOG("%d--%d",ti,ei[ti].size());
 				if (ei[ti].size()) di[ti]->setIndexData(ei[ti].data(), ei[ti].size());
+			}
 			break;
 		}
 		else if (string(chrx) == chr && (start >= fS && start <= fE)) {

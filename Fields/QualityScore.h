@@ -49,6 +49,7 @@ class QualityScoreDecompressor:
 	public StringDecompressor<QualityDecompressionStream> 
 {
 	char offset;
+	char sought;
 
 public:
 	QualityScoreDecompressor (int blockSize);
@@ -57,6 +58,7 @@ public:
 public:
 	std::string getRecord (size_t seq_len, int flag);
 	void importRecords (uint8_t *in, size_t in_size);
+	void setIndexData (uint8_t *in, size_t in_size);
 };
 
 #endif

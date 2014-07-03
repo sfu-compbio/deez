@@ -47,7 +47,9 @@ FileCompressor::FileCompressor (const string &outFile, const string &samFile, co
 			throw DZException("Cannot open the file %s", outFile.c_str());
 	}
 
-	string idxFile = outFile + "i";
+	string idxFile = outFile + "idx";
+	indexFile = gzopen(idxFile.c_str(), "wb6");
+/*
 	FILE *tmp = tmpfile();
 	
 	// char filePath[1024] = {0};
@@ -61,7 +63,7 @@ FileCompressor::FileCompressor (const string &outFile, const string &samFile, co
 	indexFile = gzdopen(fileno(tmp), "wb6");
 	if (indexFile == Z_NULL)	
 		throw DZException("Cannot open temporary file");
-	//gzwrite(indexFile, "HAMO", 5);
+	//gzwrite(indexFile, "HAMO", 5);*/
 }
 
 FileCompressor::~FileCompressor (void) {
@@ -119,6 +121,7 @@ void FileCompressor::outputBlock (Array<uint8_t> &out, Array<uint8_t> &idxOut) {
 		fwrite(out.data(), 1, out_sz, outputFile);
 	
 	out_sz = idxOut.size();
+	//LOG("---%d", idxOut.size());
 	gzwrite(indexFile, &out_sz, sizeof(size_t));
 	if (out_sz) 
 		gzwrite(indexFile, idxOut.data(), out_sz);
@@ -237,6 +240,9 @@ void FileCompressor::outputRecords (void) {
 		gzwrite(indexFile, &fixedEndPos, sizeof(size_t));
 		ZAMAN_END("FIX");
 
+		//LOG("%d %d %s %d %d %d %d",zpos, currentBlockCount,sequence->getChromosome().c_str(),
+		//	currentBlockFirstLoc,currentBlockLastLoc,fixedStartPos,fixedEndPos);
+
 		ZAMAN_START();
 		Compressor *ci[] = { sequence, editOp, readName, mapFlag, mapQual, quality, pairedEnd, optField };
 		thread t[8];
@@ -253,6 +259,8 @@ void FileCompressor::outputRecords (void) {
 			outputBlock(outputBuffer[ti], idxBuffer[ti]);
 		//LOG("ZP %'lu ", zpos);
 		ZAMAN_END("IO");
+
+		//fflush(outputFile);
 		
 		//LOG("");
 		blockCount++;
@@ -268,6 +276,7 @@ void FileCompressor::outputRecords (void) {
 	fwrite(outputBuffer->data(), 1, outputBuffer->size(), outputFile);
 	
 	gzclose(indexFile);
+	/*LOG("gzstatus %d", gzclose(indexFile));
 	fwrite("DZIDX", 1, 5, outputFile);
 	char *buffer = (char*)malloc(MB);
 	fseek(indexTmp, 0, SEEK_SET);
@@ -275,7 +284,7 @@ void FileCompressor::outputRecords (void) {
 		fwrite(buffer, 1, sz, outputFile);
 	free(buffer);
 	fclose(indexTmp);
-
+	*/
 	fwrite(&posStats, sizeof(size_t), 1, outputFile);
 	
 	#define VERBOSE(x) LOG("%s: %lu", #x, x->compressedSize())

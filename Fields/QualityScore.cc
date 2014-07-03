@@ -166,12 +166,14 @@ void QualityScoreCompressor::outputRecords (Array<uint8_t> &out, size_t out_offs
 QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
 	StringDecompressor<QualityDecompressionStream>(blockSize) 
 {
+	sought = 0;
 	switch (optQuality) {
 		case 0:
 			break;
 		case 1:
 			delete this->stream;
 			this->stream = new SAMCompStream<QualRange>();
+			sought = 1;
 			break;
 		case 2:
 			//delete stream;
@@ -185,7 +187,20 @@ QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
 QualityScoreDecompressor::~QualityScoreDecompressor (void) {
 }
 
+void QualityScoreDecompressor::setIndexData (uint8_t *in, size_t in_size) {
+	stream->setCurrentState(in, in_size);
+	if (sought) 
+	sought = 2;
+}
+
 string QualityScoreDecompressor::getRecord (size_t seq_len, int flag) {
+	if (sought == 2) {
+		string s = "";
+		for (int i = 0; i < seq_len; i++)
+			s += (char)64;
+		return s;
+	}
+
 	assert(hasRecord());
 	
 	string s = string(StringDecompressor<QualityDecompressionStream>::getRecord());
@@ -205,7 +220,10 @@ string QualityScoreDecompressor::getRecord (size_t seq_len, int flag) {
 void QualityScoreDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	if (in_size == 0) 
 		return;
-	offset = *in;
-	StringDecompressor<QualityDecompressionStream>::importRecords(in + 1, in_size - 1);
+	if (sought == 2)
+		return;
+
+	offset = *in++;
+	StringDecompressor<QualityDecompressionStream>::importRecords(in, in_size - 1);
 }
 

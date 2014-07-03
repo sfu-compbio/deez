@@ -17,6 +17,7 @@ class AC0CompressionStream: public CompressionStream, public DecompressionStream
 	static const int RescaleFactor = 32;
 	static const int64_t SUM_LIMIT = 1ll << 15;
 
+public:
 	struct Stat {
 		uint16_t freq;
 		uint8_t  sym;
@@ -110,7 +111,8 @@ public:
 
 public:
 	size_t compress (uint8_t *source, size_t source_sz, 
-			Array<uint8_t> &dest, size_t dest_offset) {
+			Array<uint8_t> &dest, size_t dest_offset) 
+	{
 		// ac keeps appending to the array.
 		// thus, just resize dest
 		if (source_sz == 0) return 0;
@@ -127,8 +129,8 @@ public:
 	}
 
 	size_t decompress (uint8_t *source, size_t source_sz, 
-			Array<uint8_t> &dest, size_t dest_offset) {
-
+			Array<uint8_t> &dest, size_t dest_offset) 
+	{
 		// ac keeps appending to the array.
 		// thus, just resize dest
 
@@ -143,7 +145,19 @@ public:
 		//return 
 	}
 
+	//string phteven;
 	void getCurrentState (Array<uint8_t> &ou) {
+	//	if (phteven=="") phteven="_xebug0";
+		// FILE *fi=fopen(phteven.c_str(), "w");
+		// phteven[phteven.size()-1]++;
+		// getCurrentState(ou,NULL);
+	//	fclose(fi);
+		for (int i = 0; i < AS; i++) {
+			ou.add(stats[i].sym);
+			ou.add((uint8_t*)&stats[i].freq, sizeof(stats[i].freq));
+		}
+	}
+	/*void getCurrentState (Array<uint8_t> &ou, FILE *fi) {
 		//ou.add(0);
 		//uint8_t *c = ou.data() + (ou.size() - 1);
 		for (int i = 0; i < AS; i++) 
@@ -153,10 +167,27 @@ public:
 				// sym, freq
 				ou.add(stats[i].sym);
 				ou.add((uint8_t*)&stats[i].freq, sizeof(stats[i].freq));
+			//	fprintf(fi,"(%d %d) ", stats[i].sym, stats[i].freq);
 			}
-	}
+		//fprintf(fi,"\n");
+	}*/
 
 	void setCurrentState (uint8_t *in, size_t sz) {
+	//	if (phteven=="") phteven="_xebuh0";
+	//	FILE *fi=fopen(phteven.c_str(), "w");
+	//	phteven[phteven.size()-1]++;
+		sum = 0;
+		for (int i = 0; i < AS; i++) {
+			uint8_t sym = *in++;
+			stats[i].sym = sym;
+			stats[i].freq = *(uint16_t*)in; in += sizeof(stats[i].freq);
+			sum += stats[i].freq;
+		//	if(stats[i].freq>1&&sym>50)printf("%d--%d ", sym,stats[i].freq);
+		//	fprintf(fi,"(%d %d) ", stats[i].sym, stats[i].freq);
+			//stats[i].used = 1;
+		}	
+	}
+	/*void setCurrentState (uint8_t *in, size_t sz, FILE *fi) {
 		//uint8_t c = *in++;
 		sum = 0;
 		for (int i = 0; i < AS; i++) {
@@ -164,10 +195,15 @@ public:
 			stats[i].sym = sym;
 			stats[i].freq = *(uint16_t*)in; in += sizeof(stats[i].freq);
 			sum += stats[i].freq;
+		//	if(stats[i].freq>1&&sym>50)printf("%d--%d ", sym,stats[i].freq);
+		//	fprintf(fi,"(%d %d) ", stats[i].sym, stats[i].freq);
 			//stats[i].used = 1;
 		}
+		//fprintf(fi,"\n");
+
+		//LOG("");
 		//sort(stats, stats + AS, greater<Stat>());
-	}
+	}*/
 };
 
 #define AC0DecompressionStream AC0CompressionStream

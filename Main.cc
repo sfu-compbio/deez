@@ -47,7 +47,7 @@ void parse_opt (int argc, char **argv) {
 		{ "block",       1, NULL, 'B' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:t:T!co:q:l:sM:Sf:F:";
+	const char *short_opt = "hr:t:T!cB:o:q:l:sM:Sf:F:";
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {

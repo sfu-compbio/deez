@@ -88,10 +88,13 @@ public:
 		AC ac;
 		ac.initDecode(source + sizeof(size_t));
 		dest.resize(dest_offset + num);
+
+		// fill with 33s. zero terminators are not added. 
+		// the qualityscore class will take care of that.
 		if (hadSought) for (size_t i = 0; i < num; i++)
-			*(dest.data() + i) = 33;
+			*(dest.data() + dest_offset + i) = 33;
 		else for (size_t i = 0; i < num; i++) 
-			*(dest.data() + i) = decode(ac);
+			*(dest.data() + dest_offset + i) = decode(ac);
 		return num;
 	}
 
