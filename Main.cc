@@ -47,7 +47,7 @@ void parse_opt (int argc, char **argv) {
 		{ "block",       1, NULL, 'B' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:t:T!cB:o:q:l:sM:Sf:F:";
+	const char *short_opt = "hr:t:T!B:co:q:l:sM:Sf:F:";
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
@@ -159,10 +159,10 @@ bool is_dz_file (const string &s) {
 
 void compress (const string &in, const string &out) {
 	if (is_dz_file(in))
-		throw DZException("Cannot compress DZ file %s", in.c_str());
+		throw DZException("Cannot compress DeeZ file %s", in.c_str());
 	if (file_exists(out)) {
 		if (!optForce)
-			throw DZException("File %s already exists. Use -f to overwrite", out.c_str());
+			throw DZException("File %s already exists. Use -! to overwrite", out.c_str());
 		else
 			LOG("File %s already exists. Overwriting it.", out.c_str());
 	}
@@ -217,7 +217,7 @@ int main (int argc, char **argv) {
 
     try {
     	if (optInput == "")
-    		throw DZException("Input not specified. Please run dz --help for explanation");
+    		throw DZException("Input not specified. Please run deez --help for explanation");
     	if (!file_exists(optInput))
 			throw DZException("File %s does not exist", optInput.c_str());
 		DEBUG("Using input file %s", full_path(optInput).c_str());
@@ -255,7 +255,7 @@ int main (int argc, char **argv) {
 		}
 	}
 	catch (DZException &e) {
-		ERROR("DZ error: %s!", e.what());
+		ERROR("DeeZ error: %s!", e.what());
 		exit(1);
 	}
 	catch (...) {
