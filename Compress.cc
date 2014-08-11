@@ -166,7 +166,7 @@ void FileCompressor::outputRecords (void) {
 			if (p_loc == (size_t)-1) p_loc = 0;
 
 			if (loc < prev_loc)
-				throw DZException("Input is not sorted. Please sort it with 'dz --sort' before compressing it");
+				throw DZSortedException("Input is not sorted. Please sort it with 'dz --sort' before compressing it");
 			prev_loc = loc;
 
 			EditOperation eo(loc, rc.getSequence(), rc.getCigar());
@@ -246,7 +246,7 @@ void FileCompressor::outputRecords (void) {
 		ZAMAN_START();
 		Compressor *ci[] = { sequence, editOp, readName, mapFlag, mapQual, quality, pairedEnd, optField };
 		thread t[8];
-		for (int ti = 0; ti < 8; ti++) {
+		for (size_t ti = 0; ti < 8; ti++) {
 			ci[ti]->debugStream = (FILE*)ti;
 			t[ti] = thread(compressBlock, ci[ti], ref(outputBuffer[ti]), ref(idxBuffer[ti]), currentBlockCount);
 		}

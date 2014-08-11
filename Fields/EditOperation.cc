@@ -37,12 +37,16 @@ void EditOperationCompressor::setFixed (char *f, size_t fs) {
 void EditOperationCompressor::addOperation (char op, int seqPos, int size,
 	Array<uint8_t> &operands, Array<uint8_t> &lengths) 
 {
-	// LOGN(" <%c %d %d> ", op, seqPos, size);
+	//LOGN("\n <%c %d %d> ", op, seqPos, size);
 	if (op == '=' || op == '*') 
 		return;
 	seqPos++; // Avoid zeros
 	addEncoded(seqPos, lengths);
-	if (op == 'N') {
+	if (!size) {
+		operands.add('0');
+		operands.add(op);
+	}
+	else if (op == 'N') {
 		operands.add(op);
 		assert(size > 0);
 		addEncoded(size, lengths);
@@ -67,6 +71,23 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 		operands.add(0);
 		return;
 	}
+	/*else if (eo.seq == "*") { // weird, but happens!
+		addEncoded(1, lengths);
+		for (size_t pos = 0; pos < eo.op.size(); pos++) {
+			if (isdigit(eo.op[pos])) {
+				size = size * 10 + (eo.op[pos] - '0');
+				continue;
+			}
+			operands.add('*');
+			switch (eo.op[pos]) {
+				addOperation(lastOP, 0, size, operands, lengths);
+				break;
+			}
+			size = 0;
+		}
+		operands.add(0);
+		addEncoded(eo.seq.size() + 1, lengths);
+	}*/
 	assert(fixed != 0);
 
 	size_t size   = 0;
@@ -75,6 +96,8 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 
 	char lastOP = 0;
 	int  lastOPSize = 0;
+
+	bool checkSequence = eo.seq[0] != '*';
 
 	for (size_t pos = 0; pos < eo.op.size(); pos++) {
 		if (isdigit(eo.op[pos])) {
@@ -90,8 +113,13 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 			case 'M': // any
 			case '=': // match
 			case 'X': // mismatch
+			//LOG("%c~%d %d\n",eo.op[pos], size,lastOP);
+				if (!size) {
+					//addOperation(lastOP, seqPos, lastOPSize, operands, lengths);
+					lastOP = 'X' /*eo.op[pos]*/, lastOPSize = 0;
+				}
 				for (size_t i = 0; i < size; i++) {
-					if (eo.seq[seqPos] == fixed[genPos]) {
+					if (checkSequence && eo.seq[seqPos] == fixed[genPos]) {
 						if (lastOP == '=')
 							lastOPSize++;
 						else {
@@ -99,11 +127,11 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 							lastOP = '=', lastOPSize = 1;
 						}
 					}
-					else if (lastOP == 'X')
+					else if (checkSequence && lastOP == 'X')
 						nucleotides.add(eo.seq.c_str() + seqPos, 1), lastOPSize++;
 					else {
 						if (lastOP) addOperation(lastOP, seqPos, lastOPSize, operands, lengths);
-						nucleotides.add(eo.seq.c_str() + seqPos, 1);
+						if (checkSequence) nucleotides.add(eo.seq.c_str() + seqPos, 1);
 						lastOP = 'X', lastOPSize = 1;
 					}
 					genPos++;
@@ -114,7 +142,7 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 				break;
 			case 'I':
 			case 'S':
-				nucleotides.add(eo.seq.c_str() + seqPos, size);	
+				if (checkSequence) nucleotides.add(eo.seq.c_str() + seqPos, size);	
 				seqPos += size;
 				addOperation(eo.op[pos], seqPos, size, operands, lengths);
 				break;
@@ -133,7 +161,7 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 		size = 0;
 	}
 	operands.add(0);
-	addEncoded(eo.seq.size() + 1, lengths);
+	addEncoded((checkSequence ? eo.seq.size() : 0) + 1, lengths);
 	//LOG("");
 }
 
@@ -264,9 +292,13 @@ EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStrea
 		size_t endPos = getEncoded(len);
 		endPos--; // Avoid zeros fix
 		
+		//LOG(">> %c_%d %d %d", *op, *op, endPos, prevloc);
+
 		// End case. Check is prevloc at end. If not, add = and exit
 		if (!*op) { 
-			if (endPos > prevloc)  
+			if (!endPos)
+				eo.seq = "*";
+			else if (endPos > prevloc)  
 				opChr.add('='), opLen.add(endPos - prevloc);
 			op++;
 			break;
@@ -283,18 +315,19 @@ EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStrea
 			char c = *op;
 			// Get length
 			int l = 0;
-			if (*op == 'N')
+			if (*op == '0') 
+				c = *(++op), l = 0, ++op;
+			else if (*op == 'N')
 				l = getEncoded(len), op++;
 			else while (*op == c)
 				l++, op++; 
 			op++; // 0
 
-			// Do we have trailing = ?
+			// Do  we have trailing = ?
 			if ((c == 'N' || c == 'D' || c == 'H' || c == 'P') && endPos > prevloc) 
 				opChr.add('='), opLen.add(endPos - prevloc);
 			else if (c != 'N' && c != 'D' && c != 'H' && c != 'P' && (int)endPos - l > prevloc) 
 				opChr.add('='), opLen.add(endPos - l - prevloc);
-			
 			prevloc = endPos;
 			opChr.add(c), opLen.add(l);
 		} 
@@ -379,7 +412,7 @@ EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStrea
 			eo.end += lastOPSize;
 	}
 
-	if (eo.seq == "")
+	if (eo.seq == "" || eo.seq[0] == '*')
 		eo.seq = "*";
 	return eo;
 }

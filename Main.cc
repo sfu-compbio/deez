@@ -157,6 +157,16 @@ bool is_dz_file (const string &s) {
 	return (magic >> 8) == (MAGIC >> 8);
 }
 
+string sort (string output) {
+	if (optStdout)
+		throw DZException("Sort mode cannot be used with stdout");
+    if (output == "")
+		output = optInput + ".sort";
+	DEBUG("Sorting %s to %s witn %'lu memory", optInput.c_str(), output.c_str(), optSortMemory);
+    sortFile(optInput, output, optSortMemory);
+    return output;
+}
+
 void compress (const string &in, const string &out) {
 	if (is_dz_file(in))
 		throw DZException("Cannot compress DeeZ file %s", in.c_str());
@@ -168,8 +178,18 @@ void compress (const string &in, const string &out) {
 	}
 	DEBUG("Using output file %s", out.c_str());
 	LOG("Compressing %s to %s ...", in.c_str(), out.c_str());
-	FileCompressor sc(out, in, optRef, optBlock);
-	sc.compress();
+	try {
+		FileCompressor sc(out, in, optRef, optBlock);
+		sc.compress();
+	}
+	catch (DZSortedException &s) {
+		if (optForce) {
+			string input = sort("");
+			FileCompressor sc(out, input, optRef, optBlock);
+			sc.compress();
+		}
+		else throw;
+	}
 }
 
 void decompress (const string &in, const string &out) {
@@ -223,13 +243,7 @@ int main (int argc, char **argv) {
 		DEBUG("Using input file %s", full_path(optInput).c_str());
 
     	if (optSort) {
-    		if (optStdout)
-    			throw DZException("Sort mode cannot be used with stdout");
-    		string output = optOutput;
-    		if (output == "")
-				output = optInput + ".sort";
-			DEBUG("Sorting %s to %s witn %'lu memory", optInput.c_str(), output.c_str(), optSortMemory);
-    		sortFile(optInput, output, optSortMemory);
+    		sort(optOutput);
     	}
     	else {
 	    //	if (!file_exists(optRef))
@@ -255,11 +269,11 @@ int main (int argc, char **argv) {
 		}
 	}
 	catch (DZException &e) {
-		ERROR("DeeZ error: %s!", e.what());
+		ERROR("\nDeeZ error: %s!", e.what());
 		exit(1);
 	}
 	catch (...) {
-		ERROR("Unknow error ocurred!");	
+		ERROR("\nUnknow error ocurred!");	
 		exit(1);
 	}
 	

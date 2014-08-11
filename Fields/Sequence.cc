@@ -64,7 +64,7 @@ inline void SequenceCompressor::updateGenomeLoc (size_t loc, char ch, Array<int*
 void SequenceCompressor::applyFixesThread(EditOperationCompressor &editOperation, Array<int*> &stats, size_t fixedStart, size_t offset, size_t size) {
 	ZAMAN_START();
 	for (size_t k = 0; k < editOperation.size(); k++) {
-		if (editOperation[k].op == "*") 
+		if (editOperation[k].op == "*" || editOperation[k].seq == "*") 
 			continue;
 		if (editOperation[k].start >= offset + size)
 			break;

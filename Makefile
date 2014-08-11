@@ -44,3 +44,4 @@ $(EXECUTABLE): $(OBJECTS)
 clean:
 	find -name '*.o' -delete
 	rm -rf $(EXECUTABLE) $(TESTEXE)
+	rm -rf gmon.out* 

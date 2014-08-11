@@ -6,6 +6,7 @@
 #include <exception>
 
 class DZException: public std::exception {
+protected:
 	char msg[256];
 
 public:
@@ -19,6 +20,16 @@ public:
 
 	const char *what (void) const throw() {
 		return msg;
+	}
+};
+
+class DZSortedException : public DZException {
+public:
+	DZSortedException (const char *s, ...) {
+		va_list args;
+		va_start(args, s);
+		vsprintf(msg, s, args);
+		va_end(args);
 	}
 };
 

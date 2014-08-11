@@ -354,7 +354,7 @@ void FileDecompressor::decompress (const string &idxFilePath,
 		swap(start, end);
 
 	LOG("Seeking to chromosome %s, [%'lu:%'lu]...", chr.c_str(), start, end);
-	start--; end--;
+	if(start) start--; if(end) end--;
 
 	// read index, detect
 	Array<uint8_t> ei[8];
