@@ -16,6 +16,7 @@ bool optSort 	= false;
 bool optForce 	= false;
 bool optStdout  = false;
 bool optStats   = false;
+bool optNoQual  = false;
 string optRef 	 = "";
 string optInput  = "";
 string optRange  = "";
@@ -43,11 +44,12 @@ void parse_opt (int argc, char **argv) {
 		{ "withoutflag", 1, NULL, 'F' },
 		{ "withflag",    1, NULL, 'f' },
 		{ "stats",       0, NULL, 'S' },
+		{ "noqual",       0, NULL, 'Q' },
 		{ "quality",     1, NULL, 'q' },
 		{ "block",       1, NULL, 'B' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:t:T!B:co:q:l:sM:Sf:F:";
+	const char *short_opt = "hr:t:T!B:co:q:l:sM:Sf:F:Q";
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
@@ -67,6 +69,9 @@ void parse_opt (int argc, char **argv) {
 				break;
 			case 's':
 				optSort = true;
+				break;
+			case 'Q':
+				optNoQual = true;
 				break;
 			case 'M': {
 				char c = optarg[strlen(optarg) - 1];

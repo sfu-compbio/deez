@@ -182,6 +182,9 @@ QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
 	}
 	const char* qualities[] = { "default", "samcomp", "test" };
 	LOG("Using quality mode %s", qualities[optQuality]);
+
+	if (optNoQual)
+		sought = 2;
 }
 
 QualityScoreDecompressor::~QualityScoreDecompressor (void) {
@@ -190,7 +193,7 @@ QualityScoreDecompressor::~QualityScoreDecompressor (void) {
 void QualityScoreDecompressor::setIndexData (uint8_t *in, size_t in_size) {
 	stream->setCurrentState(in, in_size);
 	if (sought) 
-	sought = 2;
+		sought = 2;
 }
 
 string QualityScoreDecompressor::getRecord (size_t seq_len, int flag) {
