@@ -34,7 +34,7 @@ extern int  optThreads;
 #define LOG(c,...)\
 	fprintf(stderr, c"\n", ##__VA_ARGS__)
 #define DEBUG(c,...)\
-	fprintf(stderr, c"\n", ##__VA_ARGS__)
+	//fprintf(stderr, c"\n", ##__VA_ARGS__)
 #define REPEAT(x)\
 	for(int _=0;_<x;_++)
 #define foreach(i,c) \

@@ -86,7 +86,7 @@ void parse_opt (int argc, char **argv) {
 				break;
 			case 'B':
 				optBlock = atoi(optarg);
-				LOG("Block size changed to %'lu", optBlock);
+				//LOG("Block size changed to %'lu", optBlock);
 				break;
 			case 'c':
 				optStdout = true;
@@ -222,7 +222,7 @@ void decompress (const string &in, const string &out) {
 
 void test (const string &s) {
 	string tmp = s + ".dztemp";
-	LOG("Test prefix %s", tmp.c_str());
+	//LOG("Test prefix %s", tmp.c_str());
 
 	int64_t t = dz_time();
 	compress(s, tmp + ".dz");

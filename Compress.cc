@@ -24,7 +24,7 @@ FileCompressor::FileCompressor (const string &outFile, const string &samFile, co
 	fread(mc, 1, 2, fi);
 	fclose(fi);
 	if (mc[0] == char(0x1f) && mc[1] == char(0x8b)) {
-		LOG("Using BAM file");
+		//LOG("Using BAM file");
 		parser = new BAMParser(samFile);
 	}
 	else
@@ -276,12 +276,12 @@ void FileCompressor::outputRecords (void) {
 	fwrite(outputBuffer->data(), 1, outputBuffer->size(), outputFile);
 	
 	//gzclose(indexFile);
-	LOG("gzstatus %d", gzclose(indexFile));
+	//LOG("gzstatus %d", gzclose(indexFile));
 	fwrite("DZIDX", 1, 5, outputFile);
 	char *buffer = (char*)malloc(MB);
 
 	fseek(indexTmp, 0, SEEK_END);
-	LOG("Index gz'd sz=%'lu", ftell(indexTmp));
+	//LOG("Index gz'd sz=%'lu", ftell(indexTmp));
 	fseek(indexTmp, 0, SEEK_SET);
 	while (sz = fread(buffer, 1, MB, indexTmp))
 		fwrite(buffer, 1, sz, outputFile);
@@ -290,7 +290,7 @@ void FileCompressor::outputRecords (void) {
 	
 	fwrite(&posStats, sizeof(size_t), 1, outputFile);
 	
-	#define VERBOSE(x) LOG("%s: %lu", #x, x->compressedSize())
+	#define VERBOSE(x) // LOG("%s: %lu", #x, x->compressedSize())
 	VERBOSE(sequence);
 	VERBOSE(editOp);
 	VERBOSE(readName);

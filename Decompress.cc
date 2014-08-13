@@ -116,7 +116,7 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 	int idx = dup(fileno(tmp)); //  dup(fileno(this->inFile));
 
 	fseek(tmp, 0, SEEK_END);
-	LOG("Index gz'd sz=%'lu", ftell(tmp));
+	//LOG("Index gz'd sz=%'lu", ftell(tmp));
 	fseek(tmp, 0, SEEK_SET);
 
 	lseek(idx, 0, SEEK_SET); // needed for gzdopen
@@ -170,12 +170,12 @@ void FileDecompressor::decompress (int filterFlag) {
 void FileDecompressor::getMagic (void) {
 	uint32_t magic;
 	fread(&magic, 4, 1, inFile);
-	LOG("File format: %c%c v%d.%d", 
-		(magic >> 16) & 0xff, 
-		(magic >> 8) & 0xff, 
-		(magic >> 4) & 0xf,
-		magic & 0xf
-	);
+	// LOG("File format: %c%c v%d.%d", 
+	// 	(magic >> 16) & 0xff, 
+	// 	(magic >> 8) & 0xff, 
+	// 	(magic >> 4) & 0xf,
+	// 	magic & 0xf
+	// );
 	fread(&optQuality, 1, 1, inFile);
 	quality = new QualityScoreDecompressor(blockSize);
 }
@@ -353,7 +353,7 @@ void FileDecompressor::decompress (const string &idxFilePath,
 	if (end < start)
 		swap(start, end);
 
-	LOG("Seeking to chromosome %s, [%'lu:%'lu]...", chr.c_str(), start, end);
+	//LOG("Seeking to chromosome %s, [%'lu:%'lu]...", chr.c_str(), start, end);
 	if(start) start--; if(end) end--;
 
 	// read index, detect
@@ -404,7 +404,7 @@ void FileDecompressor::decompress (const string &idxFilePath,
 			prevChr = string(chrx);
 		}
 
-		LOG(" ... %s:%'lu-%'lu ... fixes %'lu-%'lu", chrx, startPos, endPos, fS, fE);
+		//LOG(" ... %s:%'lu-%'lu ... fixes %'lu-%'lu", chrx, startPos, endPos, fS, fE);
 
 		if (string(chrx) == chr && (start >= startPos && start <= endPos)) {		
 			fseek(inFile, zpos, SEEK_SET);
