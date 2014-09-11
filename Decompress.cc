@@ -107,7 +107,7 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 	FILE *tmp = tmpfile();
 	char *buffer = (char*)malloc(MB);
 
-	while (idxToRead && (sz = fread(buffer, 1, min((size_t)MB, idxToRead), this->inFile))) {
+	while (idxToRead && (sz = fread(buffer, 1, min(uint64_t(MB), (uint64_t)idxToRead), this->inFile))) {
 		fwrite(buffer, 1, sz, tmp);
 		idxToRead -= sz;
 	}

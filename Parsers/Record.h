@@ -48,6 +48,24 @@ public:
     const char* getQuality() const { return strFields[QUAL]; }
     const char* getOptional() const { return strFields[OPT]; }
 
+    std::string getFullRecord() const {
+        return S(
+            "%s %d %s %d %d %s %s %d %d %s %s p",
+            getReadName(),
+            getMappingFlag(),
+            getChromosome(),
+            getLocation(),
+            getMappingQuality(),
+            getCigar(),
+            getPairChromosome(),
+            getPairLocation(),
+            getTemplateLenght(),
+            getSequence(),
+            getQuality(),
+            getOptional()
+        );
+    }
+
     void testRecords() const {
         LOG(
             "%s %d %s %d %d %s %s %d %d %s %s %s\n",

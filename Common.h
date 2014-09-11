@@ -11,9 +11,9 @@
 #include "CircularArray.h"
 #include "Streams/Stream.h"
 
-#define KB  1024
-#define MB  KB * 1024
-#define GB  MB * 1024
+#define KB  1024LL
+#define MB  KB * 1024LL
+#define GB  MB * 1024LL
 
 #define VERSION	0x10
 #define MAGIC 	(0x07445A00 | VERSION)

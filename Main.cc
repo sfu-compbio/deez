@@ -236,6 +236,7 @@ void test (const string &s) {
 	system(cmd.c_str());
 }
 
+#ifndef DEEZLIB
 int main (int argc, char **argv) {
     setlocale(LC_ALL, "");
     parse_opt(argc, argv);
@@ -284,3 +285,4 @@ int main (int argc, char **argv) {
 	
 	return 0;
 }
+#endif
