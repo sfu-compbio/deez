@@ -43,19 +43,7 @@ class gzfile: public file {
 	gzFile f;
 public:
 	gzfile(const char* fn, const char* m) { open(fn, m); }
-	virtual void open(const char* fn, const char* m) { 
-	f = gzopen(fn, m); if(!f)ERROR("YAINKS! %s*%s %d",fn,m, errno); /*gzbuffer(f, 128 * 1024);*/ 
-		if (m[0] == 'w') {
-			uint8_t x;
-			uint16_t y;
-			int fd = ((gz_state*)f)->fd;
-			y = 6;  ::write(fd, &y, sizeof(uint16_t));
-			x = 66; ::write(fd, &x, sizeof(uint8_t));
-			x = 67; ::write(fd, &x, sizeof(uint8_t));
-			y = 2;  ::write(fd, &y, sizeof(uint16_t));
-			y = 0;  ::write(fd, &y, sizeof(uint16_t));
-		}
-	}
+	virtual void open(const char* fn, const char* m) { f = gzopen(fn, m); /*gzbuffer(f, 128 * 1024);*/ }
 	virtual void close() { gzclose(f); }
 	virtual ssize_t read(void* d, size_t s) { 
 		const size_t offset = 1 * (size_t)GB;
@@ -273,9 +261,9 @@ void sortFile (const string &path, const string &pathNew, size_t memLimit) {
 
 		file *f;
 		if (isBAM)
-			f = new gzfile(fn, "wb1");
+			f = new gzfile(fn, "wb1+");
 		else
-			f = new rawfile(fn, "wb");
+			f = new rawfile(fn, "wb+");
 		for (int i = 0; i < nodes.size(); i++) 
 			f->write(nodes.data()[i].data, nodes.data()[i].data_sz);
 		f->close();
@@ -342,6 +330,5 @@ void sortFile (const string &path, const string &pathNew, size_t memLimit) {
 
 	assert(files.size() == 1);
 	files[0]->close();
-	LOG("%s --> %s ~\n", fileNames[0].c_str(), pathNew.c_str());
 	rename(fileNames[0].c_str(), pathNew.c_str());
 }
