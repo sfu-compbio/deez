@@ -154,6 +154,8 @@ bool BAMParser::readNext (void) {
  	int pos = 8 * 4 + l_read_name + n_cigar_op + (l_seq + 1) / 2 + l_seq;
  	if (pos >= bsize)
  		currentRecord.strFields[OPT][0] = 0;
+ 	else 
+ 		currentRecord.strFields[OPT]++; // avoid \t
 	while (pos < bsize) {
 		*buf = '\t', buf++;
 		char t = data[pos + 2]; 
