@@ -19,39 +19,6 @@
 #include "Common.h"
 using namespace std;
 
-typedef struct {
-        /* exposed contents for gzgetc() macro */
-    struct gzFile_s x;      /* "x" for exposed */
-                            /* x.have: number of bytes available at x.next */
-                            /* x.next: next output data to deliver or write */
-                            /* x.pos: current position in uncompressed data */
-        /* used for both reading and writing */
-    int mode;               /* see gzip modes above */
-    int fd;                 /* file descriptor */
-    char *path;             /* path or fd for error messages */
-    unsigned size;          /* buffer size, zero if not allocated yet */
-    unsigned want;          /* requested buffer size, default is GZBUFSIZE */
-    unsigned char *in;      /* input buffer */
-    unsigned char *out;     /* output buffer (double-sized when reading) */
-    int direct;             /* 0 if processing gzip, 1 if transparent */
-        /* just for reading */
-    int how;                /* 0: get header, 1: copy, 2: decompress */
-    z_off64_t start;        /* where the gzip data started, for rewinding */
-    int eof;                /* true if end of input file reached */
-    int past;               /* true if read requested past end */
-        /* just for writing */
-    int level;              /* compression level */
-    int strategy;           /* compression strategy */
-        /* seek request */
-    z_off64_t skip;         /* amount to skip (already rewound if backwards) */
-    int seek;               /* true if seek request pending */
-        /* error information */
-    int err;                /* error code */
-    char *msg;              /* error message */
-        /* zlib inflate or deflate stream */
-    z_stream strm;          /* stream structure in-place (not a pointer) */
-} gz_state;
-
 class file {
 public:
 	file() {}
@@ -76,19 +43,7 @@ class gzfile: public file {
 	gzFile f;
 public:
 	gzfile(const char* fn, const char* m) { open(fn, m); }
-	virtual void open(const char* fn, const char* m) { 
-	f = gzopen(fn, m); if(!f)ERROR("YAINKS! %s*%s %d",fn,m, errno); /*gzbuffer(f, 128 * 1024);*/ 
-		if (m[0] == 'w') {
-			uint8_t x;
-			uint16_t y;
-			int fd = ((gz_state*)f)->fd;
-			y = 6;  ::write(fd, &y, sizeof(uint16_t));
-			x = 66; ::write(fd, &x, sizeof(uint8_t));
-			x = 67; ::write(fd, &x, sizeof(uint8_t));
-			y = 2;  ::write(fd, &y, sizeof(uint16_t));
-			y = 0;  ::write(fd, &y, sizeof(uint16_t));
-		}
-	}
+	virtual void open(const char* fn, const char* m) { f = gzopen(fn, m); /*gzbuffer(f, 128 * 1024);*/ }
 	virtual void close() { gzclose(f); }
 	virtual ssize_t read(void* d, size_t s) { 
 		const size_t offset = 1 * (size_t)GB;
@@ -306,9 +261,9 @@ void sortFile (const string &path, const string &pathNew, size_t memLimit) {
 
 		file *f;
 		if (isBAM)
-			f = new gzfile(fn, "wb1");
+			f = new gzfile(fn, "wb1+");
 		else
-			f = new rawfile(fn, "wb");
+			f = new rawfile(fn, "wb+");
 		for (int i = 0; i < nodes.size(); i++) 
 			f->write(nodes.data()[i].data, nodes.data()[i].data_sz);
 		f->close();
@@ -375,6 +330,5 @@ void sortFile (const string &path, const string &pathNew, size_t memLimit) {
 
 	assert(files.size() == 1);
 	files[0]->close();
-	LOG("%s --> %s ~\n", fileNames[0].c_str(), pathNew.c_str());
 	rename(fileNames[0].c_str(), pathNew.c_str());
 }
