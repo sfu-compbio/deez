@@ -20,11 +20,13 @@ DeeZ is invoked as following:
 - **Compression**
 
 	`deez -r [reference] [input.sam] -o [output]`
+
 	This will compress `input.sam` to `input.sam.dz`.
 
 - **Decompression**
 
 	`deez -r [reference] [input.dz] -o [output] ([region])`
+
 	This will decompress `input.dz` to `input.dz.sam`. `[region]` is optional.
 
 -  **Random Access**
@@ -39,11 +41,13 @@ DeeZ is invoked as following:
 - `--threads, -t [number]`
 
 	Set up the number of threads DeeZ may use for compression and decompression.
+
 	Default value: **4**
 
 - `--reference, -r [file|directory]`
 
 	Specify the FASTA reference file.
+
 	> **Note**: Chromosome names in the SAM and FASTA files must match. Also, instead of one big FASTA file, DeeZ supports reference lookup in the given directory for chr\*.fa files, where chr\* is the chromosome ID from the SAM file.
 
 - `--force, -!`
@@ -55,38 +59,47 @@ DeeZ is invoked as following:
 	Compress/decompress to the stdout.
 
 - `--output, -o [file]`
-Compress/decompress to the `file`.
+	
+	Compress/decompress to the `file`.
 
 - `--lossy, -l`
-Set lossy parameter for quality lossy encoding (for more information, please check [SCALCE][1]).
+
+	Set lossy parameter for quality lossy encoding (for more information, please check [SCALCE][1]).
 
 - `--quality, -q [mode]`
-If `mode` is **1** or **samcomp**, DeeZ will use [sam_comp][2] quality model to encode the qualities. Quality random access is not supported on those files. 
+
+	If `mode` is **1** or **samcomp**, DeeZ will use [sam_comp][2] quality model to encode the qualities. Quality random access is not supported on those files. 
 
 - `--withflag, -f [flag]`
-Decompress only mappings which have `flag` bits set.
+
+	Decompress only mappings which have `flag` bits set.
 
 - `--withoutflag, -F [flag]`
-Decompress only mappings which do not have `flag` bits set.
+
+	Decompress only mappings which do not have `flag` bits set.
 
 - `--stats, -S`
-Display mapping statistics (needs DeeZ file as input).
+
+	Display mapping statistics (needs DeeZ file as input).
 
 - `--sort, -s`
-Sort the input SAM/BAM file by mapping location.
+	Sort the input SAM/BAM file by mapping location.
 
 - `--sortmem, -M [size]`
-Maximum meory used for sorting. 
-Default value: **1G**
+
+	Maximum meory used for sorting. 
+	
+	Default value: **1G**
 
 ---
 
 ### Contact & Support
 
-Feel free to drop any inquiry to <a>inumanag at sfu dot ca</a>.
+Feel free to drop any inquiry to [inumanag at sfu dot ca](mailto:).
 
 ### Publication
-DeeZ was publised in [Nature Methods in November 2014][3]!
+
+DeeZ was publised in [Nature Methods in November 2014][3].
 
 ### Authors
 
