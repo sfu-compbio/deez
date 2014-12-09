@@ -83,11 +83,12 @@ DeeZ is invoked as following:
 	Display mapping statistics (needs DeeZ file as input).
 
 - `--sort, -s`
+
 	Sort the input SAM/BAM file by mapping location.
 
 - `--sortmem, -M [size]`
 
-	Maximum meory used for sorting. 
+	Maximum memory used for sorting. 
 	
 	Default value: **1G**
 
