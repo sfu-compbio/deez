@@ -19,8 +19,8 @@ DeeZ is invoked as following:
 
 - **Compression**
 
- `deez -r [reference] [input.sam] -o [output]`
- This will compress `input.sam` to `input.sam.dz`.
+	`deez -r [reference] [input.sam] -o [output]`
+	This will compress `input.sam` to `input.sam.dz`.
 
 - **Decompression**
 
