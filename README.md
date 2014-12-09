@@ -18,21 +18,27 @@ cd dz && make
 DeeZ is invoked as following:
 
 - **Compression**
-`deez -r [reference] [input.sam] -o [output]`
-This will compress `input.sam` to `input.sam.dz`.
+
+ `deez -r [reference] [input.sam] -o [output]`
+ This will compress `input.sam` to `input.sam.dz`.
+
 - **Decompression**
-`deez -r [reference] [input.dz] -o [output] ([region])`
-This will decompress `input.dz` to `input.dz.sam`. `[region]` is optional.
+
+ `deez -r [reference] [input.dz] -o [output] ([region])`
+ This will decompress `input.dz` to `input.dz.sam`. `[region]` is optional.
+
 -  **Random Access**
-You can also specify the region of interest while decompressing (i.e. randomly access the region). 
-For example, to extract some reads from chr16 to standard output, you should run:
-`deez -r [reference] input.dz  -c chr16:15000000-16000000`
+
+ You can also specify the region of interest while decompressing (i.e. randomly access the region). 
+ For example, to extract some reads from chr16 to standard output, you should run:
+ `deez -r [reference] input.dz  -c chr16:15000000-16000000`
 
 ---
 
 ### Parameter explanation
 
 - `--threads, -t [number]`
+
 Set up the number of threads DeeZ may use for compression and decompression.
 Default value: **4**
 
