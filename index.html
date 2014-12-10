@@ -43,7 +43,13 @@
     {% endfor %}
   </div>
     
-  (c) 2013 SFU. All rights reserved.
+      <div id="footer" class="section text-white">
+      <div class="container">
+        {% capture foottext %} {% include footer.md %} {% endcapture %}
+        {{ foottext | markdownify }}
+      </div>
+    </div>
+
 </body>
 </html>
 
