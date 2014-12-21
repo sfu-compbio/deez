@@ -14,30 +14,35 @@ SequenceCompressor::SequenceCompressor (const string &refFile, int bs):
 	fixesReplaceStream = new GzipCompressionStream<6>();
 }
 
-SequenceCompressor::~SequenceCompressor (void) {
+SequenceCompressor::~SequenceCompressor (void) 
+{
 	delete[] fixed;
 	delete fixesStream;
 	delete fixesReplaceStream;
 }
 
-void SequenceCompressor::updateBoundary (size_t loc) {
+void SequenceCompressor::updateBoundary (size_t loc) 
+{
 	maxEnd = max(maxEnd, loc);
 }
 
-void SequenceCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {
-	if (chromosome != "*") {	
-		out.add((uint8_t*)&fixedStart, sizeof(size_t));
-		out.add((uint8_t*)&fixedEnd,   sizeof(size_t));
-		out_offset += sizeof(size_t) * 2;
-		compressArray(fixesStream, fixes_loc, out, out_offset);
-		compressArray(fixesReplaceStream, fixes_replace, out, out_offset);
-	
-		fixes_loc.resize(0);
-		fixes_replace.resize(0);
-	}
+void SequenceCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) 
+{
+	if (chromosome == "*") 
+		return;
+
+	out.add((uint8_t*)&fixedStart, sizeof(size_t));
+	out.add((uint8_t*)&fixedEnd,   sizeof(size_t));
+	out_offset += sizeof(size_t) * 2;
+	compressArray(fixesStream, fixes_loc, out, out_offset);
+	compressArray(fixesReplaceStream, fixes_replace, out, out_offset);
+
+	fixes_loc.resize(0);
+	fixes_replace.resize(0);
 }
 
-void SequenceCompressor::scanChromosome (const string &s) {
+void SequenceCompressor::scanChromosome (const string &s) 
+{
 	// by here, all should be fixed ...
 	assert(fixes_loc.size() == 0);
 	assert(fixes_replace.size() == 0);
@@ -52,7 +57,8 @@ void SequenceCompressor::scanChromosome (const string &s) {
 
 // called at the end of the block!
 // IS NOT ATOMIC!
-inline void SequenceCompressor::updateGenomeLoc (size_t loc, char ch, Array<int*> &stats) {
+inline void SequenceCompressor::updateGenomeLoc (size_t loc, char ch, Array<int*> &stats) 
+{
 	assert(loc < stats.size());
 	if (!stats.data()[loc]) {
 		stats.data()[loc] = new int[6];
@@ -61,7 +67,8 @@ inline void SequenceCompressor::updateGenomeLoc (size_t loc, char ch, Array<int*
 	stats.data()[loc][getDNAValue(ch)]++;
 }
 
-void SequenceCompressor::applyFixesThread(EditOperationCompressor &editOperation, Array<int*> &stats, size_t fixedStart, size_t offset, size_t size) {
+void SequenceCompressor::applyFixesThread(EditOperationCompressor &editOperation, Array<int*> &stats, size_t fixedStart, size_t offset, size_t size) 
+{
 	ZAMAN_START();
 	for (size_t k = 0; k < editOperation.size(); k++) {
 		if (editOperation[k].op == "*" || editOperation[k].seq == "*") 
@@ -114,27 +121,6 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 	if (editOperation.size() == 0) 
 		return 0;
 
-	// [records[0].start, records[last].start)
-	// previously fixed
-	// fixedGenome: [fixedStart, fixedEnd)
-	// if we have more unfixed location
-/*
-	int k = 0.8 * editOperation.size();
-	// so either whole block or at least 80% of it if it is bad
-	int nx = nextBlockBegin;
-	for (int i = 0; i < k; i++)
-		nx = max(nx, (int)editOperation[i].end);
-	for (int i = k; i < editOperation.size() && editOperation[i].end <= nextBlockBegin; i++)
-		nx = max(nx, (int)editOperation[i].end);
-	nextBlockBegin = nx;
-*/
-
-	// old version
-	// if (editOperation[0].end >= nextBlockBegin) {
-	// 	// this is BAD BAD BAD
-	// 	return 0;
-	// }
-
 	if (chromosome != "*") {
 		// Previously, we fixed all locations
 		// from fixedStart to fixedEnd
@@ -169,30 +155,7 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 			delete[] fixed;
 			fixed = newFixed;
 		}
-		/*if (nextBlockBegin > fixedEnd) {
-			// Determine new fixing boundaries
-			size_t newFixedEnd = nextBlockBegin;
-			if (newFixedEnd == (size_t)-1) // chromosome end, fix everything
-				newFixedEnd = maxEnd; // records[records.size() - 1].end;
-			size_t newFixedStart = editOperation[0].start;
-			assert(fixedStart <= newFixedStart);
-
-			// Update fixing table
-			char *newFixed = new char[newFixedEnd - newFixedStart];
-			// copy old fixes!
-			if (fixed && newFixedStart < fixedEnd) {
-				memcpy(newFixed, fixed + (newFixedStart - fixedStart), 
-					fixedEnd - newFixedStart);
-				reference.load(newFixed + (fixedEnd - newFixedStart), 
-					fixedEnd, newFixedEnd);
-			}
-			else reference.load(newFixed, newFixedStart, newFixedEnd);
-
-			fixedStart = newFixedStart;
-			fixedEnd = newFixedEnd;
-			delete[] fixed;
-			fixed = newFixed;
-		}*/
+		
 		ZAMAN_END("S1");
 
 		//	SCREEN("Given boundary is %'lu\n", nextBlockBegin);
@@ -224,19 +187,29 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 		fixes_replace.resize(0);
 		for (size_t i = 0; i < fixedEnd - fixedStart; i++) if (stats.data()[i]) {
 			int max = -1, pos = -1;
-			for (int j = 1; j < 6; j++)
+			int max2 = -1, pos2 = -1;
+			int sum = 0; ///stats.data()[i][0];
+			for (int j = 1; j < 6; j++) {
+				sum += stats.data()[i][j];
 				if (stats.data()[i][j] > max)
-					max = stats.data()[i][pos = j];
-			if (fixed[i] != pos[".ACGTN"]) {
-				//LOG("$FIX %c -> %c %lu %lu", fixed[i], pos[".ACGTN"],
-				//	fixedStart + i, fixedStart + i - fixedPrev);
-
+					max2 = max, pos2 = pos, max = stats.data()[i][pos = j];
+				else if (stats.data()[i][j] > max2)
+					max2 = stats.data()[i][pos2 = j];
+			}
+			if (fixed[i] != pos[".ACGTN"] || max2 / double(sum) > 0.2) 
+			{
 				// +1 for 0 termninator avoid
 				addEncoded(fixedStart + i - fixedPrev + 1, fixes_loc);
 				fixedPrev = fixedStart + i;
-				fixes_replace.add(fixed[i] = pos[".ACGTN"]);
 				
+				if (max2 / double(sum) > 0.2) { // allelic test
+					char c = 85 + pos * 6 + pos2;
+					fixes_replace.add(fixed[i] = c);
+				}
+				else 
+					fixes_replace.add(fixed[i] = pos[".ACGTN"]);
 			}
+			//printf("%d %d %d %d %d %d %.2lf %c\n", fixedStart+i,max,pos,max2,pos2,sum,max2/double(sum), fixed[i]);
 			delete[] stats.data()[i];
 		}
 		ZAMAN_END("S3");
@@ -251,7 +224,7 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 	fS = fixedStart;
 	fE = fixedEnd;
 	editOperation.setFixed(fixed, fixedStart);
-//	LOG(" ~ %d", int(bound*100.0/editOperation.size()));
+
 	return bound;
 }
 
@@ -266,35 +239,33 @@ SequenceDecompressor::SequenceDecompressor (const string &refFile, int bs):
 	fixesReplaceStream = new GzipDecompressionStream();
 }
 
-SequenceDecompressor::~SequenceDecompressor (void) {
+SequenceDecompressor::~SequenceDecompressor (void)
+{
 	delete[] fixed;
 	delete fixesStream;
 	delete fixesReplaceStream;
 }
 
 
-bool SequenceDecompressor::hasRecord (void) {
+bool SequenceDecompressor::hasRecord (void) 
+{
 	return true;
 }
 
-void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)  {
+void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)  
+{
 	if (chromosome == "*" || in_size == 0)
 		return;
 
 	size_t newFixedStart = *(size_t*)in; in += sizeof(size_t);
 	size_t newFixedEnd   = *(size_t*)in; in += sizeof(size_t);
-	//size_t readsStart    = *(size_t*)in; in += sizeof(size_t);
-	//LOG(">>%lu %lu<<",newFixedStart,newFixedEnd);
-
+	
 	Array<uint8_t> fixes_loc;
 	decompressArray(fixesStream, in, fixes_loc);
-__debug_fwrite(fixes_loc.data(), 1, fixes_loc.size(), ____debug_file[__DC++]);
 	Array<uint8_t> fixes_replace;
 	decompressArray(fixesReplaceStream, in, fixes_replace);
-__debug_fwrite(fixes_replace.data(), 1, fixes_replace.size(), ____debug_file[__DC++]);
 
 	////////////
-	// now move
 	// NEED FROM READSSTART
 	assert(fixedStart <= newFixedStart);	
 	char *newFixed = new char[newFixedEnd - newFixedStart];
@@ -322,11 +293,13 @@ __debug_fwrite(fixes_replace.data(), 1, fixes_replace.size(), ____debug_file[__D
 	}
 }
 
-void SequenceDecompressor::setFixed (EditOperationDecompressor &editOperation) {
+void SequenceDecompressor::setFixed (EditOperationDecompressor &editOperation) 
+{
 	editOperation.setFixed(fixed, fixedStart);
 }
 
-void SequenceDecompressor::scanChromosome (const string &s) {
+void SequenceDecompressor::scanChromosome (const string &s)
+{
 	// by here, all should be fixed ...
 	// 	TODO more checking
 	//	assert(fixes.size() == 0);

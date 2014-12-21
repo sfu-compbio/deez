@@ -53,5 +53,6 @@ size_t getEncoded (uint8_t *&len);
 
 extern int __DC;
 extern FILE **____debug_file;
+extern bool optReadLossy;
 
 #endif

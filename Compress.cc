@@ -32,7 +32,10 @@ FileCompressor::FileCompressor (const string &outFile, const string &samFile, co
 
 	sequence = new SequenceCompressor(genomeFile, bs);
 	editOp = new EditOperationCompressor(bs);
-	readName = new ReadNameCompressor(bs);
+	if (optReadLossy)
+		readName = new ReadNameLossyCompressor(bs);
+	else
+		readName = new ReadNameCompressor(bs);
 	mapFlag = new MappingFlagCompressor(bs);
 	mapQual = new MappingQualityCompressor(bs);
 	quality = new QualityScoreCompressor(bs);
@@ -172,7 +175,10 @@ void FileCompressor::outputRecords (void) {
 			EditOperation eo(loc, rc.getSequence(), rc.getCigar());
 			sequence->updateBoundary(eo.end);
 			editOp->addRecord(eo);
-			readName->addRecord(rc.getReadName());
+			if (optReadLossy)
+				((ReadNameLossyCompressor*)readName)->addRecord(rc.getReadName());
+			else
+				((ReadNameCompressor*)readName)->addRecord(rc.getReadName());
 			mapFlag->addRecord(rc.getMappingFlag());
 			mapQual->addRecord(rc.getMappingQuality());
 			quality->addRecord(rc.getQuality()/*, rc.getSequence()*/, rc.getMappingFlag());
@@ -290,7 +296,7 @@ void FileCompressor::outputRecords (void) {
 	
 	fwrite(&posStats, sizeof(size_t), 1, outputFile);
 	
-	#define VERBOSE(x) // LOG("%s: %lu", #x, x->compressedSize())
+	#define VERBOSE(x)  LOG("%s: %lu", #x, x->compressedSize())
 	VERBOSE(sequence);
 	VERBOSE(editOp);
 	VERBOSE(readName);

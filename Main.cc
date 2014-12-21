@@ -17,6 +17,7 @@ bool optForce 	= false;
 bool optStdout  = false;
 bool optStats   = false;
 bool optNoQual  = false;
+bool optReadLossy = false;
 string optRef 	 = "";
 string optInput  = "";
 string optRange  = "";
@@ -38,6 +39,7 @@ void parse_opt (int argc, char **argv) {
 		{ "threads",     1, NULL, 't' },
 		{ "stdout",      0, NULL, 'c' },
 		{ "output",      1, NULL, 'o' },
+		{ "read-lossy",  0, NULL, 'L' },
 		{ "lossy",       1, NULL, 'l' },
 		{ "sort",        0, NULL, 's' },
 		{ "sortmem",     1, NULL, 'M' },
@@ -49,7 +51,7 @@ void parse_opt (int argc, char **argv) {
 		{ "block",       1, NULL, 'B' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:t:T!B:co:q:l:sM:Sf:F:Q";
+	const char *short_opt = "hr:t:T!B:co:q:l:sM:Sf:F:QL";
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
@@ -106,6 +108,9 @@ void parse_opt (int argc, char **argv) {
 				optLossy = atoi(optarg);
 				if (optLossy < 0 || optLossy > 100)
 					throw DZException("Invalid quality lossy sensitivity value %d", optLossy);
+				break;
+			case 'L':
+				optReadLossy = true;
 				break;
 			case 'S':
 				optStats = true;

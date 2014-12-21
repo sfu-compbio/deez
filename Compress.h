@@ -7,6 +7,7 @@
 #include "Parsers/SAMParser.h"
 #include "Fields/Sequence.h"
 #include "Fields/ReadName.h"
+#include "Fields/ReadNameLossy.h"
 #include "Fields/MappingFlag.h"
 #include "Fields/EditOperation.h"
 #include "Fields/MappingQuality.h"
@@ -18,7 +19,7 @@ class FileCompressor {
 	Parser *parser;
 	SequenceCompressor *sequence;
 	EditOperationCompressor *editOp;
-	ReadNameCompressor *readName;
+	Compressor *readName;
 	MappingFlagCompressor *mapFlag;
 	MappingQualityCompressor *mapQual;
 	QualityScoreCompressor *quality;
