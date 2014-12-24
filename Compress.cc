@@ -15,20 +15,23 @@ static const char *NAMES[8] = {
 	"MQ","QQ","PE","OF" 
 };
 
-FileCompressor::FileCompressor (const string &outFile, const string &samFile, const string &genomeFile, int bs): 
+FileCompressor::FileCompressor (const string &outFile, const vector<string> &samFiles, const string &genomeFile, int bs): 
 	blockSize(bs) 
 {
 //	parser
-	FILE *fi = fopen(samFile.c_str(), "rb");
-	char mc[2];
-	fread(mc, 1, 2, fi);
-	fclose(fi);
-	if (mc[0] == char(0x1f) && mc[1] == char(0x8b)) {
-		//LOG("Using BAM file");
-		parser = new BAMParser(samFile);
+	parsers.resize(samFiles.size());
+	for (int f = 0; f < samFiles; f++) {
+		FILE *fi = fopen(samFiles[f].c_str(), "rb");
+		char mc[2];
+		fread(mc, 1, 2, fi);
+		fclose(fi);
+		if (mc[0] == char(0x1f) && mc[1] == char(0x8b)) {
+			//LOG("Using BAM file");
+			parsers[f] = new BAMParser(samFiles[f]);
+		}
+		else
+			parsers[f] = new SAMParser(samFiles[f]);
 	}
-	else
-		parser = new SAMParser(samFile);
 
 	sequence = new SequenceCompressor(genomeFile, bs);
 	editOp = new EditOperationCompressor(bs);
@@ -78,7 +81,8 @@ FileCompressor::~FileCompressor (void) {
 	delete quality;
 	delete pairedEnd;
 	delete optField;
-	delete parser;
+	for (int f = 0; f < parsers.size(); f++)
+		delete parsers[f];
 	fclose(outputFile);
 }
 
@@ -95,16 +99,18 @@ void FileCompressor::outputMagic (void) {
 }
 
 void FileCompressor::outputComment (void) {
-	string comment = parser->readComment();
-	size_t arcsz = comment.size();
-	fwrite(&arcsz, sizeof(size_t), 1, outputFile);
-	if (arcsz) {
-		GzipCompressionStream<6> gzc;
-		Array<uint8_t> arc;
-		gzc.compress((uint8_t*)comment.c_str(), comment.size(), arc, 0);
-		arcsz = arc.size();
+	for (int f = 0; f < parsers.size(); f++) {
+		string comment = parsers[f]->readComment();
+		size_t arcsz = comment.size();
 		fwrite(&arcsz, sizeof(size_t), 1, outputFile);
-		fwrite(arc.data(), 1, arcsz, outputFile);
+		if (arcsz) {
+			GzipCompressionStream<6> gzc;
+			Array<uint8_t> arc;
+			gzc.compress((uint8_t*)comment.c_str(), comment.size(), arc, 0);
+			arcsz = arc.size();
+			fwrite(&arcsz, sizeof(size_t), 1, outputFile);
+			fwrite(arc.data(), 1, arcsz, outputFile);
+		}
 	}
 }
 
@@ -147,7 +153,7 @@ void FileCompressor::outputRecords (void) {
 	}
 
 	size_t prev_loc = 0;
-	while (parser->hasNext()) {
+	while (parsers[0]->hasNext()) {
 		char op = 0;
 		string chr = parser->head();
 		while (sequence->getChromosome() != parser->head()) 

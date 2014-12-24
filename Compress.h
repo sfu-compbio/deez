@@ -16,7 +16,7 @@
 #include "Fields/OptionalField.h"
 
 class FileCompressor {
-	Parser *parser;
+	vector<Parser*> parsers;
 	SequenceCompressor *sequence;
 	EditOperationCompressor *editOp;
 	Compressor *readName;
