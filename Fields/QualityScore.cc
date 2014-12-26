@@ -20,7 +20,7 @@ QualityScoreCompressor::QualityScoreCompressor (int blockSize):
 			break;
 	}
 	const char* qualities[] = { "default", "samcomp", "test" };
-	LOG("Using quality mode %s", qualities[optQuality]);
+	//LOG("Using quality mode %s", qualities[optQuality]);
 }
 
 QualityScoreCompressor::~QualityScoreCompressor (void) {
@@ -181,7 +181,7 @@ QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
 			break;
 	}
 	const char* qualities[] = { "default", "samcomp", "test" };
-	LOG("Using quality mode %s", qualities[optQuality]);
+	DEBUG("Using quality mode %s", qualities[optQuality]);
 
 	if (optNoQual)
 		sought = 2;

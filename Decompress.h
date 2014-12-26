@@ -14,20 +14,38 @@
 #include "Fields/PairedEnd.h"
 #include "Fields/OptionalField.h"
 
-class FileDecompressor {
-	SequenceDecompressor *sequence;
-	EditOperationDecompressor *editOp;
-	ReadNameDecompressor *readName;
-	MappingFlagDecompressor *mapFlag;
-	MappingQualityDecompressor *mapQual;
-	QualityScoreDecompressor *quality;
-	PairedEndDecompressor *pairedEnd;
-	OptionalFieldDecompressor *optField;
+#include <map>
+#include <tr1/unordered_map>
 
-	FILE *samFile;
+struct index_t {
+	size_t startPos, endPos;
+	size_t zpos, currentBlockCount;
+	size_t fS, fE;
+	vector<Array<uint8_t>> fieldData;
+
+	index_t(): fieldData(8) { }
+};
+
+class FileDecompressor {
+	vector<SequenceDecompressor*> sequence;
+	vector<EditOperationDecompressor*> editOp;
+	vector<ReadNameDecompressor*> readName;
+	vector<MappingFlagDecompressor*> mapFlag;
+	vector<MappingQualityDecompressor*> mapQual;
+	vector<QualityScoreDecompressor*> quality;
+	vector<PairedEndDecompressor*> pairedEnd;
+	vector<OptionalFieldDecompressor*> optField;
+
+	vector<string> fileNames;
+
+	vector<FILE*> samFiles;
+	vector<map<string, map<size_t, index_t>>> indices;
+
 	FILE *inFile;
 	gzFile idxFile;
 	
+	string genomeFile;
+	string outFile;
 	Stats *stats;
 	size_t inFileSz;
     size_t blockSize;
@@ -42,10 +60,14 @@ public:
 private:
 	void getMagic (void);
 	void getComment (bool output);
-	size_t getBlock (const std::string &chromosome, size_t start, size_t end, int filterFlag);
+	size_t getBlock (int f, const std::string &chromosome, size_t start, size_t end, int filterFlag);
 	void readBlock (Decompressor *d, Array<uint8_t> &in);
+	std::vector<int> loadIndex (bool inMemory);
+	vector<pair<pair<int, string>, pair<size_t, size_t>>>
+		getRanges (std::string range);
 
 public:
+	void query (const string &query, const string &range);
 	void decompress (int filterFlag);
 	void decompress (const std::string &idxFilePath, const std::string &range, int filterFlag);
 };

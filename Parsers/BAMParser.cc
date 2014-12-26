@@ -11,6 +11,8 @@ using namespace std;
 BAMParser::BAMParser (const string &filename):
 	dataSize(0), chromosomesCount(0), data(0), chromosomes(0)
 {
+	Parser::fname = filename;
+
 	fd = fopen(filename.c_str(), "rb");
 	fseek(fd, 0L, SEEK_END);
 	file_size = ftell(fd);

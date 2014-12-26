@@ -35,7 +35,8 @@ void Stats::addRecord (uint16_t flag) {
 
 void Stats::addChromosome (const string &chr, size_t len) {
 	if (chromosomes.find(chr) != chromosomes.end())
-		throw DZException("Chromosome %s already registered!", chr.c_str());
+		return;
+		//throw DZException("Chromosome %s already registered!", chr.c_str());
 	chromosomes[chr] = len;
 }
 

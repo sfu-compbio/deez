@@ -17,14 +17,14 @@
 
 class FileCompressor {
 	vector<Parser*> parsers;
-	SequenceCompressor *sequence;
-	EditOperationCompressor *editOp;
-	Compressor *readName;
-	MappingFlagCompressor *mapFlag;
-	MappingQualityCompressor *mapQual;
-	QualityScoreCompressor *quality;
-	PairedEndCompressor *pairedEnd;
-	OptionalFieldCompressor *optField;
+	vector<SequenceCompressor*> sequence;
+	vector<EditOperationCompressor*> editOp;
+	vector<Compressor*> readName;
+	vector<MappingFlagCompressor*> mapFlag;
+	vector<MappingQualityCompressor*> mapQual;
+	vector<QualityScoreCompressor*> quality;
+	vector<PairedEndCompressor*> pairedEnd;
+	vector<OptionalFieldCompressor*> optField;
 
 	FILE *outputFile;
 	FILE *indexTmp;
@@ -33,7 +33,7 @@ class FileCompressor {
 	size_t blockSize;
 
 public:
-	FileCompressor (const std::string &outFile, const std::string &samFile, const std::string &genomeFile, int blockSize);
+	FileCompressor (const std::string &outFile, const std::vector<std::string> &samFiles, const std::string &genomeFile, int blockSize);
 	~FileCompressor (void);
 
 private:

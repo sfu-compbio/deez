@@ -17,10 +17,10 @@ struct EditOperation {
 	size_t end;
 	std::string seq;
 	std::string op;
-
+	
 	EditOperation() {}
 	EditOperation(size_t s, const std::string &se, const std::string &o) :
-		start(s), seq(se), op(o) 
+		start(s), seq(se), op(o)
 	{
 		end = s;
 		size_t size = 0;

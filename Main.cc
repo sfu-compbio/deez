@@ -19,15 +19,20 @@ bool optStats   = false;
 bool optNoQual  = false;
 bool optReadLossy = false;
 string optRef 	 = "";
-string optInput  = "";
+vector<string> optInput;
 string optRange  = "";
 string optOutput = "";
+string optQuery  = "";
 size_t optBlock = 1000000;
 char optQuality = 0;
 char optLossy   = 0;
 int optThreads  = 4;
 int optFlag     = 0;
 size_t optSortMemory = GB;
+
+bool file_exists (const string &s) {
+	return access(s.c_str(), F_OK) != -1;
+}
 
 void parse_opt (int argc, char **argv) {
 	int opt; 
@@ -46,12 +51,13 @@ void parse_opt (int argc, char **argv) {
 		{ "withoutflag", 1, NULL, 'F' },
 		{ "withflag",    1, NULL, 'f' },
 		{ "stats",       0, NULL, 'S' },
-		{ "noqual",       0, NULL, 'Q' },
+		{ "query",       1, NULL, 'w' },
+		{ "noqual",      0, NULL, 'Q' },
 		{ "quality",     1, NULL, 'q' },
 		{ "block",       1, NULL, 'B' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:t:T!B:co:q:l:sM:Sf:F:QL";
+	const char *short_opt = "hr:t:T!B:co:q:l:sM:Sf:F:Qw:L";
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
@@ -121,6 +127,9 @@ void parse_opt (int argc, char **argv) {
 			case 'f':
 				optFlag = atoi(optarg);
 				break;
+			case 'w':
+				optQuery = optarg;
+				break;
 			case -1:
 				break;
 			default: {
@@ -128,20 +137,14 @@ void parse_opt (int argc, char **argv) {
 			}
 		}
 	} while (opt != -1);
-	if (optind < argc)
-		optInput = argv[optind];
-	if (optind < argc - 1)
-		optRange = argv[++optind];
+	while (optind < argc)
+		optInput.push_back(argv[optind++]);
 }
 
 int64_t dz_time (void) {
 	struct timeval t;
 	gettimeofday(&t, 0);
 	return (t.tv_sec * 1000000ll + t.tv_usec) / 1000000ll;
-}
-
-bool file_exists (const string &s) {
-	return access(s.c_str(), F_OK) != -1;
 }
 
 string full_path (const string &s) {
@@ -168,45 +171,49 @@ bool is_dz_file (const string &s) {
 }
 
 string sort (string output) {
+	if (optInput.size() != 1)
+		throw DZException("Only one file can be sorted per invocation.");
 	if (optStdout)
 		throw DZException("Sort mode cannot be used with stdout");
     if (output == "")
-		output = optInput + ".sort";
-	DEBUG("Sorting %s to %s witn %'lu memory", optInput.c_str(), output.c_str(), optSortMemory);
-    sortFile(optInput, output, optSortMemory);
+		output = optInput[0] + ".sort";
+	DEBUG("Sorting %s to %s witn %'lu memory...", optInput[0].c_str(), output.c_str(), optSortMemory);
+    sortFile(optInput[0], output, optSortMemory);
     return output;
 }
 
-void compress (const string &in, const string &out) {
-	if (is_dz_file(in))
-		throw DZException("Cannot compress DeeZ file %s", in.c_str());
+void compress (const vector<string> &in, const string &out) {
+	for (int i = 0; i < in.size(); i++) if (is_dz_file(in[i]))
+		throw DZException("Cannot compress DeeZ file %s", in[i].c_str());
 	if (file_exists(out)) {
 		if (!optForce)
 			throw DZException("File %s already exists. Use -! to overwrite", out.c_str());
 		else
 			LOG("File %s already exists. Overwriting it.", out.c_str());
 	}
-	DEBUG("Using output file %s", out.c_str());
-	LOG("Compressing %s to %s ...", in.c_str(), out.c_str());
+	//DEBUG("Using output file %s", out.c_str());
+	//LOG("Compressing to %s ...", out.c_str());
 	try {
 		FileCompressor sc(out, in, optRef, optBlock);
 		sc.compress();
 	}
 	catch (DZSortedException &s) {
 		if (optForce) {
-			string input = sort("");
-			FileCompressor sc(out, input, optRef, optBlock);
+			optInput[0] = sort("");
+			FileCompressor sc(out, optInput, optRef, optBlock);
 			sc.compress();
 		}
 		else throw;
 	}
 }
 
-void decompress (const string &in, const string &out) {
-	if (!is_dz_file(in))
-		throw DZException("File %s is not DZ file", in.c_str());
+void decompress (const vector<string> &in, const string &out) {
+	if (in.size() > 2)
+		throw DZException("Only one file can be decompressed per invocation.");
+	if (!is_dz_file(in[0]))
+		throw DZException("File %s is not DZ file", in[0].c_str());
 	if (optStats) {
-		FileDecompressor::printStats(in, optFlag);
+		FileDecompressor::printStats(in[0], optFlag);
 		return;
 	}
 
@@ -217,16 +224,19 @@ void decompress (const string &in, const string &out) {
 			LOG("File %s already exists. Overwriting it.", out.c_str());
 	}
 	if (!optStdout) DEBUG("Using output file %s", out.c_str());
-	LOG("Decompressing %s to %s ...", in.c_str(), optStdout ? "stdout" : out.c_str());
-	FileDecompressor sd(in, out, optRef, optBlock);
-	if (optRange == "")
+	LOG("Decompressing %s to %s ...", in[0].c_str(), optStdout ? "stdout" : out.c_str());
+	FileDecompressor sd(in[0], out, optRef, optBlock);
+	
+	if (in.size() <= 1)
 		sd.decompress(optFlag);
+	else if (optQuery == "")
+		sd.decompress(in[0] + "i", in[1], optFlag);
 	else
-		sd.decompress(in + "i", optRange, optFlag);
+		sd.query(optQuery, in[1]);
 }
 
-void test (const string &s) {
-	string tmp = s + ".dztemp";
+void test (vector<string> s) {
+	string tmp = s[0] + ".dztemp";
 	//LOG("Test prefix %s", tmp.c_str());
 
 	int64_t t = dz_time();
@@ -234,10 +244,13 @@ void test (const string &s) {
 	LOG("Compression time: %'ld", dz_time() - t);
 
 	t = dz_time();
-	decompress(tmp + ".dz", tmp + ".sam");
+
+	vector<string> tx;
+	tx.push_back(tmp + ".dz");
+	decompress(tx, tmp + ".sam");
 	LOG("Decompression time: %'ld", dz_time() - t);
 
-	string cmd = "cmp " + s + " " + tmp + ".sam";
+	string cmd = "cmp " + s[0] + " " + tmp + ".sam";
 	system(cmd.c_str());
 }
 
@@ -247,11 +260,11 @@ int main (int argc, char **argv) {
     parse_opt(argc, argv);
 
     try {
-    	if (optInput == "")
+    	if (!optInput.size())
     		throw DZException("Input not specified. Please run deez --help for explanation");
-    	if (!file_exists(optInput))
-			throw DZException("File %s does not exist", optInput.c_str());
-		DEBUG("Using input file %s", full_path(optInput).c_str());
+    	for (int i = 0; i < optInput.size(); i++) if (!file_exists(optInput[i]) && i != optInput.size() - 1)
+			throw DZException("File %s does not exist", optInput[i].c_str());
+		//DEBUG("Using input file %s", full_path(optInput).c_str());
 
     	if (optSort) {
     		sort(optOutput);
@@ -265,10 +278,10 @@ int main (int argc, char **argv) {
 			if (optTest)
 				test(optInput);
 			else {
-				bool isCompress = !is_dz_file(optInput);
+				bool isCompress = !is_dz_file(optInput[0]);
 				string output = optOutput;
 				if (output == "" && !optStdout) {
-					output = remove_extension(optInput) + ".dz";
+					output = remove_extension(optInput[0]) + ".dz";
 					if (!isCompress) output += ".sam";
 				}
 				
@@ -284,7 +297,7 @@ int main (int argc, char **argv) {
 		exit(1);
 	}
 	catch (...) {
-		ERROR("\nUnknow error ocurred!");	
+		ERROR("\nUnknown error ocurred!");	
 		exit(1);
 	}
 	

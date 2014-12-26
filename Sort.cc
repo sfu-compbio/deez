@@ -123,7 +123,7 @@ static char *buffer;
 static size_t bufsz;
 
 size_t mergeSort (file **f, size_t fsz, file *fo, char *buffer, size_t bufsz) {
-	LOG("Merging %d files ...", fsz);
+	//LOG("Merging %d files ...", fsz);
 	size_t cnt = 0;
 	size_t bsz = bufsz / fsz;
 	vector<size_t> counts(fsz, 1);
@@ -278,7 +278,7 @@ void sortFile (const string &path, const string &pathNew, size_t memLimit) {
 
 		memmove(buffer, buffer + i, offset = sz - i);
 		
-		LOG("Created %s with %'lu records", fn, nodes.size());
+		//LOG("Created %s with %'lu records", fn, nodes.size());
 		nodes.resize(0);
 	}
 

@@ -18,7 +18,7 @@ EditOperationCompressor::EditOperationCompressor (int blockSize):
 std::tr1::unordered_set<int> quasiPaths;
 
 EditOperationCompressor::~EditOperationCompressor (void) {
-	ERROR("MQ %d\n", quasiPaths.size());
+	//ERROR("MQ %d\n", quasiPaths.size());
 	delete operandStream;
 	delete lengthStream;
 	delete unknownStream;

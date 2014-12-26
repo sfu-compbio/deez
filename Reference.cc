@@ -25,28 +25,40 @@ Reference::Reference (const string &filename) {
 	//c = fgetc(input);
 	//chromosome.reserve(MAX_CHROMOSOME);
 
-	FILE *fastaidx = fopen(string(filename + ".dzrefidx").c_str(), "rb");
+	FILE *fastaidx = fopen(string(filename + ".fai").c_str(), "rb");
 	if (fastaidx != 0) {
 		char chr[50];
 		size_t loc;
-		while (fscanf(fastaidx, "%s %lu", chr, &loc) != EOF) 
+		while (fscanf(fastaidx, "%s %*lu %lu %*lu %*lu", chr, &loc) != EOF) 
 			chromosomes[chr] = loc;
 	}
 	else {
 		LOG("FASTA index not found, creating one ...");
-		fastaidx = fopen(string(filename + ".dzrefidx").c_str(), "wb");
+		fastaidx = fopen(string(filename + ".fai").c_str(), "wb");
+		string chr = "";
+		size_t cnt = 0, cntfull = 0, pos;
 		while ((c = fgetc(input)) != EOF) {
 			if (c == '>') {
-				string chr;
-				size_t pos = ftell(input);
+				if (chr != "") fprintf(fastaidx, "%s\t%lu\t%lu\t%lu\t%lu\n", chr.c_str(), cnt, pos, cnt, cntfull);
+
+				chr = "";
+				cnt = cntfull = 0;
+				
 				c = fgetc(input);
 				while (!isspace(c) && c != EOF) 
 					chr += c, c = fgetc(input);
+				while (c != '\n' && c != EOF) 
+					c = fgetc(input);
 			//	LOG("%s", chr.c_str());
-				fprintf(fastaidx, "%s %lu\n", chr.c_str(), pos);
+				
+				pos = ftell(input);
 				chromosomes[chr] = pos;
+				continue;
 			}
+			if (!isspace(c)) cnt++;
+			cntfull++;
 		}
+		if (chr != "") fprintf(fastaidx, "%s\t%lu\t%lu\t%lu\t%lu\n", chr.c_str(), cnt, pos, cnt, cntfull);
 		fseek(input, 0, SEEK_SET);
 	}
 	fclose(fastaidx);
@@ -104,15 +116,18 @@ std::string Reference::scanChromosome (const string &s) {
 	//if(c!='>') throw DZException("eeee %c", c);
 	//assert(c == '>');
 	
-	currentChr = "";
+	currentChr = s;
 	c = fgetc(input);
-	while (!isspace(c) && c != EOF) 
-		currentChr += c, c = fgetc(input);
-	// skip fasta comment
-	while (c != '\n') 
+	if (c == '>') {
+		currentChr = "";
+		while (!isspace(c) && c != EOF) 
+			currentChr += c, c = fgetc(input);
+		// skip fasta comment
+		while (c != '\n') 
+			c = fgetc(input);
+		// park at first nucleotide
 		c = fgetc(input);
-	// park at first nucleotide
-	c = fgetc(input);
+	}
 	if (c == '>' || c == EOF)
 		throw DZException("Empty chromosome %s", currentChr.c_str());
 	currentPos = 0;

@@ -6,6 +6,7 @@
 using namespace std;
 
 SAMParser::SAMParser (const string &filename) {
+	Parser::fname = filename;
 	input = fopen(filename.c_str(), "r");
 	if (input == NULL)	
 		throw DZException("Cannot open the file %s", filename.c_str());

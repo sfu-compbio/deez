@@ -29,6 +29,25 @@ public:
 		delete[] _records;
 	}
 
+	Array (const Array& a)
+	{
+		_size = a._size;
+		_capacity = a._capacity;
+		_extend = a._extend;
+		_records = new T[a._capacity];
+		std::copy(a._records, a._records + a._size, _records);
+	}
+
+	Array& operator= (const Array& a) 
+	{
+		_size = a._size;
+		_capacity = a._capacity;
+		_extend = a._extend;
+		_records = new T[a._capacity];
+		std::copy(a._records, a._records + a._size, _records);	
+		return *this;
+	}
+
 public:
 	void realloc (size_t sz) {
 		_capacity = sz + _extend;

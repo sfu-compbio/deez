@@ -290,6 +290,8 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)
 		assert(prevFix < fixedEnd);
 		assert(prevFix >= fixedStart);
 		fixed[prevFix - fixedStart] = fixes_replace.data()[i];
+
+		changes[prevFix] = fixes_replace.data()[i];
 	}
 }
 

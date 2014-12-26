@@ -8,7 +8,11 @@
 #include "Record.h"
 
 class Parser {
+protected:
+	std::string fname;
 public:
+	std::string fileName() const { return this->fname; }
+
 	virtual std::string readComment (void) = 0;
 	virtual bool readNext (void) = 0;
 	virtual bool hasNext (void) = 0;
