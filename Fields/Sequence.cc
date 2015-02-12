@@ -186,6 +186,26 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 		fixes_loc.resize(0);
 		fixes_replace.resize(0);
 		for (size_t i = 0; i < fixedEnd - fixedStart; i++) if (stats.data()[i]) {
+#ifdef MEGALELI
+			int idx = {0, 1, 2, 3, 4, 5};
+			int sum = 0;
+			for (int j = 1; j < 6; j++) 
+				sum += stats.data()[i][j];
+			sort(idx, idx + 5, [](int x, int y)=>{ 
+				return stats.data()[i][x] > stats.data()[i][y]; 
+			});
+			int j = 0, p = 0;
+			while (j < 6 && stats.data()[i][idx[j]] / sum > CUTOFF) 
+				p = 6 * p + idx[j], j++;
+
+			if (j > 1 || fixed[i] != ".ACGTN"[idx[j]]) 
+			{
+				// +1 for 0 termninator avoid
+				addEncoded(fixedStart + i - fixedPrev + 1, fixes_loc);
+				fixedPrev = fixedStart + i;
+				fixes_replace.add(fixed[i] = !p!);
+			}
+#else
 			int max = -1, pos = -1;
 			int max2 = -1, pos2 = -1;
 			int sum = 0; ///stats.data()[i][0];
@@ -209,6 +229,7 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 				else 
 					fixes_replace.add(fixed[i] = pos[".ACGTN"]);
 			}
+#endif
 			//printf("%d %d %d %d %d %d %.2lf %c\n", fixedStart+i,max,pos,max2,pos2,sum,max2/double(sum), fixed[i]);
 			delete[] stats.data()[i];
 		}
