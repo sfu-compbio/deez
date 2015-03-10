@@ -12,6 +12,6 @@ highlighter: pygments
 ### content configuration ###
 name:		 "DeeZ"
 title:       "DeeZ: reference-based compression by local assembly"
-keywords:    "deez, compression, sam, bam, samtools, nature methods"
+keywords:    "deez, compression, sam, bam, nature methods, local assembly"
 description: "A tool for compressing SAM/BAM files"
 source_link: "http://sfu-compbio.github.io/deez/"
