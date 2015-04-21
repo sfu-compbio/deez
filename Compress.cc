@@ -290,7 +290,7 @@ void FileCompressor::outputRecords (void) {
 	
 	fwrite(&posStats, sizeof(size_t), 1, outputFile);
 	
-	#define VERBOSE(x) // LOG("%s: %lu", #x, x->compressedSize())
+	#define VERBOSE(x) LOG("%s: %lu", #x, x->compressedSize())
 	VERBOSE(sequence);
 	VERBOSE(editOp);
 	VERBOSE(readName);

@@ -133,7 +133,7 @@ public:
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
 	void getIndexData (Array<uint8_t> &out);
 	size_t compressedSize(void) { 
-		LOGN("[NUC %lu UNK %lu OP %lu LEN %lu LOC %lu STI %lu]", 
+		LOGN("[Nucleotides %lu Unknown %lu Operations %lu Oplens %lu Locations %lu Stitch %lu]", 
 			stream->getCount(),
 			unknownStream->getCount(),
 			operandStream->getCount(),

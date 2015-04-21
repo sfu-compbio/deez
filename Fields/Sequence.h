@@ -41,7 +41,7 @@ public:
 	void outputRecords (Array<uint8_t> &output, size_t out_offset, size_t k);
 	void getIndexData (Array<uint8_t> &out) { out.resize(0); }
 	size_t compressedSize(void) { 
-		LOGN("[FIX %lu REP %lu]", fixesStream->getCount(), fixesReplaceStream->getCount());
+		LOGN("[Fixes %lu Replace %lu]", fixesStream->getCount(), fixesReplaceStream->getCount());
 		return fixesStream->getCount() + fixesReplaceStream->getCount(); 
 	}
 
