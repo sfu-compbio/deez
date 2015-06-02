@@ -2,7 +2,7 @@ CC = g++
 CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE  -std=c++0x
 LDFLAGS = -lz -lpthread 
 
-SOURCES := $(shell find $(SOURCEDIR) -name '*.cc' -not -path "./run/*")
+SOURCES := $(shell find . -name '*.cc' -not -path "./run/*")
 OBJECTS = $(SOURCES:.cc=.o)
 EXECUTABLE = deez
 LIB = libdeez
@@ -53,6 +53,6 @@ $(LIB): $(OBJECTS)
 	$(CC) $(CFLAGS) $< -o $@
 
 clean:
-	find -name '*.o' -delete
+	find . -name '*.o' -delete
 	rm -rf $(EXECUTABLE) $(TESTEXE)
 	rm -rf gmon.out* 
