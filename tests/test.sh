@@ -33,7 +33,7 @@ do
 		echo -ne "=== ${sam} ... compressing ... " >&2 ;
 		../deez -r ${ref}.fa ${sam} -! -o ../out/${sam}.dz 2>../log/c_${sam};
 		echo -ne "decompressing ... " >&2 ;
-		../deez -r ${ref}.fa out/${sam}.dz -! -o ../out/dz_${sam}.sam 2> ../log/d_${sam};
+		../deez -r ${ref}.fa ../out/${sam}.dz -! -o ../out/dz_${sam}.sam 2> ../log/d_${sam};
 		echo -ne "testing equality ... " >&2 ;
 
 		if grep -q 'unsorted' <<< "${sam}" ;
