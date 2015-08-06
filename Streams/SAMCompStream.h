@@ -27,7 +27,7 @@ public:
 	}
 
 private:
-	void encode (uint8_t q, AC &ac) {
+	void encode (uint8_t q, AC *ac) {
 		assert(q < AS);
 		assert(q < (1 << 6));
 		assert(context < MOD_SZ);
@@ -44,7 +44,7 @@ private:
 			delta = 5, pos = 0, context = 0, q1 = q2 = 0;
 	}
 
-	uint8_t decode (AC &ac) {
+	uint8_t decode (AC *ac) {
 		assert(context < MOD_SZ);
 		uint8_t q = mod[context].decode(ac);
 		assert(q < AS);
@@ -71,12 +71,13 @@ public:
 		// thus, just resize dest
 		dest.resize(dest_offset + sizeof(size_t));
 		memcpy(dest.data() + dest_offset, &source_sz, sizeof(size_t));
-		AC ac;
-		ac.initEncode(&dest);
+		ACType *ac = new ACType();
+		ac->initEncode(&dest);
 		for (size_t i = 0; i < source_sz; i++)
 			encode(source[i], ac);
-		ac.flush();
+		ac->flush();
 		this->compressedCount += dest.size() - dest_offset;
+		delete ac;
 		return dest.size() - dest_offset;
 		//return 
 	}
@@ -85,8 +86,8 @@ public:
 			Array<uint8_t> &dest, size_t dest_offset) 
 	{
 		size_t num = *((size_t*)source);
-		AC ac;
-		ac.initDecode(source + sizeof(size_t));
+		ACType *ac = new ACType();
+		ac->initDecode(source + sizeof(size_t), source_sz);
 		dest.resize(dest_offset + num);
 
 		// fill with 33s. zero terminators are not added. 
@@ -95,6 +96,7 @@ public:
 			*(dest.data() + dest_offset + i) = 33;
 		else for (size_t i = 0; i < num; i++) 
 			*(dest.data() + dest_offset + i) = decode(ac);
+		delete ac;
 		return num;
 	}
 

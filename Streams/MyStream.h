@@ -39,7 +39,7 @@ public:
 	}
 
 private:
-	void encode (uint8_t q, AC &ac) {
+	void encode (uint8_t q, AC *ac) {
 		assert(context < MOD_SZ);
 
 		if (q <= (int)(_mean[context] + _stdev[context] + 1) &&
@@ -70,11 +70,12 @@ public:
 		// thus, just resize dest
 		dest.resize(dest_offset + sizeof(size_t));
 		memcpy(dest.data() + dest_offset, &source_sz, sizeof(size_t));
-		AC ac;
-		ac.initEncode(&dest);
+		AC *ac = new AC();
+		ac->initEncode(&dest);
 		for (size_t i = 0; i < source_sz; i++)
 			encode(source[i], ac);
-		ac.flush();
+		ac->flush();
+		delete ac;
 		return dest.size() - dest_offset;
 		//return 
 	}

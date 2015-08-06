@@ -21,7 +21,7 @@ public:
 	}
 
 private:
-	void encode (uint8_t q, AC &ac) {
+	void encode (uint8_t q, AC *ac) {
 		assert(q < AS);
 		assert(context < MOD_SZ);
 		mod[context].encode(q, ac);
@@ -35,7 +35,7 @@ private:
 		q1 = q;
 	}
 
-	uint8_t decode (AC &ac) {
+	uint8_t decode (AC *ac) {
 		assert(context < MOD_SZ);
 		uint8_t q = mod[context].decode(ac);
 
@@ -57,12 +57,13 @@ public:
 		// thus, just resize dest
 		dest.resize(dest_offset + sizeof(size_t));
 		memcpy(dest.data() + dest_offset, &source_sz, sizeof(size_t));
-		AC ac;
-		ac.initEncode(&dest);
+		ACType *ac = new ACType();
+		ac->initEncode(&dest);
 		for (size_t i = 0; i < source_sz; i++)
 			encode(source[i], ac);
-		ac.flush();
+		ac->flush();
 		this->compressedCount += dest.size() - dest_offset;
+		delete ac;
 		return dest.size() - dest_offset;
 		//return 
 	}
@@ -94,8 +95,8 @@ public:
 		phteven[phteven.size()-1]++;*/
 
 		size_t num = *((size_t*)source);
-		AC ac;
-		ac.initDecode(source + sizeof(size_t));
+		ACType *ac = new ACType();
+		ac->initDecode(source + sizeof(size_t), source_sz);
 		dest.resize(dest_offset + num);
 		for (size_t i = 0; i < num; i++) {
 			*(dest.data() + dest_offset + i) = decode(ac);

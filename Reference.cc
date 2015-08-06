@@ -35,8 +35,11 @@ Reference::Reference (const string &filename) {
 	else {
 		LOG("FASTA index not found, creating one ...");
 		fastaidx = fopen(string(filename + ".fai").c_str(), "wb");
+<<<<<<< Updated upstream
 		string chr = "";
 		size_t cnt = 0, cntfull = 0, pos;
+=======
+>>>>>>> Stashed changes
 		while ((c = fgetc(input)) != EOF) {
 			if (c == '>') {
 				if (chr != "") fprintf(fastaidx, "%s\t%lu\t%lu\t%lu\t%lu\n", chr.c_str(), cnt, pos, cnt, cntfull);

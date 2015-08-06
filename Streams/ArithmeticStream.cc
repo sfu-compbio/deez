@@ -14,7 +14,7 @@ void AC::initEncode (Array<uint8_t> *o) {
 	dataO = o;
 }
 
-void AC::initDecode (uint8_t *o) {
+void AC::initDecode (uint8_t *o, size_t osz) {
 	dataI = o;
 	getbit(), getbit(), getbit();
 }

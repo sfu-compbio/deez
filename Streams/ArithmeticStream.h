@@ -23,14 +23,14 @@ private:
 	void getbit (void);
 
 public:
-	int encode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq);
-	void decode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq);
-	uint32_t getFreq (uint32_t);
-	void flush (void);
+	virtual int encode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq);
+	virtual void decode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq);
+	virtual uint32_t getFreq (uint32_t);
+	virtual void flush (void);
 
 
-	void initEncode (Array<uint8_t> *o);
-	void initDecode (uint8_t *o);
+	virtual void initEncode (Array<uint8_t> *o);
+	virtual void initDecode (uint8_t *o, size_t osz);
 
 public:
 	AC ();
