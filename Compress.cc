@@ -217,7 +217,7 @@ void FileCompressor::outputRecords (void) {
 				parsers[f]->readNext();		
 			}
 			total += currentSize[f];
-			LOGN("  %5.1lf%% [%s,%ld]", (100.0 * parsers[f]->fpos()) / parsers[f]->fsize(), 
+			LOGN("  %5.1lf%% [%s,%zd]", (100.0 * parsers[f]->fpos()) / parsers[f]->fsize(), 
 				sequence[f]->getChromosome().c_str(), blockCount + 1);
 
 			//LOGN("\n# ");
@@ -299,7 +299,7 @@ void FileCompressor::outputRecords (void) {
 			blockCount++;
 		}
 	}
-	LOGN("\nWritten %'lu lines\n", total);
+	LOGN("\nWritten %'zd lines\n", total);
 	fflush(outputFile);
 	
 	size_t posStats = ftell(outputFile);
@@ -319,7 +319,7 @@ void FileCompressor::outputRecords (void) {
 	fseek(indexTmp, 0, SEEK_END);
 	LOG("Index gz'd sz=%'lu", ftell(indexTmp));
 	fseek(indexTmp, 0, SEEK_SET);
-	while (sz = fread(buffer, 1, MB, indexTmp))
+	while ((sz = fread(buffer, 1, MB, indexTmp)))
 		fwrite(buffer, 1, sz, outputFile);
 	free(buffer);
 	fclose(indexTmp);

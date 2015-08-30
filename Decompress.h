@@ -3,6 +3,7 @@
 
 #include "Common.h"
 #include "Stats.h"
+#include "FileIO.h"
 #include "Parsers/BAMParser.h"
 #include "Parsers/SAMParser.h"
 #include "Fields/Sequence.h"
@@ -15,7 +16,12 @@
 #include "Fields/OptionalField.h"
 
 #include <map>
+
+#if __cplusplus <= 199711L
 #include <tr1/unordered_map>
+#else
+#include <unordered_map>
+#endif
 
 struct index_t {
 	size_t startPos, endPos;

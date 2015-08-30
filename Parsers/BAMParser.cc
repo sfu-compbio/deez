@@ -23,7 +23,10 @@ BAMParser::BAMParser (const string &filename):
 		throw DZException("Cannot open the file %s", filename.c_str());
 
 	char magic[5] = {0};
-	gzread(input, magic, 4);
+	if (gzread(input, magic, 4)!=4) {
+	int p;
+	ERROR("%s\n", gzerror(input, &p));
+	}
 	assert(!strcmp(magic, "BAM\x1"));
 }
 
@@ -166,11 +169,11 @@ bool BAMParser::readNext (void) {
 		switch (t) {
 			case 'A': buf += sprintf(buf, "A:%c", data[pos]); pos++; break;
 			case 'c': buf += sprintf(buf, "i:%d", *(int8_t*)(data + pos)); pos += 1; break;
-			case 'C': buf += sprintf(buf, "i:%u", *(int8_t*)(data + pos)); pos += 1; break;
-			case 's': buf += sprintf(buf, "i:%u", *(int16_t*)(data + pos)); pos += 2; break;
-			case 'S': buf += sprintf(buf, "i:%d", *(int16_t*)(data + pos)); pos += 2; break;
-			case 'i': buf += sprintf(buf, "i:%u", *(int32_t*)(data + pos)); pos += 4; break;
-			case 'I': buf += sprintf(buf, "i:%d", *(int32_t*)(data + pos)); pos += 4; break;
+			case 'C': buf += sprintf(buf, "i:%u", *(uint8_t*)(data + pos)); pos += 1; break;
+			case 's': buf += sprintf(buf, "i:%d", *(int16_t*)(data + pos)); pos += 2; break;
+			case 'S': buf += sprintf(buf, "i:%u", *(uint16_t*)(data + pos)); pos += 2; break;
+			case 'i': buf += sprintf(buf, "i:%d", *(int32_t*)(data + pos)); pos += 4; break;
+			case 'I': buf += sprintf(buf, "i:%u", *(uint32_t*)(data + pos)); pos += 4; break;
 			case 'f': buf += sprintf(buf, "f:%g", *(float*)(data + pos)); pos += 4; break;
 			case 'd': buf += sprintf(buf, "d:%lg", *(double*)(data + pos)); pos += 8; break;
 			case 'Z': 

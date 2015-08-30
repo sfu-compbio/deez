@@ -3,6 +3,7 @@
 using namespace std;
 
 static const int MAX_CHROMOSOME = 400 * MB;
+extern bool optInvalidChr;
 
 string full_path (const string &s);
 
@@ -19,8 +20,10 @@ Reference::Reference (const string &filename) {
 	}
 
 	input = fopen(filename.c_str(), "rb");
-	if (input == NULL)
+	if (input == NULL) {
+		//return;
 		throw DZException("Cannot open the file %s", filename.c_str());
+	}
 	DEBUG("Loaded reference file %s", full_path(filename).c_str());
 	//c = fgetc(input);
 	//chromosome.reserve(MAX_CHROMOSOME);
@@ -35,11 +38,8 @@ Reference::Reference (const string &filename) {
 	else {
 		LOG("FASTA index not found, creating one ...");
 		fastaidx = fopen(string(filename + ".fai").c_str(), "wb");
-<<<<<<< Updated upstream
 		string chr = "";
 		size_t cnt = 0, cntfull = 0, pos;
-=======
->>>>>>> Stashed changes
 		while ((c = fgetc(input)) != EOF) {
 			if (c == '>') {
 				if (chr != "") fprintf(fastaidx, "%s\t%lu\t%lu\t%lu\t%lu\n", chr.c_str(), cnt, pos, cnt, cntfull);
@@ -79,6 +79,8 @@ size_t Reference::getChromosomeLength(const std::string &s) const {
 	auto it = chromosomes.find(s);
 	if (it != chromosomes.end())
 		return it->second;
+	else if (optInvalidChr)
+		return 0;
 	else
 		throw DZException("Chromosome %s not found", s.c_str());
 }
@@ -88,16 +90,22 @@ std::string Reference::scanChromosome (const string &s) {
 		return currentChr = "*";
 	if (directory == "") {
 		map<string, size_t>::iterator it = chromosomes.find(s);
-		if (it == chromosomes.end())
-			throw DZException("Chromosome %s not found in the reference!", s.c_str());
+		if (it == chromosomes.end()) {
+			if (optInvalidChr) 
+				return currentChr = s;
+			throw DZException("Chromosome %s not found in the reference", s.c_str());
+		}
 		fseek(input, it->second, SEEK_SET);
 	}
 	else {
 		string filename = directory + "/" + s + ".fa";
 		if (input) fclose(input);
 		input = fopen(filename.c_str(), "rb");
-		if (input == NULL)
+		if (input == NULL) {
+			if (optInvalidChr) 
+				return currentChr = s;
 			throw DZException("Cannot open chromosome file %s", filename.c_str());
+		}
 		DEBUG("Loaded reference file %s", full_path(filename).c_str());
 
 		char c;
@@ -139,6 +147,13 @@ std::string Reference::scanChromosome (const string &s) {
 
 void Reference::load (char *arr, size_t s, size_t e) {
 	//DEBUG("LOAD %'lu-%'lu",s,e);
+	if (chromosomes.find(currentChr) == chromosomes.end()) {
+		for (size_t i = 0; i < e - s; i++)
+			arr[i] = 'N';
+		return;
+	}
+
+
 	size_t i = 0;
 	while (currentPos < e) {
 		if (currentPos >= s) 
@@ -153,7 +168,6 @@ void Reference::load (char *arr, size_t s, size_t e) {
 			break;
 			// throw "outside chromosome range"; // fill with Ns?
 		}
-
 		currentPos++;
 	}
 	assert(i==e-s);

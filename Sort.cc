@@ -22,6 +22,7 @@ using namespace std;
 class file {
 public:
 	file() {}
+	virtual ~file() {};
 	virtual void open(const char* fn, const char* m) = 0;
 	virtual void close() = 0;
 	virtual ssize_t read(void* d, size_t s) = 0;
@@ -32,6 +33,7 @@ class rawfile: public file {
 	FILE *f;
 public:
 	rawfile(const char* fn, const char* m) { open(fn, m); }
+	~rawfile() {}
 	virtual void open(const char* fn, const char* m) { f = fopen(fn, m); }
 	virtual void close() { fclose(f); }
 	virtual ssize_t read(void* d, size_t s) { return fread(d, 1, s, f); }
@@ -43,6 +45,7 @@ class gzfile: public file {
 	gzFile f;
 public:
 	gzfile(const char* fn, const char* m) { open(fn, m); }
+	~gzfile() {}
 	virtual void open(const char* fn, const char* m) { f = gzopen(fn, m); /*gzbuffer(f, 128 * 1024);*/ }
 	virtual void close() { gzclose(f); }
 	virtual ssize_t read(void* d, size_t s) { 

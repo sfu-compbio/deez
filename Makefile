@@ -1,8 +1,9 @@
 CC = g++
 CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE  -std=c++0x
-LDFLAGS = -lz -lpthread -static 
+LDFLAGS = -lz -lpthread  
 
-SOURCES := $(shell find $(SOURCEDIR) -name '*.cc' -not -path "./run/*")
+GIT_VERSION := $(shell git describe --dirty --always --tags)
+SOURCES := $(shell find . -name '*.cc' -not -path "./run/*")
 OBJECTS = $(SOURCES:.cc=.o)
 EXECUTABLE = deez
 LIB = libdeez
@@ -10,7 +11,6 @@ TESTEXE = deeztest
 
 all: CFLAGS += -O3 -DNDEBUG
 all: $(SOURCES) $(EXECUTABLE) 
-
 
 debug: CFLAGS += -g -fno-omit-frame-pointer
 debug: $(SOURCES) $(EXECUTABLE)
@@ -49,10 +49,13 @@ $(LIB): $(OBJECTS)
 	rm -rf $(LIB).a
 	ar rvs $(LIB).a $(OBJECTS) 
 
+Main.o:
+	$(CC) $(CFLAGS) -DVER=\"$(GIT_VERSION)\" Main.cc -o $@
+
 .cc.o:	
 	$(CC) $(CFLAGS) $< -o $@
 
 clean:
-	find -name '*.o' -delete
+	find . -name '*.o' -delete
 	rm -rf $(EXECUTABLE) $(TESTEXE)
 	rm -rf gmon.out* 

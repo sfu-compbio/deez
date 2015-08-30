@@ -26,7 +26,7 @@ class BAMParser: public Parser {
 
 public:
 	BAMParser (const std::string &filename);
-	virtual ~BAMParser (void);
+	~BAMParser (void);
 
 private:
 	void readChromosomeInformation(void);

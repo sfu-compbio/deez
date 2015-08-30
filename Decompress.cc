@@ -8,6 +8,7 @@ static const char *NAMES[8] = {
 };
 
 void FileDecompressor::printStats (const string &path, int filterFlag) {
+	//File *inFile = File::Open(path.c_str(), "rb");
 	FILE *inFile = fopen(path.c_str(), "rb");
 	if (inFile == NULL)
 		throw DZException("Cannot open the file %s", path.c_str());
@@ -304,7 +305,7 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 		if (chr != "*") eo.start++;
 		if (pe.chr != "*") pe.pos++;
 
-		fprintf(samFiles[f], "%s\t%d\t%s\t%d\t%d\t%s\t%s\t%lu\t%d\t%s\t%s",
+		fprintf(samFiles[f], "%s\t%d\t%s\t%zu\t%d\t%s\t%s\t%lu\t%d\t%s\t%s",
 		 	rname.c_str(),
 		 	flag,
 		 	chr.c_str(),
@@ -502,7 +503,7 @@ void FileDecompressor::query (const string &query, const string &range)
 		auto ranges = getRanges(range);
 
 		foreach (r, ranges) {
-			LOG("Range %s:%d-%d", r->first.second.c_str(), r->second.first+1, r->second.second+1);
+			LOG("Range %s:%zu-%zu", r->first.second.c_str(), r->second.first+1, r->second.second+1);
 			for (int f = 0; f < fileNames.size(); f++) { 
 				string chr = r->first.second;
 				if (indices[f].find(chr) == indices[f].end())

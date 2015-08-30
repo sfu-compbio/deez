@@ -31,7 +31,7 @@ public:
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
 	void getIndexData (Array<uint8_t> &out);
 	size_t compressedSize(void) { 
-		LOGN("[IDX %lu S %lu]", indexStream->getCount(), stream->getCount());
+		LOGN("[Index %lu Content %lu]", indexStream->getCount(), stream->getCount());
 		return stream->getCount() + indexStream->getCount(); 
 	}
 

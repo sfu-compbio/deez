@@ -18,6 +18,7 @@ bool optStdout  = false;
 bool optStats   = false;
 bool optNoQual  = false;
 bool optReadLossy = false;
+bool optInvalidChr = true;
 string optRef 	 = "";
 vector<string> optInput;
 string optRange  = "";
@@ -55,9 +56,10 @@ void parse_opt (int argc, char **argv) {
 		{ "noqual",      0, NULL, 'Q' },
 		{ "quality",     1, NULL, 'q' },
 		{ "block",       1, NULL, 'B' },
+		{ "no-invalid-chr", 0, NULL, 'I' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:t:T!B:co:q:l:sM:Sf:F:Qw:L";
+	const char *short_opt = "hr:t:T!B:co:q:l:sIM:Sf:F:Qw:L";
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
@@ -77,6 +79,9 @@ void parse_opt (int argc, char **argv) {
 				break;
 			case 's':
 				optSort = true;
+				break;
+			case 'I':
+				optInvalidChr = true;
 				break;
 			case 'Q':
 				optNoQual = true;
@@ -241,14 +246,14 @@ void test (vector<string> s) {
 
 	int64_t t = dz_time();
 	compress(s, tmp + ".dz");
-	LOG("Compression time: %'ld", dz_time() - t);
+	LOG("Compression time: %'lld", dz_time() - t);
 
 	t = dz_time();
 
 	vector<string> tx;
 	tx.push_back(tmp + ".dz");
 	decompress(tx, tmp + ".sam");
-	LOG("Decompression time: %'ld", dz_time() - t);
+	LOG("Decompression time: %'lld", dz_time() - t);
 
 	string cmd = "cmp " + s[0] + " " + tmp + ".sam";
 	system(cmd.c_str());
@@ -258,6 +263,10 @@ void test (vector<string> s) {
 int main (int argc, char **argv) {
     setlocale(LC_ALL, "");
     parse_opt(argc, argv);
+
+#ifdef VER
+    LOG("DeeZ 0x%x (%s)", VERSION, VER);
+#endif
 
     try {
     	if (!optInput.size())

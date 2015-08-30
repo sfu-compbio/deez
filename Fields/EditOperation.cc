@@ -1,5 +1,13 @@
 #include "EditOperation.h"
+
+#if __cplusplus <= 199711L
 #include <tr1/unordered_set>
+std::tr1::unordered_set<int> quasiPaths;
+#else
+#include <unordered_set>
+std::unordered_set<int> quasiPaths;
+#endif
+
 using namespace std;
 
 EditOperationCompressor::EditOperationCompressor (int blockSize):
@@ -15,7 +23,6 @@ EditOperationCompressor::EditOperationCompressor (int blockSize):
 	alleleStream = new GzipCompressionStream<6>();
 }
 
-std::tr1::unordered_set<int> quasiPaths;
 
 EditOperationCompressor::~EditOperationCompressor (void) {
 	//ERROR("MQ %d\n", quasiPaths.size());

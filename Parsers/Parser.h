@@ -11,6 +11,8 @@ class Parser {
 protected:
 	std::string fname;
 public:
+	virtual ~Parser() {};
+
 	std::string fileName() const { return this->fname; }
 
 	virtual std::string readComment (void) = 0;

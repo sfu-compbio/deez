@@ -50,7 +50,7 @@ public:
 
     std::string getFullRecord() const {
         return S(
-            "%s %d %s %d %d %s %s %d %d %s %s p",
+            "%s %d %s %zu %d %s %s %zu %d %s %s %s",
             getReadName(),
             getMappingFlag(),
             getChromosome(),
@@ -68,7 +68,7 @@ public:
 
     void testRecords() const {
         LOG(
-            "%s %d %s %d %d %s %s %d %d %s %s %s\n",
+            "%s %d %s %zu %d %s %s %zu %d %s %s %s\n",
             getReadName(),
             getMappingFlag(),
             getChromosome(),
