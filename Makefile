@@ -1,6 +1,6 @@
 CC = g++
 CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE  -std=c++0x
-LDFLAGS = -lz -lpthread  
+LDFLAGS = -lz -lpthread -lcurl
 
 GIT_VERSION := $(shell git describe --dirty --always --tags)
 SOURCES := $(shell find . -name '*.cc' -not -path "./run/*")
@@ -49,11 +49,8 @@ $(LIB): $(OBJECTS)
 	rm -rf $(LIB).a
 	ar rvs $(LIB).a $(OBJECTS) 
 
-Main.o:
-	$(CC) $(CFLAGS) -DVER=\"$(GIT_VERSION)\" Main.cc -o $@
-
 .cc.o:	
-	$(CC) $(CFLAGS) $< -o $@
+	$(CC) $(CFLAGS) -DVER=\"$(GIT_VERSION)\" $< -o $@
 
 clean:
 	find . -name '*.o' -delete

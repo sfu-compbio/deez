@@ -4,6 +4,7 @@
 #include <getopt.h>
 #include <libgen.h>
 #include <sys/time.h>
+#include <curl/curl.h>
 
 #include "Common.h"
 #include "Compress.h"
@@ -167,7 +168,10 @@ string remove_extension (const string &s) {
 }
 
 bool is_dz_file (const string &s) {
+	return true;
 	FILE *fi = fopen(s.c_str(), "rb");
+	if (!fi)
+		throw DZException("File %s does not exist", s.c_str());
 	uint32_t magic;
 	if (fread(&magic, 4, 1, fi) != 1)
 		throw DZException("Cannot detect input file type");
@@ -215,8 +219,8 @@ void compress (const vector<string> &in, const string &out) {
 void decompress (const vector<string> &in, const string &out) {
 	if (in.size() > 2)
 		throw DZException("Only one file can be decompressed per invocation.");
-	if (!is_dz_file(in[0]))
-		throw DZException("File %s is not DZ file", in[0].c_str());
+	//if (!is_dz_file(in[0]))
+	//	throw DZException("File %s is not DZ file", in[0].c_str());
 	if (optStats) {
 		FileDecompressor::printStats(in[0], optFlag);
 		return;
@@ -261,6 +265,7 @@ void test (vector<string> s) {
 
 #ifndef DEEZLIB
 int main (int argc, char **argv) {
+	curl_global_init(CURL_GLOBAL_ALL);
     setlocale(LC_ALL, "");
     parse_opt(argc, argv);
 
@@ -271,17 +276,19 @@ int main (int argc, char **argv) {
     try {
     	if (!optInput.size())
     		throw DZException("Input not specified. Please run deez --help for explanation");
-    	for (int i = 0; i < optInput.size(); i++) if (!file_exists(optInput[i]) && i != optInput.size() - 1)
-			throw DZException("File %s does not exist", optInput[i].c_str());
-		//DEBUG("Using input file %s", full_path(optInput).c_str());
+   // 	for (int i = 0; i < optInput.size(); i++) if (!file_exists(optInput[i]) && i != optInput.size() - 1)
+	//		throw DZException("File %s does not exist", optInput[i].c_str());
+		DEBUG("Using input file %s", full_path(optInput).c_str());
 
     	if (optSort) {
     		sort(optOutput);
     	}
+    	else if (optStats)
+    		decompress(optInput, "");
     	else {
-	    //	if (!file_exists(optRef))
-	    //		throw DZException("Reference file %s does not exist", optRef.c_str());
-	    //	else DEBUG("Using reference file %s", full_path(optRef).c_str());
+	    	if (!file_exists(optRef))
+	    		throw DZException("Reference file %s does not exist", optRef.c_str());
+	    	else DEBUG("Using reference file %s", full_path(optRef).c_str());
 			DEBUG("Using block size %'lu", optBlock);
 
 			if (optTest)

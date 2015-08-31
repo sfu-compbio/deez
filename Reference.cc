@@ -38,6 +38,8 @@ Reference::Reference (const string &filename) {
 	else {
 		LOG("FASTA index not found, creating one ...");
 		fastaidx = fopen(string(filename + ".fai").c_str(), "wb");
+		if (!fastaidx)
+			throw DZException("Cannot open file %s for writing", string(filename + ".fai").c_str());
 		string chr = "";
 		size_t cnt = 0, cntfull = 0, pos;
 		while ((c = fgetc(input)) != EOF) {

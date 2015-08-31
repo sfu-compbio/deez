@@ -47,7 +47,8 @@ class FileDecompressor {
 	vector<FILE*> samFiles;
 	vector<map<string, map<size_t, index_t>>> indices;
 
-	FILE *inFile;
+	File *inFile;
+	uint32_t magic;
 	gzFile idxFile;
 	
 	string genomeFile;

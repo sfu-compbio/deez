@@ -48,10 +48,7 @@ FileCompressor::FileCompressor (const string &outFile, const vector<string> &sam
 			throw DZException("Cannot open the file %s", outFile.c_str());
 	}
 
-	string idxFile = outFile + ".dzi";
-	indexFile = gzopen(idxFile.c_str(), "wb6");
-	xoutfile=outFile;
-/*	FILE *tmp = tmpfile();
+	FILE *tmp = tmpfile();
 	
 	// char filePath[1024] = {0};
 	// char _x[200]; sprintf(_x,"/proc/self/fd/%d",fileno(tmp));
@@ -61,7 +58,7 @@ FileCompressor::FileCompressor (const string &outFile, const vector<string> &sam
 	int tmpFile = dup(fileno(tmp));
 	indexTmp = fdopen(tmpFile, "rb");
 
-	indexFile = gzdopen(fileno(tmp), "wb6");*/
+	indexFile = gzdopen(fileno(tmp), "wb6");
 	if (indexFile == Z_NULL)	
 		throw DZException("Cannot open temporary file");
 	//gzwrite(indexFile, "HAMO", 5);
@@ -93,6 +90,7 @@ void FileCompressor::outputMagic (void) {
 	fwrite(&magic, 4, 1, outputFile);
 	fwrite(&optQuality, 1, 1, outputFile);
 
+// BEGIN_V2
 	uint16_t numFiles = parsers.size();
 	fwrite(&numFiles, 2, 1, outputFile);
 
@@ -108,6 +106,7 @@ void FileCompressor::outputMagic (void) {
 	arcsz = arc.size();
 	fwrite(&arcsz, sizeof(size_t), 1, outputFile);
 	fwrite(arc.data(), 1, arcsz, outputFile);
+// END_V2
 }
 
 void FileCompressor::outputComment (void) {
@@ -252,7 +251,9 @@ void FileCompressor::outputRecords (void) {
 			if (op) 
 				fwrite(chr.c_str(), chr.size() + 1, 1, outputFile);
 
+// BEGIN V2
 			gzwrite(indexFile, &f, sizeof(int16_t));
+// END V2
 			gzwrite(indexFile, &zpos, sizeof(size_t));		
 			//	DEBUG("\n%s:%'lu-%'lu..%'lu\tfx %'lu-%'lu\t%'lu", sequence->getChromosome().c_str(), 
 			//		currentBlockFirstLoc+1, currentBlockLastLoc+1, currentBlockLastEndLoc, 
@@ -315,9 +316,9 @@ void FileCompressor::outputRecords (void) {
 	fwrite("DZIDX", 1, 5, outputFile);
 	char *buffer = (char*)malloc(MB);
 
-	indexTmp = fopen((xoutfile + ".dzi").c_str(), "rb");
-	fseek(indexTmp, 0, SEEK_END);
-	LOG("Index gz'd sz=%'lu", ftell(indexTmp));
+	//indexTmp = fopen((xoutfile + ".dzi").c_str(), "rb");
+	//fseek(indexTmp, 0, SEEK_END);
+	//LOG("Index gz'd sz=%'lu", ftell(indexTmp));
 	fseek(indexTmp, 0, SEEK_SET);
 	while ((sz = fread(buffer, 1, MB, indexTmp)))
 		fwrite(buffer, 1, sz, outputFile);

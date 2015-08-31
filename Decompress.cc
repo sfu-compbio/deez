@@ -8,30 +8,26 @@ static const char *NAMES[8] = {
 };
 
 void FileDecompressor::printStats (const string &path, int filterFlag) {
-	//File *inFile = File::Open(path.c_str(), "rb");
-	FILE *inFile = fopen(path.c_str(), "rb");
+	File *inFile = OpenFile(path.c_str(), "rb");
+
 	if (inFile == NULL)
 		throw DZException("Cannot open the file %s", path.c_str());
 
-	fseek(inFile, 0L, SEEK_END);
-	size_t inFileSz = ftell(inFile);
+	size_t inFileSz = inFile->size();
 
 	// seek to index
-	fseek(inFile, inFileSz - sizeof(size_t), SEEK_SET);
-	size_t statPos;
-	fread(&statPos, sizeof(size_t), 1, inFile);
-	
+	inFile->seek(inFileSz - sizeof(size_t));
+	size_t statPos = inFile->readU64();
+
 	char magic[10] = {0};
-	fseek(inFile, statPos, SEEK_SET);
-	fread(magic, 1, 7, inFile);
+	inFile->read(magic, 7, statPos);
 	if (strcmp(magic, "DZSTATS"))
 		throw DZException("Stats are corrupted ...%s", magic);
 
-	size_t sz;
-	fread(&sz, 1, 8, inFile);
+	size_t sz = inFile->readU64();
 	Array<uint8_t> in(sz);
 	in.resize(sz);
-	fread(in.data(), 1, sz, inFile);
+	inFile->read(in.data(), sz);
 	Stats *stats = new Stats(in);
 
 	LOG("Index size %'lu bytes", inFileSz - statPos);
@@ -53,54 +49,44 @@ void FileDecompressor::printStats (const string &path, int filterFlag) {
 		}
 	}
 
-	fclose(inFile);
+	inFile->close();
+	delete inFile;
 }
 
-FileDecompressor::FileDecompressor (const string &inFile, const string &outFile, const string &genomeFile, int bs): 
+FileDecompressor::FileDecompressor (const string &inFilePath, const string &outFile, const string &genomeFile, int bs): 
 	blockSize(bs), genomeFile(genomeFile), outFile(outFile)
 {
-	string name1 = inFile;
-	this->inFile = fopen(name1.c_str(), "rb");
+	string name1 = inFilePath;
+	this->inFile = OpenFile(name1.c_str(), "rb");
 	if (this->inFile == NULL)
 		throw DZException("Cannot open the file %s", name1.c_str());
 
-	fseek(this->inFile, 0L, SEEK_END);
-	inFileSz = ftell(this->inFile);
+	inFileSz = inFile->size();
 
 	// seek to index
-
-	if (fseek(this->inFile, inFileSz - sizeof(size_t), SEEK_SET))
-		throw DZException("fseek failed ... %d", ferror(this->inFile));
-	size_t statPos;
-	if (fread(&statPos, sizeof(size_t), 1, this->inFile) != 1)
-		throw DZException("fread failed ... %lu", statPos);
-	
+	inFile->seek(inFileSz - sizeof(size_t));
+	size_t statPos = inFile->readU64();
 	char magic[10] = {0};
-	if (fseek(this->inFile, statPos, SEEK_SET))
-		throw DZException("fseek failed ... %d", ferror(this->inFile));
-
-	if (fread(magic, 1, 7, this->inFile) != 7)
-		throw DZException("MAGIC fread failed");	
+	inFile->read(magic, 7, statPos);
 	if (strcmp(magic, "DZSTATS"))
 		throw DZException("Stats are corrupted ...%c%c%c%c%c%c%c", magic[0], magic[1], magic[2], magic[3], magic[4], magic[5], magic[6]);
 
-	size_t sz;
-	fread(&sz, 1, 8, this->inFile);
+	size_t sz = inFile->readU64();
 	Array<uint8_t> in(sz);
 	in.resize(sz);
-	fread(in.data(), 1, sz, this->inFile);
+	inFile->read(in.data(), sz);
 	stats = new Stats(in);
 
 	magic[5] = 0;
-	fread(magic, 1, 5, this->inFile);
+	inFile->read(magic, 5);
 	if (strcmp(magic, "DZIDX"))
 		throw DZException("Index is corrupted ...%s", magic);
 
-	size_t idxToRead = inFileSz - ftell(this->inFile) - sizeof(size_t);
+	size_t idxToRead = inFileSz - inFile->tell() - sizeof(size_t);
 	FILE *tmp = tmpfile();
 	char *buffer = (char*)malloc(MB);
 
-	while (idxToRead && (sz = fread(buffer, 1, min(uint64_t(MB), (uint64_t)idxToRead), this->inFile))) {
+	while (idxToRead && (sz = inFile->read(buffer, min(uint64_t(MB), (uint64_t)idxToRead)))) {
 		fwrite(buffer, 1, sz, tmp);
 		idxToRead -= sz;
 	}
@@ -108,17 +94,16 @@ FileDecompressor::FileDecompressor (const string &inFile, const string &outFile,
 	
 	int idx = dup(fileno(tmp));
 
-	fseek(tmp, 0, SEEK_END);
-	LOG("Index gz'd sz=%'lu", ftell(tmp));
+	//fseek(tmp, 0, SEEK_END);
+	//LOG("Index gz'd sz=%'lu", ftell(tmp));
 	fseek(tmp, 0, SEEK_SET);
-
 	lseek(idx, 0, SEEK_SET); // needed for gzdopen
-	//idxFile = gzdopen(idx, "rb");
-	idxFile = gzopen((inFile+".dzi").c_str(), "rb");
+	idxFile = gzdopen(idx, "rb");
+	//idxFile = gzopen((inFile+".dzi").c_str(), "rb");
 	if (idxFile == Z_NULL)
 		throw DZException("Cannot open the index");
 		
-	fseek(this->inFile, 0L, SEEK_SET);
+	inFile->seek(0);
 }
 
 FileDecompressor::~FileDecompressor (void) {
@@ -134,22 +119,25 @@ FileDecompressor::~FileDecompressor (void) {
 		if (samFiles[f]) fclose(samFiles[f]);
 	}
 	if (idxFile) gzclose(idxFile);
-	if (inFile) fclose(inFile);
+	if (inFile) {
+		inFile->close();
+		delete inFile;
+	}
 }
 
 void FileDecompressor::getMagic (void) {
-	uint32_t magic;
-	fread(&magic, 4, 1, inFile);
+	magic = inFile->readU32();
 	// LOG("File format: %c%c v%d.%d", 
 	// 	(magic >> 16) & 0xff, 
 	// 	(magic >> 8) & 0xff, 
 	// 	(magic >> 4) & 0xf,
 	// 	magic & 0xf
 	// );
-	fread(&optQuality, 1, 1, inFile);
+	optQuality = inFile->readU8();
 
-	uint16_t numFiles;
-	fread(&numFiles, 2, 1, inFile);
+	uint16_t numFiles = 1;
+	if ((magic & 0xff) >= 0x11)
+		numFiles = inFile->readU16();
 
 	for (int f = 0; f < numFiles; f++) {
 		sequence.push_back(new SequenceDecompressor(genomeFile, blockSize));
@@ -161,54 +149,53 @@ void FileDecompressor::getMagic (void) {
 		optField.push_back(new OptionalFieldDecompressor(blockSize));
 		quality.push_back(new QualityScoreDecompressor(blockSize));
 	}
-
 	fileNames.resize(numFiles);
 
-	size_t arcsz;
-	fread(&arcsz, sizeof(size_t), 1, inFile);
-	if (arcsz) {
-		Array<uint8_t> arc;
-		arc.resize(arcsz);
-		fread(&arcsz, sizeof(size_t), 1, inFile);
-		Array<uint8_t> files;
-		files.resize(arcsz);
-		fread(files.data(), 1, arcsz, inFile);
+	if ((magic & 0xff) >= 0x11) {
+		size_t arcsz = inFile->readU64();
+		if (arcsz) {
+			Array<uint8_t> arc;
+			arc.resize(arcsz);
+			arcsz = inFile->readU64();
+			Array<uint8_t> files;
+			files.resize(arcsz);
+			inFile->read(files.data(), arcsz);
+			
+			GzipDecompressionStream gzc;
+			gzc.decompress(files.data(), files.size(), arc, 0);
 
-		GzipDecompressionStream gzc;
-		gzc.decompress(files.data(), files.size(), arc, 0);
-
-		arcsz = 0;
-		for (int f = 0; f < fileNames.size(); f++) {
-			fileNames[f] = string((const char*)(arc.data()) + arcsz);
-			arcsz += fileNames[f].size();
+			arcsz = 0;
+			for (int f = 0; f < fileNames.size(); f++) {
+				fileNames[f] = string((const char*)(arc.data()) + arcsz);
+				arcsz += fileNames[f].size();
+			}
 		}
-	}
 
-	samFiles.resize(numFiles);
-	for (int f = 0; f < numFiles; f++) {
-		if (optStdout)
-			samFiles[f] = stdout;
-		else {
-			string fn = S("%s_%d", outFile.c_str(), f + 1);
-			samFiles[f] = fopen(fn.c_str(), "wb");
-			if (samFiles[f] == NULL)
-				throw DZException("Cannot open the file %s", fn.c_str());
+		samFiles.resize(numFiles);
+		for (int f = 0; f < numFiles; f++) {
+			if (optStdout)
+				samFiles[f] = stdout;
+			else {
+				string fn = S("%s_%d", outFile.c_str(), f + 1);
+				samFiles[f] = fopen(fn.c_str(), "wb");
+				if (samFiles[f] == NULL)
+					throw DZException("Cannot open the file %s", fn.c_str());
+			}
 		}
 	}
 }
 
 void FileDecompressor::getComment (bool output) {
 	for (int f = 0; f < fileNames.size(); f++) {
-		size_t arcsz;
-		fread(&arcsz, sizeof(size_t), 1, inFile);
+		size_t arcsz = inFile->readU64();
 		if (arcsz) {
 			Array<uint8_t> arc;
 			arc.resize(arcsz);
-			fread(&arcsz, sizeof(size_t), 1, inFile);
+			arcsz = inFile->readU64();
 			Array<uint8_t> comment;
 			comment.resize(arcsz);
-			fread(comment.data(), 1, arcsz, inFile);
-
+			inFile->read(comment.data(), arcsz);
+			
 			GzipDecompressionStream gzc;
 			gzc.decompress(comment.data(), comment.size(), arc, 0);
 
@@ -219,12 +206,9 @@ void FileDecompressor::getComment (bool output) {
 }
 
 void FileDecompressor::readBlock (Decompressor *d, Array<uint8_t> &in) {
-	size_t sz;
-	if (fread(&sz, sizeof(size_t), 1, inFile) != 1)
-		throw "File reading failed";
+	size_t sz = inFile->readU64();
 	in.resize(sz);
-	if (sz) 
-		fread(in.data(), 1, sz, inFile);
+	if (sz) inFile->read(in.data(), sz);
 	d->importRecords(in.data(), in.size());
 }
 
@@ -243,17 +227,15 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 		chr = chromosome;
 
 	char chflag;
-	//LOG("> %lu",ftell(inFile));
-	// EOF case
-	if (fread(&chflag, 1, 1, inFile) != 1)
+	if (inFile->read(&chflag, 1) != 1)
 		return 0;
 	if (chflag > 1) // index!
 		return 0;
 	if (chflag) {
 		chr = "";
-		fread(&chflag, 1, 1, inFile);
+		chflag = inFile->readU8();
 		while (chflag)
-			chr += chflag, fread(&chflag, 1, 1, inFile);
+			chr += chflag, chflag = inFile->readU8();
 		if (chromosome != "" && chr != chromosome)
 			return 0;
 	}
@@ -268,12 +250,9 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 	Decompressor *di[] = { editOp[f], readName[f], mapFlag[f], mapQual[f], quality[f], pairedEnd[f], optField[f] };
 	thread t[7];
 	for (int ti = 0; ti < 7; ti++) {
-		size_t sz;
-		if (fread(&sz, sizeof(size_t), 1, inFile) != 1)
-			throw "File reading failed";
+		size_t sz = inFile->readU64();
 		in[ti].resize(sz);
-		if (sz) 
-			fread(in[ti].data(), 1, sz, inFile);
+		if (sz) inFile->read(in[ti].data(), sz);
 		t[ti] = thread(readBlockThread, di[ti], ref(in[ti]));
 	}
 	for (int ti = 0; ti < 7; ti++)
@@ -323,7 +302,7 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 		fprintf(samFiles[f], "\n");
 
 		if (count % (1 << 16) == 0) 
-			LOGN("\r   Chr %-6s %5.2lf%%", chr.c_str(), (100.0 * ftell(inFile)) / inFileSz);
+			LOGN("\r   Chr %-6s %5.2lf%%", chr.c_str(), (100.0 * inFile->tell()) / inFileSz);
 		count++;
 	}
 	return count;
@@ -347,9 +326,11 @@ vector<int> FileDecompressor::loadIndex (bool inMemory = false)
 			if (sz) gzread(idxFile, idx.fieldData[i].data(), sz); 
 		}
 
-		int16_t f;
-		if (gzread(idxFile, &f, sizeof(int16_t)) != sizeof(int16_t)) 
-			break;
+		int16_t f = 0;
+		if ((this->magic & 0xff) >= 0x11) {
+			if (gzread(idxFile, &f, sizeof(int16_t)) != sizeof(int16_t)) 
+				break;
+		}
 		files.push_back(f);
 		
 		gzread(idxFile, &idx.zpos, sizeof(size_t));
@@ -460,11 +441,9 @@ void FileDecompressor::decompress (const string &idxFilePath,
 		foreach (j, idx) { // TODO speed up
 			if (j == i) break;
 			if (r->second.first >= j->second.fS && r->second.first <= j->second.fE) {
-				fseek(inFile, j->second.zpos, SEEK_SET);
-
-				char chflag;
-				fread(&chflag, 1, 1, inFile);
-				while (chflag) fread(&chflag, 1, 1, inFile);
+				inFile->seek(j->second.zpos);
+				char chflag = inFile->readU8();
+				while (chflag) chflag = inFile->readU8();
 				while (chr != sequence[f]->getChromosome())
 					sequence[f]->scanChromosome(chr);
 
@@ -474,7 +453,7 @@ void FileDecompressor::decompress (const string &idxFilePath,
 		}
 		// set up field data
 		while (r->second.first >= i->second.startPos && r->second.first <= i->second.endPos) {		
-			fseek(inFile, i->second.zpos, SEEK_SET);
+			inFile->seek(i->second.zpos);
 			Decompressor *di[] = { 
 				sequence[f], editOp[f], readName[f], mapFlag[f], 
 				mapQual[f], quality[f], pairedEnd[f], optField[f] 
@@ -497,7 +476,7 @@ void FileDecompressor::decompress (const string &idxFilePath,
 void FileDecompressor::query (const string &query, const string &range)
 {
 	if (query == "allele") {
-		getMagic();
+		/*getMagic();
 		getComment(false);
 		loadIndex(true);
 		auto ranges = getRanges(range);
@@ -565,7 +544,7 @@ void FileDecompressor::query (const string &query, const string &range)
 				end:;
 				LOG("");
 			}
-		}
+		}*/
 	}
 	else {
 		throw DZException("Sorry, but query %s is not supported.", query.c_str());
