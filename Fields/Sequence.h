@@ -68,8 +68,6 @@ class SequenceDecompressor: public Decompressor {
 	
 	std::string chromosome;
 
-	map<int, char> changes;
-
 public:
 	SequenceDecompressor (const std::string &refFile, int bs);
 	~SequenceDecompressor (void);
@@ -83,15 +81,6 @@ public:
 	void setFixed (EditOperationDecompressor &editOperation);
 	void scanChromosome (const std::string &s);
 	std::string getChromosome (void) const { return chromosome; }
-
-	char change (int pos) {
-		if (changes.find(pos) == changes.end())
-			return 0;
-		return changes[pos];
-	}
-	map<int, char> getChanges () {
-		return changes;
-	}
 };
 
 #endif

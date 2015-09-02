@@ -133,6 +133,7 @@ void FileDecompressor::getMagic (void) {
 	// 	(magic >> 4) & 0xf,
 	// 	magic & 0xf
 	// );
+	LOG("File version: 0x%x", magic & 0xff);
 	optQuality = inFile->readU8();
 
 	uint16_t numFiles = 1;
@@ -170,17 +171,17 @@ void FileDecompressor::getMagic (void) {
 				arcsz += fileNames[f].size();
 			}
 		}
-
-		samFiles.resize(numFiles);
-		for (int f = 0; f < numFiles; f++) {
-			if (optStdout)
-				samFiles[f] = stdout;
-			else {
-				string fn = S("%s_%d", outFile.c_str(), f + 1);
-				samFiles[f] = fopen(fn.c_str(), "wb");
-				if (samFiles[f] == NULL)
-					throw DZException("Cannot open the file %s", fn.c_str());
-			}
+	}
+	samFiles.resize(numFiles);
+	for (int f = 0; f < numFiles; f++) {
+		if (optStdout)
+			samFiles[f] = stdout;
+		else {
+			string fn = outFile;
+			if (numFiles > 1) fn += S("_%d", f + 1);
+			samFiles[f] = fopen(fn.c_str(), "wb");
+			if (samFiles[f] == NULL)
+				throw DZException("Cannot open the file %s", fn.c_str());
 		}
 	}
 }
@@ -330,10 +331,14 @@ vector<int> FileDecompressor::loadIndex (bool inMemory = false)
 		if ((this->magic & 0xff) >= 0x11) {
 			if (gzread(idxFile, &f, sizeof(int16_t)) != sizeof(int16_t)) 
 				break;
+			gzread(idxFile, &idx.zpos, sizeof(size_t));
+		}
+		else {
+			if (gzread(idxFile, &idx.zpos, sizeof(size_t)) != sizeof(size_t))
+				break;
 		}
 		files.push_back(f);
 		
-		gzread(idxFile, &idx.zpos, sizeof(size_t));
 		gzread(idxFile, &idx.currentBlockCount, sizeof(size_t));
 		char c; while (gzread(idxFile, &c, 1) && c) chr += c;
 		gzread(idxFile, &idx.startPos, sizeof(size_t));

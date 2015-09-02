@@ -186,51 +186,18 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 		fixes_loc.resize(0);
 		fixes_replace.resize(0);
 		for (size_t i = 0; i < fixedEnd - fixedStart; i++) if (stats.data()[i]) {
-#ifdef MEGALELI
-			int idx = {0, 1, 2, 3, 4, 5};
-			int sum = 0;
-			for (int j = 1; j < 6; j++) 
-				sum += stats.data()[i][j];
-			sort(idx, idx + 5, [](int x, int y)=>{ 
-				return stats.data()[i][x] > stats.data()[i][y]; 
-			});
-			int j = 0, p = 0;
-			while (j < 6 && stats.data()[i][idx[j]] / sum > CUTOFF) 
-				p = 6 * p + idx[j], j++;
-
-			if (j > 1 || fixed[i] != ".ACGTN"[idx[j]]) 
-			{
-				// +1 for 0 termninator avoid
-				addEncoded(fixedStart + i - fixedPrev + 1, fixes_loc);
-				fixedPrev = fixedStart + i;
-				fixes_replace.add(fixed[i] = !p!);
-			}
-#else
 			int max = -1, pos = -1;
-			int max2 = -1, pos2 = -1;
-			int sum = 0; ///stats.data()[i][0];
 			for (int j = 1; j < 6; j++) {
-				sum += stats.data()[i][j];
 				if (stats.data()[i][j] > max)
-					max2 = max, pos2 = pos, max = stats.data()[i][pos = j];
-				else if (stats.data()[i][j] > max2)
-					max2 = stats.data()[i][pos2 = j];
+					max = stats.data()[i][pos = j];
 			}
-			if (fixed[i] != pos[".ACGTN"] || max2 / double(sum) > 0.2) 
+			if (fixed[i] != pos[".ACGTN"]) 
 			{
 				// +1 for 0 termninator avoid
 				addEncoded(fixedStart + i - fixedPrev + 1, fixes_loc);
 				fixedPrev = fixedStart + i;
-				
-				if (max2 / double(sum) > 0.2) { // allelic test
-					char c = 85 + pos * 6 + pos2;
-					fixes_replace.add(fixed[i] = c);
-				}
-				else 
-					fixes_replace.add(fixed[i] = pos[".ACGTN"]);
+				fixes_replace.add(fixed[i] = pos[".ACGTN"]);
 			}
-#endif
-			//printf("%d %d %d %d %d %d %.2lf %c\n", fixedStart+i,max,pos,max2,pos2,sum,max2/double(sum), fixed[i]);
 			delete[] stats.data()[i];
 		}
 		ZAMAN_END("S3");
@@ -311,8 +278,6 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)
 		assert(prevFix < fixedEnd);
 		assert(prevFix >= fixedStart);
 		fixed[prevFix - fixedStart] = fixes_replace.data()[i];
-
-		changes[prevFix] = fixes_replace.data()[i];
 	}
 }
 

@@ -101,5 +101,7 @@ private:
 };
 
 File *OpenFile (const char *path, const char *mode);
+bool FileExists (const char *path);
+bool IsWebFile (const string &path);
 
 #endif // FileIO_H

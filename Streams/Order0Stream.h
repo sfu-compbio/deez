@@ -10,7 +10,7 @@
 #include "rANSStream.h"	
 using namespace std;
 
-#define ACType rANS
+#define ACType AC
 
 template<int AS>
 class AC2CompressionStream;

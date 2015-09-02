@@ -122,8 +122,6 @@ class EditOperationCompressor:
 	CompressionStream *stitchStream;
 	CompressionStream *locationStream;
 
-	CompressionStream *alleleStream;
-
 	char *fixed;
 	size_t fixedStart;
 
@@ -145,9 +143,8 @@ public:
 		);
 		return stream->getCount() + unknownStream->getCount() +
 			operandStream->getCount() + lengthStream->getCount() +
-			locationStream->getCount() + stitchStream->getCount() + 
-			alleleStream->getCount();
-	}
+			locationStream->getCount() + stitchStream->getCount();
+		}
 	
 private:
 	friend class SequenceCompressor;
@@ -157,7 +154,7 @@ private:
 	void addOperation(char op, int seqPos, int size,
 		Array<uint8_t> &operands, Array<uint8_t> &lengths);
 	void addEditOperation(const EditOperation &eo,
-		ACTGStream &nucleotides, Array<uint8_t> &operands, Array<uint8_t> &lengths, Array<uint8_t> &alleles);
+		ACTGStream &nucleotides, Array<uint8_t> &operands, Array<uint8_t> &lengths);
 
 };
 
@@ -171,8 +168,6 @@ class EditOperationDecompressor:
 	DecompressionStream *stitchStream;
 	DecompressionStream *locationStream;
 
-	DecompressionStream *alleleStream;
-
 	char *fixed;
 	size_t fixedStart;
 
@@ -185,7 +180,7 @@ public:
 	void setIndexData (uint8_t *in, size_t in_size);
 
 private:
-	EditOperation getEditOperation (size_t loc, ACTGStream &nucleotides, uint8_t *&op, uint8_t *&len, uint8_t *&all);
+	EditOperation getEditOperation (size_t loc, ACTGStream &nucleotides, uint8_t *&op, uint8_t *&len);
 
 	friend class SequenceDecompressor;
 	void setFixed(char *f, size_t fs);

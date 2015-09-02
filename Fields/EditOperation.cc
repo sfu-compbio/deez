@@ -1,13 +1,4 @@
 #include "EditOperation.h"
-
-#if __cplusplus <= 199711L
-#include <tr1/unordered_set>
-std::tr1::unordered_set<int> quasiPaths;
-#else
-#include <unordered_set>
-std::unordered_set<int> quasiPaths;
-#endif
-
 using namespace std;
 
 EditOperationCompressor::EditOperationCompressor (int blockSize):
@@ -19,20 +10,15 @@ EditOperationCompressor::EditOperationCompressor (int blockSize):
 	unknownStream  = new GzipCompressionStream<6>();
 	locationStream = new AC0CompressionStream<256>();
 	stitchStream = new GzipCompressionStream<6>();
-
-	alleleStream = new GzipCompressionStream<6>();
 }
 
 
 EditOperationCompressor::~EditOperationCompressor (void) {
-	//ERROR("MQ %d\n", quasiPaths.size());
 	delete operandStream;
 	delete lengthStream;
 	delete unknownStream;
 	delete locationStream;
 	delete stitchStream;
-
-	delete alleleStream;
 }
 
 const EditOperation& EditOperationCompressor::operator[] (int idx) {
@@ -73,7 +59,7 @@ void EditOperationCompressor::addOperation (char op, int seqPos, int size,
 }
 
 void EditOperationCompressor::addEditOperation(const EditOperation &eo,
-	ACTGStream &nucleotides, Array<uint8_t> &operands, Array<uint8_t> &lengths, Array<uint8_t> &alleles) 
+	ACTGStream &nucleotides, Array<uint8_t> &operands, Array<uint8_t> &lengths) 
 {
 	if (eo.op == "*") {
 		if (eo.seq != "*") {
@@ -114,10 +100,6 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 
 	bool checkSequence = eo.seq[0] != '*';
 
-
-	int questionablePositions = 0;
-	int questionablePath = 0;
-
 	for (size_t pos = 0; pos < eo.op.size(); pos++) {
 		if (isdigit(eo.op[pos])) {
 			size = size * 10 + (eo.op[pos] - '0');
@@ -138,18 +120,7 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 					lastOP = 'X' /*eo.op[pos]*/, lastOPSize = 0;
 				}
 				for (size_t i = 0; i < size; i++) {
-					bool q = (eo.seq[seqPos] == fixed[genPos]);
-					if (fixed[genPos] >= 85)
-					{
-						questionablePositions++;
-						char c = fixed[genPos];
-						if (eo.seq[seqPos] == ".ACGTN"[(c - 85) / 6])
-							q = 1, questionablePath = questionablePath * 2 + 0;
-						else if (eo.seq[seqPos] == ".ACGTN"[(c - 85) % 6])
-							q = 1, questionablePath = questionablePath * 2 + 1;
-					}
-
-					if (checkSequence && q) {
+					if (checkSequence && eo.seq[seqPos] == fixed[genPos]) {
 						if (lastOP == '=')
 							lastOPSize++;
 						else {
@@ -192,10 +163,6 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 	}
 	operands.add(0);
 	addEncoded((checkSequence ? eo.seq.size() : 0) + 1, lengths);
-	addEncoded(questionablePath + 1, alleles);
-
-	quasiPaths.insert(questionablePath);
-	//LOG("");
 }
 
 void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {
@@ -211,8 +178,6 @@ void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_off
 	Array<uint8_t> locations(k);
 	Array<uint32_t> stitches(k);	
 
-	Array<uint8_t> alleles(k * records[0].op.size());
-
 	ACTGStream nucleotides(k * records[0].seq.size(), MB);
 	nucleotides.initEncode();
 
@@ -224,7 +189,7 @@ void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_off
 			locations.add(records[i].start - lastLoc);
 		lastLoc = records[i].start;
 
-		addEditOperation(records[i], nucleotides, operands, lengths, alleles);
+		addEditOperation(records[i], nucleotides, operands, lengths);
 	}
 	
 	compressArray(stitchStream, stitches, out, out_offset);
@@ -236,8 +201,6 @@ void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_off
 
 	compressArray(operandStream, operands, out, out_offset);
 	compressArray(lengthStream, lengths, out, out_offset);
-
-	compressArray(alleleStream, alleles, out, out_offset);
 
 	records.remove_first_n(k);
 }
@@ -253,8 +216,6 @@ EditOperationDecompressor::EditOperationDecompressor (int blockSize):
 	lengthStream   = new GzipDecompressionStream();
 	locationStream = new AC0DecompressionStream<256>();
 	stitchStream   = new GzipDecompressionStream();
-
-	alleleStream   = new GzipDecompressionStream();
 }
 
 EditOperationDecompressor::~EditOperationDecompressor (void) {
@@ -263,8 +224,6 @@ EditOperationDecompressor::~EditOperationDecompressor (void) {
 	delete lengthStream;
 	delete locationStream;
 	delete stitchStream;
-
-	delete alleleStream;
 }
 
 void EditOperationDecompressor::setFixed (char *f, size_t fs) {
@@ -290,28 +249,24 @@ void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	Array<uint8_t> lengths;
 	decompressArray(lengthStream, in, lengths);
 
-	Array<uint8_t> alleles;
-	decompressArray(alleleStream, in, alleles);
-
 	records.resize(0);
 
 	size_t stitchIdx = 0;
 	uint32_t lastLoc = 0;
 	uint8_t *op = operands.data();
 	uint8_t *len = lengths.data();
-	uint8_t *al = alleles.data();
 	for (size_t i = 0; i < sz; i++) {
 		if (locations.data()[i] == 255)
 			lastLoc = stitchIdx++[(uint32_t*)stitches.data()];
 		else
 			lastLoc += locations.data()[i];
-		records.add(getEditOperation(lastLoc, nucleotides, op, len, al));
+		records.add(getEditOperation(lastLoc, nucleotides, op, len));
 	}
 
 	recordCount = 0;
 }
 
-EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStream &nucleotides, uint8_t *&op, uint8_t *&len, uint8_t *&alleles) {
+EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStream &nucleotides, uint8_t *&op, uint8_t *&len) {
 //	assert(fixed != NULL);
 //	assert(loc >= fixedStart);
 
@@ -450,19 +405,8 @@ EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStrea
 			eo.end += lastOPSize;
 	}
 
- 	int allelePath = getEncoded(alleles) - 1;
-
 	if (eo.seq == "" || eo.seq[0] == '*')
 		eo.seq = "*";
-	else for (int i = eo.seq.size() - 1; i >= 0; i--) if (eo.seq[i] >= 85) {
-		eo.seq[i] -= 85;
-		if (allelePath % 2 == 0)
-			eo.seq[i] /= 6;
-		else
-			eo.seq[i] %= 6;
-		eo.seq[i] = ".ACGTN"[eo.seq[i]];
-		allelePath /= 2;
-	}
 	return eo;
 }
 

@@ -1,17 +1,40 @@
 #include "FileIO.h"
 
+bool IsWebFile (const string &path)
+{
+	return path.find("://") != string::npos;
+}
+
 File *OpenFile (const char *path, const char *mode) 
 {
-	string p = string(path);
-	auto pos = p.find("://");
-	if (pos != string::npos) 
+	if (IsWebFile(string(path))) 
 		return new WebFile(path, mode);
 	else
 		return new File(path, mode);
 }
 
+bool FileExists (const char *path)
+{
+	bool result = false;
+	if (IsWebFile(string(path))) {
+		CURL *ch = curl_easy_init();
+		curl_easy_setopt(ch, CURLOPT_URL, path);
+		curl_easy_setopt(ch, CURLOPT_NOBODY, 1);
+		curl_easy_setopt(ch, CURLOPT_FAILONERROR, 1);
+		result = (curl_easy_perform(ch) == CURLE_OK);
+		curl_easy_cleanup(ch);
+	}
+	else {
+		FILE *f = fopen(path, "r");
+		result = (f != 0);
+		if (f) fclose(f);
+	}
+	return result;
+}
+
 File::File () 
 {
+	fh = 0;
 }
 
 File::File (const char *path, const char *mode) 
@@ -27,6 +50,7 @@ File::~File ()
 void File::open (const char *path, const char *mode) 
 { 
 	fh = fopen(path, mode); 
+	if (!fh) throw DZException("Cannot open file %s", path);
 	get_size();
 }
 
@@ -124,7 +148,9 @@ WebFile::~WebFile ()
 void WebFile::open (const char *path, const char *mode) 
 { 
 	ch = curl_easy_init();
+	if (!ch) throw DZException("Cannot open file %s", path);
 	curl_easy_setopt(ch, CURLOPT_URL, path);
+	curl_easy_setopt(ch, CURLOPT_VERBOSE, 1);
 	curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, WebFile::CURLCallback); 
 	get_size();
 	foffset = 0;
@@ -218,6 +244,7 @@ GzFile::~GzFile ()
 void GzFile::open (const char *path, const char *mode) 
 { 
 	fh = gzopen(path, mode); 
+	if (!fh) throw DZException("Cannot open file %s", path);
 }
 
 void GzFile::close () 
