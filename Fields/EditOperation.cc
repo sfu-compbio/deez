@@ -257,7 +257,7 @@ void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	uint8_t *len = lengths.data();
 	for (size_t i = 0; i < sz; i++) {
 		if (locations.data()[i] == 255)
-			lastLoc = stitchIdx++[(uint32_t*)stitches.data()];
+			lastLoc = ((uint32_t*)stitches.data())[stitchIdx++];
 		else
 			lastLoc += locations.data()[i];
 		records.add(getEditOperation(lastLoc, nucleotides, op, len));

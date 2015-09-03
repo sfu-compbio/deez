@@ -16,16 +16,18 @@ protected:
 	File ();
 
 public:
-	File (const char *path, const char *mode);
+	File (FILE *handle);
+	File (const string &path, const char *mode);
 	virtual ~File ();
 
-	virtual void open (const char *path, const char *mode);
+	virtual void open (const string &path, const char *mode);
 	virtual void close ();
 
 	virtual ssize_t read (void *buffer, size_t size);
-	virtual ssize_t read(void *buffer, size_t size, size_t offset);
+	virtual ssize_t read (void *buffer, size_t size, size_t offset);
 	virtual ssize_t write (void *buffer, size_t size);
 
+	virtual char getc();
 	virtual uint8_t readU8();
 	virtual uint16_t readU16();
 	virtual uint32_t readU32();
@@ -36,6 +38,7 @@ public:
 
 	virtual size_t size ();
 	virtual bool eof ();
+	virtual void *handle ();
 
 private:
 	virtual void get_size ();
@@ -47,10 +50,10 @@ class WebFile: public File
 	size_t fsize, foffset;
 
 public:
-	WebFile (const char *path, const char *mode);
+	WebFile (const string &path, const char *mode);
 	~WebFile ();
 
-	void open (const char *path, const char *mode);
+	void open (const string &path, const char *mode);
 	void close ();
 
 	ssize_t read (void *buffer, size_t size);
@@ -62,6 +65,9 @@ public:
 
 	size_t size ();
 	bool eof ();
+	void *handle ();
+
+	static FILE *Download (const string &path);
 
 private:
 	void get_size ();
@@ -73,6 +79,8 @@ private:
 		~CURLBuffer () { free(data); }
 	};
 	static size_t CURLCallback (void *ptr, size_t size, size_t nmemb, void *data);
+	static int CURLDownloadProgressCallback (void* ptr, double TotalToDownload, double NowDownloaded, double TotalToUpload, double NowUploaded);
+	static size_t CURLDownloadCallback (void *ptr, size_t size, size_t nmemb, FILE *stream);
 };
 
 class GzFile: public File
@@ -80,10 +88,10 @@ class GzFile: public File
 	gzFile fh;
 
 public:
-	GzFile (const char *path, const char *mode);
+	GzFile (const string &path, const char *mode);
 	~GzFile ();
 
-	void open (const char *path, const char *mode);
+	void open (const string &path, const char *mode);
 	void close ();
 
 	ssize_t read (void *buffer, size_t size);
@@ -95,13 +103,14 @@ public:
 
 	size_t size ();
 	bool eof ();
+	void *handle ();
 
 private:
 	void get_size ();
 };
 
-File *OpenFile (const char *path, const char *mode);
-bool FileExists (const char *path);
+File *OpenFile (const string &path, const char *mode);
+bool FileExists (const string &path);
 bool IsWebFile (const string &path);
 
 #endif // FileIO_H

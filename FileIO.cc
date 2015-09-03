@@ -5,27 +5,27 @@ bool IsWebFile (const string &path)
 	return path.find("://") != string::npos;
 }
 
-File *OpenFile (const char *path, const char *mode) 
+File *OpenFile (const string &path, const char *mode) 
 {
-	if (IsWebFile(string(path))) 
+	if (IsWebFile(path)) 
 		return new WebFile(path, mode);
 	else
 		return new File(path, mode);
 }
 
-bool FileExists (const char *path)
+bool FileExists (const string &path)
 {
 	bool result = false;
-	if (IsWebFile(string(path))) {
+	if (IsWebFile(path)) {
 		CURL *ch = curl_easy_init();
-		curl_easy_setopt(ch, CURLOPT_URL, path);
+		curl_easy_setopt(ch, CURLOPT_URL, path.c_str());
 		curl_easy_setopt(ch, CURLOPT_NOBODY, 1);
 		curl_easy_setopt(ch, CURLOPT_FAILONERROR, 1);
 		result = (curl_easy_perform(ch) == CURLE_OK);
 		curl_easy_cleanup(ch);
 	}
 	else {
-		FILE *f = fopen(path, "r");
+		FILE *f = fopen(path.c_str(), "r");
 		result = (f != 0);
 		if (f) fclose(f);
 	}
@@ -37,7 +37,12 @@ File::File ()
 	fh = 0;
 }
 
-File::File (const char *path, const char *mode) 
+File::File (FILE *handle) 
+{
+	fh = handle;
+}
+
+File::File (const string &path, const char *mode) 
 { 
 	open(path, mode); 
 }
@@ -47,10 +52,10 @@ File::~File ()
 	close();
 }
 
-void File::open (const char *path, const char *mode) 
+void File::open (const string &path, const char *mode) 
 { 
-	fh = fopen(path, mode); 
-	if (!fh) throw DZException("Cannot open file %s", path);
+	fh = fopen(path.c_str(), mode); 
+	if (!fh) throw DZException("Cannot open file %s", path.c_str());
 	get_size();
 }
 
@@ -69,6 +74,14 @@ ssize_t File::read (void *buffer, size_t size, size_t offset)
 {
 	fseek(fh, offset, SEEK_SET);
 	return read(buffer, size);
+}
+
+char File::getc ()
+{
+	char c;
+	if (read(&c, 1) == 0)
+		return EOF;
+	return c;
 }
 
 uint8_t File::readU8 () 
@@ -135,7 +148,12 @@ void File::get_size ()
 	fseek(fh, 0, SEEK_SET);
 }
 
-WebFile::WebFile (const char *path, const char *mode) 
+void *File::handle ()
+{
+	return fh;
+}
+
+WebFile::WebFile (const string &path, const char *mode) 
 { 
 	open(path, mode); 
 }
@@ -145,13 +163,14 @@ WebFile::~WebFile ()
 	close();
 }
 
-void WebFile::open (const char *path, const char *mode) 
+void WebFile::open (const string &path, const char *mode) 
 { 
 	ch = curl_easy_init();
-	if (!ch) throw DZException("Cannot open file %s", path);
-	curl_easy_setopt(ch, CURLOPT_URL, path);
-	curl_easy_setopt(ch, CURLOPT_VERBOSE, 1);
+	if (!ch) throw DZException("Cannot open file %s", path.c_str());
+	curl_easy_setopt(ch, CURLOPT_URL, path.c_str());
+	curl_easy_setopt(ch, CURLOPT_VERBOSE, 0);
 	curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, WebFile::CURLCallback); 
+	curl_easy_setopt(ch, CURLOPT_FAILONERROR, 1);
 	get_size();
 	foffset = 0;
 }
@@ -219,6 +238,40 @@ void WebFile::get_size ()
 	curl_easy_setopt(ch, CURLOPT_NOBODY, 0);
 }
 
+FILE *WebFile::Download (const string &path)
+{
+	LOGN("Downloading %s ...     ", path.c_str());
+	CURL *ch = curl_easy_init();
+	curl_easy_setopt(ch, CURLOPT_URL, path.c_str());
+	curl_easy_setopt(ch, CURLOPT_VERBOSE, 0);
+	curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, WebFile::CURLDownloadCallback); 
+	FILE *f = tmpfile();
+	curl_easy_setopt(ch, CURLOPT_WRITEDATA, f);
+	curl_easy_setopt(ch, CURLOPT_NOPROGRESS, 0);
+	curl_easy_setopt(ch, CURLOPT_FAILONERROR, 1);
+	curl_easy_setopt(ch, CURLOPT_PROGRESSFUNCTION, WebFile::CURLDownloadProgressCallback);
+	auto res = curl_easy_perform(ch);
+	LOG("");
+	if (res != CURLE_OK) 
+		throw DZException("Cannot download file %s", path.c_str());
+	curl_easy_cleanup(ch);
+	fflush(f);
+	fseek(f, 0, SEEK_SET);
+	return f;
+}
+
+int WebFile::CURLDownloadProgressCallback (void* ptr, double TotalToDownload, double NowDownloaded, double TotalToUpload, double NowUploaded)
+{
+	if (int(TotalToDownload))
+		LOGN("\b\b\b\b%3.0lf%%", 100.0 * NowDownloaded / TotalToDownload);
+	return 0;
+}
+
+size_t WebFile::CURLDownloadCallback (void *ptr, size_t size, size_t nmemb, FILE *stream) 
+{
+    return fwrite(ptr, size, nmemb, stream);
+}
+
 size_t WebFile::CURLCallback (void *ptr, size_t size, size_t nmemb, void *data) 
 {
 	size_t realsize = size * nmemb;
@@ -231,7 +284,13 @@ size_t WebFile::CURLCallback (void *ptr, size_t size, size_t nmemb, void *data)
 	return realsize;
 }
 
-GzFile::GzFile (const char *path, const char *mode) 
+
+void *WebFile::handle ()
+{
+	return ch;
+}
+
+GzFile::GzFile (const string &path, const char *mode) 
 { 
 	open(path, mode); 
 }
@@ -241,10 +300,10 @@ GzFile::~GzFile ()
 	close();
 }
 
-void GzFile::open (const char *path, const char *mode) 
+void GzFile::open (const string &path, const char *mode) 
 { 
-	fh = gzopen(path, mode); 
-	if (!fh) throw DZException("Cannot open file %s", path);
+	fh = gzopen(path.c_str(), mode); 
+	if (!fh) throw DZException("Cannot open file %s", path.c_str());
 }
 
 void GzFile::close () 
@@ -295,4 +354,9 @@ bool GzFile::eof ()
 void GzFile::get_size () 
 {
 	throw DZException("GZ file size is not supported");
+}
+
+void *GzFile::handle ()
+{
+	return fh;
 }

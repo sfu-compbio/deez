@@ -5,79 +5,103 @@ using namespace std;
 static const int MAX_CHROMOSOME = 400 * MB;
 extern bool optInvalidChr;
 
-string full_path (const string &s);
-
-Reference::Reference (const string &filename) {
+Reference::Reference (const string &filename) 
+{
 	chromosomes["*"] = 0;
 
-	struct stat st;
-	lstat(filename.c_str(), &st);
-	if (filename == "" || S_ISDIR(st.st_mode)) {
-		directory = (filename == "") ? "." : filename;
-		LOG("Using directory %s for searching chromosome FASTA files", directory.c_str());
+	if (!IsWebFile(filename)) {
+		struct stat st;
+		lstat(filename.c_str(), &st);
+		if (filename == "" || S_ISDIR(st.st_mode)) {
+			directory = (filename == "") ? "." : filename;
+			LOG("Using directory %s for searching chromosome FASTA files", directory.c_str());
+			input = 0;
+			return;
+		}
+	}
+	else if (filename.size() > 0 && filename[filename.size() - 1] == '/') {
+		directory = filename;
+		LOG("Using web directory %s for searching chromosome FASTA files", directory.c_str());
 		input = 0;
 		return;
 	}
 
-	input = fopen(filename.c_str(), "rb");
-	if (input == NULL) {
-		//return;
-		throw DZException("Cannot open the file %s", filename.c_str());
-	}
-	DEBUG("Loaded reference file %s", full_path(filename).c_str());
-	//c = fgetc(input);
-	//chromosome.reserve(MAX_CHROMOSOME);
+	input = OpenFile(filename, "rb");
+	DEBUG("Loaded reference file %s", filename.c_str());
 
-	FILE *fastaidx = fopen(string(filename + ".fai").c_str(), "rb");
-	if (fastaidx != 0) {
+	try {
+		string faidx = filename + ".fai";
+		FILE *fastaidx;
+		if (IsWebFile(faidx)) 
+			fastaidx = WebFile::Download(faidx);
+		else
+			fastaidx = fopen(faidx.c_str(), "rb");
+		if (!fastaidx)
+			throw DZException("Cannot open FASTA index %s", faidx.c_str());
 		char chr[50];
 		size_t loc;
 		while (fscanf(fastaidx, "%s %*lu %lu %*lu %*lu", chr, &loc) != EOF) 
 			chromosomes[chr] = loc;
+		fclose(fastaidx);
 	}
-	else {
-		LOG("FASTA index not found, creating one ...");
-		fastaidx = fopen(string(filename + ".fai").c_str(), "wb");
-		if (!fastaidx)
-			throw DZException("Cannot open file %s for writing", string(filename + ".fai").c_str());
+	catch (DZException &e) {
+		LOG("%s...", e.what());
+		FILE *fastaidx = 0;
+		if (IsWebFile(filename)) {
+			delete input;
+			FILE *tmp = WebFile::Download(filename);
+			input = new File(tmp);
+		}
+		else {
+			LOG("FASTA index not found, creating one ...");
+			fastaidx = fopen(string(filename + ".fai").c_str(), "wb");
+			if (!fastaidx)
+				throw DZException("Cannot create reference index for %s", filename.c_str());
+		}
+
 		string chr = "";
 		size_t cnt = 0, cntfull = 0, pos;
-		while ((c = fgetc(input)) != EOF) {
+		while ((c = input->getc()) != EOF) {
 			if (c == '>') {
-				if (chr != "") fprintf(fastaidx, "%s\t%lu\t%lu\t%lu\t%lu\n", chr.c_str(), cnt, pos, cnt, cntfull);
+				if (chr != "" && fastaidx) 
+					fprintf(fastaidx, "%s\t%lu\t%lu\t%lu\t%lu\n", chr.c_str(), cnt, pos, cnt, cntfull);
 
 				chr = "";
 				cnt = cntfull = 0;
 				
-				c = fgetc(input);
+				c = input->getc();
 				while (!isspace(c) && c != EOF) 
-					chr += c, c = fgetc(input);
+					chr += c, c = input->getc();
 				while (c != '\n' && c != EOF) 
-					c = fgetc(input);
-			//	LOG("%s", chr.c_str());
+					c = input->getc();
 				
-				pos = ftell(input);
+				pos = input->tell();
 				chromosomes[chr] = pos;
 				continue;
 			}
 			if (!isspace(c)) cnt++;
 			cntfull++;
 		}
-		if (chr != "") fprintf(fastaidx, "%s\t%lu\t%lu\t%lu\t%lu\n", chr.c_str(), cnt, pos, cnt, cntfull);
-		fseek(input, 0, SEEK_SET);
+		if (chr != "" && fastaidx) 
+			fprintf(fastaidx, "%s\t%lu\t%lu\t%lu\t%lu\n", chr.c_str(), cnt, pos, cnt, cntfull);
+		if (fastaidx)
+			fclose(fastaidx);
+		input->seek(0);
 	}
-	fclose(fastaidx);
 }
 
-Reference::~Reference (void) {
-	if (input) fclose(input);
+Reference::~Reference (void) 
+{
+	if (input) delete input;
 }
 
-string Reference::getChromosomeName (void) const {
+string Reference::getChromosomeName (void) const 
+{
 	return currentChr;
 }
 
-size_t Reference::getChromosomeLength(const std::string &s) const {
+size_t Reference::getChromosomeLength(const std::string &s) const 
+{
 	auto it = chromosomes.find(s);
 	if (it != chromosomes.end())
 		return it->second;
@@ -87,7 +111,8 @@ size_t Reference::getChromosomeLength(const std::string &s) const {
 		throw DZException("Chromosome %s not found", s.c_str());
 }
 
-std::string Reference::scanChromosome (const string &s) {
+std::string Reference::scanChromosome (const string &s) 
+{
 	if (s == "*")
 		return currentChr = "*";
 	if (directory == "") {
@@ -97,78 +122,85 @@ std::string Reference::scanChromosome (const string &s) {
 				return currentChr = s;
 			throw DZException("Chromosome %s not found in the reference", s.c_str());
 		}
-		fseek(input, it->second, SEEK_SET);
+		input->seek(it->second);
 	}
 	else {
 		string filename = directory + "/" + s + ".fa";
-		if (input) fclose(input);
-		input = fopen(filename.c_str(), "rb");
-		if (input == NULL) {
+		if (directory.size() && directory[directory.size() - 1] == '/')
+			filename = directory + s + ".fa";
+		
+		try {
+			delete input;
+			if (IsWebFile(filename)) {
+				FILE *tmp = WebFile::Download(filename);
+				input = new File(tmp);
+			}
+			else
+				input = OpenFile(filename, "rb");
+		}
+		catch (DZException *e) {
 			if (optInvalidChr) 
 				return currentChr = s;
-			throw DZException("Cannot open chromosome file %s", filename.c_str());
+			throw;
 		}
-		DEBUG("Loaded reference file %s", full_path(filename).c_str());
-
+		DEBUG("Loaded reference file %s", filename.c_str());
 		char c;
-		while ((c = fgetc(input)) != EOF) {
+		while ((c = input->getc()) != EOF) {
 			if (c == '>') {
 				string chr;
-				size_t pos = ftell(input);
-				c = fgetc(input);
+				size_t pos = input->tell();
+				c = input->getc();
 				while (!isspace(c) && c != EOF) 
-					chr += c, c = fgetc(input);
-			//	LOG("%s", chr.c_str());
+					chr += c, c = input->getc();
 				chromosomes[chr] = pos;
 			}
 		}
-		fseek(input, 0, SEEK_SET);
-		fgetc(input);
+		input->seek(0);
+		input->getc();
 	}
-	//c = fgetc(input);
-	//if(c!='>') throw DZException("eeee %c", c);
-	//assert(c == '>');
 	
 	currentChr = s;
-	c = fgetc(input);
+	c = input->getc();
 	if (c == '>') {
 		currentChr = "";
 		while (!isspace(c) && c != EOF) 
-			currentChr += c, c = fgetc(input);
+			currentChr += c, c = input->getc();
 		// skip fasta comment
 		while (c != '\n') 
-			c = fgetc(input);
+			c = input->getc();
 		// park at first nucleotide
-		c = fgetc(input);
+		c = input->getc();
 	}
-	if (c == '>' || c == EOF)
-		throw DZException("Empty chromosome %s", currentChr.c_str());
+	if (c == '>' || c == EOF) {
+		if (optInvalidChr)
+			return currentChr = s;
+		else
+			throw DZException("Empty chromosome %s", currentChr.c_str());
+	}
 	currentPos = 0;
 	return currentChr;
 }
 
-void Reference::load (char *arr, size_t s, size_t e) {
-	//DEBUG("LOAD %'lu-%'lu",s,e);
+void Reference::load (char *arr, size_t s, size_t e) 
+{
 	if (chromosomes.find(currentChr) == chromosomes.end()) {
 		for (size_t i = 0; i < e - s; i++)
 			arr[i] = 'N';
 		return;
 	}
 
-
 	size_t i = 0;
 	while (currentPos < e) {
 		if (currentPos >= s) 
 			arr[i++] = c;
 
-		c = fgetc(input);
+		c = input->getc();
 		while (isspace(c))
-			c = fgetc(input);
+			c = input->getc();
 		if (c == '>' || c == EOF) {
 			while (i < e-s)
 				arr[i++] = 'N';
 			break;
-			// throw "outside chromosome range"; // fill with Ns?
 		}
 		currentPos++;
 	}

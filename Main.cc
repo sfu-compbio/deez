@@ -289,7 +289,7 @@ int main (int argc, char **argv) {
     	else if (optStats)
     		decompress(optInput, "");
     	else {
-	    	if (!optInvalidChr && !FileExists(optRef.c_str()))
+	    	if (!optInvalidChr && !FileExists(optRef.c_str()) && (optRef.size() == 0 || optRef[optRef.size() - 1] != '/'))
 	    		throw DZException("Reference file %s does not exist", optRef.c_str());
 	    	else if (optInvalidChr) LOG("No reference provided -- compression performance will be suboptimal");
 	    	else DEBUG("Using reference file %s", full_path(optRef).c_str());

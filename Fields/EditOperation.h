@@ -144,7 +144,7 @@ public:
 		return stream->getCount() + unknownStream->getCount() +
 			operandStream->getCount() + lengthStream->getCount() +
 			locationStream->getCount() + stitchStream->getCount();
-		}
+	}
 	
 private:
 	friend class SequenceCompressor;

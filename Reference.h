@@ -8,9 +8,10 @@
 #include <string.h>
 
 #include "Common.h"
+#include "FileIO.h"
 
 class Reference {
-	FILE *input;
+	File *input;
 	std::string directory;
 	std::string currentChr;
 	size_t currentPos;
