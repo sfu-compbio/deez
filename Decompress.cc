@@ -478,6 +478,7 @@ void FileDecompressor::decompress (const string &idxFilePath,
 	LOGN("\nDecompressed %'lu records, %'lu blocks\n", totalSz, blockCount);
 }
 
+
 void FileDecompressor::query (const string &query, const string &range)
 {
 	if (query == "allele") {

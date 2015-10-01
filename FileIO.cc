@@ -1,9 +1,90 @@
 #include "FileIO.h"
 
+#ifdef OPENSSL
+#include <openssl/hmac.h>
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <openssl/buffer.h>
+#endif
+
 bool IsWebFile (const string &path)
 {
 	return path.find("://") != string::npos;
 }
+
+bool IsS3File (const string &path)
+{
+	return IsWebFile(path) && (path.size() > 5 && path.substr(0, 5) == "s3://");
+}
+
+string SetS3File (string url, CURL *ch, string method = "GET") 
+{
+	if (IsS3File(url)) {
+		url = url.substr(5);
+		auto pos = url.find('/');
+		if (pos != string::npos) {
+			string bucket = url.substr(0, pos);
+			string location = url.substr(pos + 1);
+
+			url = S("https://%s.s3.amazonaws.com/%s", bucket.c_str(), location.c_str());
+			//LOG("Using %s", url.c_str());
+
+#ifdef OPENSSL
+			char *accessKey = getenv("AWS_ACCESS_KEY_ID");
+			char *secretKey = getenv("AWS_SECRET_ACCESS_KEY");
+			if (accessKey && secretKey && string(accessKey) != "" && string(secretKey) != "") {
+				curl_slist *list = 0;
+				//LOG("Using AWS credentials found in AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY");
+				
+				list = curl_slist_append(list, "Accept:");
+				list = curl_slist_append(list, S("Host: %s.s3.amazonaws.com", bucket.c_str()).c_str());
+
+				// Proper AWS date
+				time_t rawtime;
+				time(&rawtime);
+				tm *tms = localtime(&rawtime);
+				char date[150];
+				strftime(date, 150, "%a, %d %b %Y %T %z", tms);
+				list = curl_slist_append(list, S("Date: %s", date).c_str());
+
+				// HMAC-SHA1 hash
+				string data = S("%s\n\n\n%s\n/%s/%s", method.c_str(), date, bucket.c_str(), location.c_str());
+				unsigned char* digest = HMAC(
+					EVP_sha1(), 
+					secretKey, strlen(secretKey), 
+					(unsigned char*)data.c_str(), data.size(), 
+					NULL, NULL
+				);    
+
+				// Base64 
+				BUF_MEM *bufferPtr;
+				BIO *b64 = BIO_new(BIO_f_base64());
+				BIO *bio = BIO_new(BIO_s_mem());
+				bio = BIO_push(b64, bio);
+				BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); //Ignore newlines - write everything in one line
+				BIO_write(bio, digest, 20);
+				BIO_flush(bio);
+				BIO_get_mem_ptr(bio, &bufferPtr);
+				BIO_set_close(bio, BIO_NOCLOSE);
+				BIO_free_all(bio);
+
+				char *encodedSecret = (*bufferPtr).data;
+
+				//auto q =S("curl -X GET -H 'Host: 1000genomes.s3.amazonaws.com' -H 'Date: %s' -H 'Authorization: AWS %s:%s' %s",
+				//	date, accessKey, encodedSecret, url.c_str());
+				//LOG("%s",q.c_str());
+				//system(q.c_str());
+
+				list = curl_slist_append(list, S("Authorization: AWS %s:%s", accessKey, encodedSecret).c_str());
+				curl_easy_setopt(ch, CURLOPT_HTTPHEADER, list);
+			}
+#endif
+			//curl_easy_setopt(ch, CURLOPT_VERBOSE, 1);
+		}
+	}
+	return url;
+}
+
 
 File *OpenFile (const string &path, const char *mode) 
 {
@@ -18,9 +99,14 @@ bool FileExists (const string &path)
 	bool result = false;
 	if (IsWebFile(path)) {
 		CURL *ch = curl_easy_init();
-		curl_easy_setopt(ch, CURLOPT_URL, path.c_str());
 		curl_easy_setopt(ch, CURLOPT_NOBODY, 1);
 		curl_easy_setopt(ch, CURLOPT_FAILONERROR, 1);
+
+		string url = path;
+		if (IsS3File(url))
+			url = SetS3File(url, ch, "HEAD");
+		curl_easy_setopt(ch, CURLOPT_URL, url.c_str());
+
 		result = (curl_easy_perform(ch) == CURLE_OK);
 		curl_easy_cleanup(ch);
 	}
@@ -167,7 +253,12 @@ void WebFile::open (const string &path, const char *mode)
 { 
 	ch = curl_easy_init();
 	if (!ch) throw DZException("Cannot open file %s", path.c_str());
-	curl_easy_setopt(ch, CURLOPT_URL, path.c_str());
+
+	string url = path;
+	if (IsS3File(url))
+		url = SetS3File(url, ch);
+
+	curl_easy_setopt(ch, CURLOPT_URL, url.c_str());
 	curl_easy_setopt(ch, CURLOPT_VERBOSE, 0);
 	curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, WebFile::CURLCallback); 
 	curl_easy_setopt(ch, CURLOPT_FAILONERROR, 1);
@@ -242,7 +333,10 @@ FILE *WebFile::Download (const string &path)
 {
 	LOGN("Downloading %s ...     ", path.c_str());
 	CURL *ch = curl_easy_init();
-	curl_easy_setopt(ch, CURLOPT_URL, path.c_str());
+	string url = path;
+	if (IsS3File(url))
+		url = SetS3File(url, ch);
+	curl_easy_setopt(ch, CURLOPT_URL, url.c_str());
 	curl_easy_setopt(ch, CURLOPT_VERBOSE, 0);
 	curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, WebFile::CURLDownloadCallback); 
 	FILE *f = tmpfile();
