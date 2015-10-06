@@ -166,7 +166,7 @@ char File::getc ()
 {
 	char c;
 	if (read(&c, 1) == 0)
-		return EOF;
+		c = EOF;
 	return c;
 }
 
@@ -259,7 +259,7 @@ void WebFile::open (const string &path, const char *mode)
 		url = SetS3File(url, ch);
 
 	curl_easy_setopt(ch, CURLOPT_URL, url.c_str());
-	curl_easy_setopt(ch, CURLOPT_VERBOSE, 0);
+	curl_easy_setopt(ch, CURLOPT_VERBOSE, optLogLevel >= 2);
 	curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, WebFile::CURLCallback); 
 	curl_easy_setopt(ch, CURLOPT_FAILONERROR, 1);
 	get_size();
@@ -329,7 +329,7 @@ void WebFile::get_size ()
 	curl_easy_setopt(ch, CURLOPT_NOBODY, 0);
 }
 
-FILE *WebFile::Download (const string &path)
+File *WebFile::Download (const string &path, bool detectGZFiles)
 {
 	LOGN("Downloading %s ...     ", path.c_str());
 	CURL *ch = curl_easy_init();
@@ -337,21 +337,32 @@ FILE *WebFile::Download (const string &path)
 	if (IsS3File(url))
 		url = SetS3File(url, ch);
 	curl_easy_setopt(ch, CURLOPT_URL, url.c_str());
-	curl_easy_setopt(ch, CURLOPT_VERBOSE, 0);
+	curl_easy_setopt(ch, CURLOPT_VERBOSE, optLogLevel >= 2);
 	curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, WebFile::CURLDownloadCallback); 
-	FILE *f = tmpfile();
+	FILE *f = tmpfile(); //fopen("HAMO.txt","a+b");// tmpfile();
 	curl_easy_setopt(ch, CURLOPT_WRITEDATA, f);
 	curl_easy_setopt(ch, CURLOPT_NOPROGRESS, 0);
 	curl_easy_setopt(ch, CURLOPT_FAILONERROR, 1);
 	curl_easy_setopt(ch, CURLOPT_PROGRESSFUNCTION, WebFile::CURLDownloadProgressCallback);
 	auto res = curl_easy_perform(ch);
-	LOG("");
 	if (res != CURLE_OK) 
 		throw DZException("Cannot download file %s", path.c_str());
 	curl_easy_cleanup(ch);
 	fflush(f);
 	fseek(f, 0, SEEK_SET);
-	return f;
+	unsigned char magic[2];
+	fread(magic, 1, 2, f);
+	fseek(f, 0, SEEK_SET);
+	fflush(f);
+
+	if (detectGZFiles && magic[0] == 0x1f && magic[1] == 0x8b) {
+		LOG("\b\b\b\b opened as GZ file"); 
+		return new GzFile(f);
+	} 
+	else {
+		LOG("");
+		return new File(f);
+	}
 }
 
 int WebFile::CURLDownloadProgressCallback (void* ptr, double TotalToDownload, double NowDownloaded, double TotalToUpload, double NowUploaded)
@@ -389,6 +400,16 @@ GzFile::GzFile (const string &path, const char *mode)
 	open(path, mode); 
 }
 
+GzFile::GzFile (FILE *handle) 
+{
+	fh = gzdopen(fileno(handle), "rb");
+	if (!fh) throw DZException("Cannot open GZ file via handle");
+
+	//char r[50];
+	//gzread(fh, r, 50); r[49] = 0;
+	//LOG("%s",r);
+}
+
 GzFile::~GzFile () 
 {
 	close();
@@ -411,8 +432,9 @@ ssize_t GzFile::read (void *buffer, size_t size)
 	const size_t offset = 1 * (size_t)GB;
 	if (size > offset) 
 		return gzread(fh, buffer, offset) + read((char*)buffer + offset, size - offset); 
-	else 
+	else {
 		return gzread(fh, buffer, size);
+	}
 }
 
 ssize_t GzFile::read(void *buffer, size_t size, size_t offset) 

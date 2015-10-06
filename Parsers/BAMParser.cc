@@ -13,7 +13,13 @@ BAMParser::BAMParser (const string &filename):
 {
 	Parser::fname = filename;
 
-	fd = fopen(filename.c_str(), "rb");
+	if (IsWebFile(filename)) {
+		File *fh = WebFile::Download(filename); // TODO fix leak
+		fd = (FILE*) fh->handle();
+	}
+	else
+		fd = fopen(filename.c_str(), "rb");
+
 	fseek(fd, 0L, SEEK_END);
 	file_size = ftell(fd);
 	fseek(fd, 0L, SEEK_SET);
@@ -23,9 +29,9 @@ BAMParser::BAMParser (const string &filename):
 		throw DZException("Cannot open the file %s", filename.c_str());
 
 	char magic[5] = {0};
-	if (gzread(input, magic, 4)!=4) {
-	int p;
-	ERROR("%s\n", gzerror(input, &p));
+	if (gzread(input, magic, 4) != 4) {
+		int p;
+		ERROR("%s\n", gzerror(input, &p));
 	}
 	assert(!strcmp(magic, "BAM\x1"));
 }

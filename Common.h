@@ -7,6 +7,7 @@
 #include <string>
 
 #include "DZException.h"
+#include "FileIO.h"
 #include "Array.h"
 #include "CircularArray.h"
 #include "Streams/Stream.h"
@@ -26,15 +27,21 @@ double _zaman_ (void);
 
 extern bool optStdout;
 extern int  optThreads;
+extern int  optLogLevel;
 
-#define LOGN(c,...)\
-	fprintf(stderr, c, ##__VA_ARGS__)
+#define WARN(c,...)\
+	fprintf(stderr, c"\n", ##__VA_ARGS__)
 #define ERROR(c,...)\
 	fprintf(stderr, c"\n", ##__VA_ARGS__)
 #define LOG(c,...)\
-	fprintf(stderr, c"\n", ##__VA_ARGS__)
+	{if(optLogLevel>=1) fprintf(stderr, c"\n", ##__VA_ARGS__);}
 #define DEBUG(c,...)\
-	//fprintf(stderr, c"\n", ##__VA_ARGS__)
+	{if(optLogLevel>=2) fprintf(stderr, c"\n", ##__VA_ARGS__);}
+#define DEBUGN(c,...)\
+	{if(optLogLevel>=2) fprintf(stderr, c, ##__VA_ARGS__);}
+#define LOGN(c,...)\
+	{if(optLogLevel>=1) fprintf(stderr, c, ##__VA_ARGS__);}
+
 #define REPEAT(x)\
 	for(int _=0;_<x;_++)
 #define foreach(i,c) \
@@ -47,6 +54,7 @@ char getDNAValue (char ch);
 
 void addEncoded (int n, Array<uint8_t> &o);
 size_t getEncoded (uint8_t *&len);
+std::string fullPath (const std::string &s);
 
 #define __debug_fwrite(a,b,c,d)
 // fwrite(a,b,c,d)

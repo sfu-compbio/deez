@@ -1,4 +1,5 @@
 #include "Stats.h"
+#include "Fields/Sequence.h"
 #include <algorithm>
 using namespace std;
 
@@ -8,8 +9,10 @@ Stats::Stats():
 	fill(flags, flags + FLAGCOUNT, 0);
 }
 
-Stats::Stats (Array<uint8_t> &in) {
+Stats::Stats (Array<uint8_t> &in, uint32_t magic) {
 	uint8_t *pin = in.data();
+	fileName = string((char*)pin);
+	pin += fileName.size() + 1;
 
 	reads = *(size_t*)pin; pin += 8;
 	memcpy((uint8_t*)flags, pin, FLAGCOUNT * 8);
@@ -18,14 +21,21 @@ Stats::Stats (Array<uint8_t> &in) {
 	while (pin < in.data() + in.size()) {
 		string chr = string((char*)pin);
 		pin += chr.size() + 1;
+		if ((magic & 0xff) >= 0x11) {
+			string fn = string((char*)pin);
+			pin += fn.size() + 1;
+			string md5 = string((char*)pin);
+			pin += md5.size() + 1;
+			chromosomes[chr] = {chr, md5, fn, 0, 0};
+		}
+
 		size_t len = *(size_t*)pin; 
 		pin += 8;
-		chromosomes[chr] = len;
+		chromosomes[chr].len = len;
 	}
 }
 
 Stats::~Stats() {
-
 }
 
 void Stats::addRecord (uint16_t flag) {
@@ -33,20 +43,20 @@ void Stats::addRecord (uint16_t flag) {
 	reads++;
 }
 
-void Stats::addChromosome (const string &chr, size_t len) {
-	if (chromosomes.find(chr) != chromosomes.end())
-		return;
-		//throw DZException("Chromosome %s already registered!", chr.c_str());
-	chromosomes[chr] = len;
-}
-
-void Stats::writeStats (Array<uint8_t> &out) {
+void Stats::writeStats (Array<uint8_t> &out, SequenceCompressor *seq) {
 	out.resize(0);
+	out.add((uint8_t*)(fileName.c_str()), fileName.size() + 1);
 	out.add((uint8_t*)&reads, sizeof(size_t));
 	out.add((uint8_t*)flags, FLAGCOUNT * sizeof(size_t));
-	foreach (p, chromosomes) {
-		out.add((uint8_t*)(p->first.c_str()), p->first.size() + 1);
-		out.add((uint8_t*)&(p->second), sizeof(size_t));
+	
+	foreach (p, seq->reference.chromosomes) {
+		out.add((uint8_t*)(p->second.chr.c_str()), p->second.chr.size() + 1);
+		// v1.1 begin
+		auto s = seq->reference.getChromosomeInfo(p->first);
+		out.add((uint8_t*)(p->second.filename.c_str()), p->second.filename.size() + 1);
+		out.add((uint8_t*)(p->second.md5.c_str()), p->second.md5.size() + 1);
+		// v1.1 end
+		out.add((uint8_t*)&(p->second.len), sizeof(size_t));
 	}
 }
 

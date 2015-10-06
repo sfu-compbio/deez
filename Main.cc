@@ -25,12 +25,13 @@ string optRef 	 = "";
 vector<string> optInput;
 string optRange  = "";
 string optOutput = "";
-string optQuery  = "";
+// string optQuery  = "";
 size_t optBlock = 1000000;
 char optQuality = 0;
 char optLossy   = 0;
 int optThreads  = 4;
 int optFlag     = 0;
+int optLogLevel	= 0;
 size_t optSortMemory = GB;
 
 void parse_opt (int argc, char **argv) {
@@ -50,21 +51,22 @@ void parse_opt (int argc, char **argv) {
 		{ "withoutflag", 1, NULL, 'F' },
 		{ "withflag",    1, NULL, 'f' },
 		{ "stats",       0, NULL, 'S' },
-		{ "query",       1, NULL, 'w' },
+	//	{ "query",       1, NULL, 'w' },
 		{ "noqual",      0, NULL, 'Q' },
 		{ "quality",     1, NULL, 'q' },
-		{ "block",       1, NULL, 'B' },
-		{ "allow-invalid-ref", 0, NULL, 'I' },
+	//	{ "block",       1, NULL, 'B' },
+		{ "verbosity",   1, NULL, 'v' },
+	//	{ "allow-invalid-ref", 0, NULL, 'I' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:t:T!B:co:q:l:sIM:Sf:F:Qw:L";
+	const char *short_opt = "hr:t:T!co:q:l:sM:Sf:F:QLv:" /*"w:IB:"*/;
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
 			case 'h':
-				LOG("Compression: deez -r [reference] [input.sam] -o [output]");
-				LOG("Decompression: deez -r [reference] [input.dz] -o [output] ([region])");
-				LOG("For additional parameter explanation, please consult the man page (man deez or man ./deez.man)");
+				WARN("Compression: deez -r [reference] [input.sam] -o [output]");
+				WARN("Decompression: deez -r [reference] [input.dz] -o [output] ([region])");
+				WARN("For additional parameter explanation, please consult the man page (less README.md or http://sfu-compbio.github.io/deez/)");
 				exit(0);
 			case 'r':
 				optRef = optarg;
@@ -75,12 +77,15 @@ void parse_opt (int argc, char **argv) {
 			case 't':
 				optThreads = atoi(optarg);
 				break;
+			case 'v':
+				optLogLevel = atoi(optarg);
+				break;
 			case 's':
 				optSort = true;
 				break;
-			case 'I':
-				optInvalidChr = true;
-				break;
+		//	case 'I':
+		//		optInvalidChr = true;
+		//		break;
 			case 'Q':
 				optNoQual = true;
 				break;
@@ -95,10 +100,10 @@ void parse_opt (int argc, char **argv) {
 			case '!':
 				optForce = true;
 				break;
-			case 'B':
-				optBlock = atoi(optarg);
+			//case 'B':
+			//	optBlock = atoi(optarg);
 				//LOG("Block size changed to %'lu", optBlock);
-				break;
+			//	break;
 			case 'c':
 				optStdout = true;
 				break;
@@ -130,9 +135,9 @@ void parse_opt (int argc, char **argv) {
 			case 'f':
 				optFlag = atoi(optarg);
 				break;
-			case 'w':
-				optQuery = optarg;
-				break;
+		//	case 'w':
+		//		optQuery = optarg;
+		//		break;
 			case -1:
 				break;
 			default: {
@@ -150,15 +155,6 @@ int64_t dz_time (void) {
 	return (t.tv_sec * 1000000ll + t.tv_usec) / 1000000ll;
 }
 
-string full_path (const string &s) {
-	if (IsWebFile(s))
-		return s;
-	char *pp = realpath(s.c_str(), 0);
-	string p = pp;
-	free(pp);
-	return p;
-}
-
 string remove_extension (const string &s) {
 	int i = s.find_last_of(".");
 	if (i == string::npos) 
@@ -168,9 +164,14 @@ string remove_extension (const string &s) {
 
 bool is_dz_file (const string &s) {
 	File *f = OpenFile(s.c_str(), "r");
-	uint32_t magic = f->readU32();
+	bool res = false;
+	try {
+		uint32_t magic = f->readU32();
+		res = (magic >> 8) == (MAGIC >> 8);
+	}
+	catch (...) {}
 	delete f;
-	return (magic >> 8) == (MAGIC >> 8);
+	return res;
 }
 
 string sort (string output) {
@@ -189,8 +190,8 @@ string sort (string output) {
 
 void compress (const vector<string> &in, const string &out) {
 	for (int i = 0; i < in.size(); i++) {
-		if (IsWebFile(in[i]))
-			throw DZException("Web locations are currently not supported for compression");
+	//	if (IsWebFile(in[i]))
+	//		throw DZException("Web locations are currently not supported for compression");
 		if (is_dz_file(in[i]))
 			throw DZException("Cannot compress DeeZ file %s", in[i].c_str());
 	}
@@ -200,7 +201,7 @@ void compress (const vector<string> &in, const string &out) {
 		if (!optForce)
 			throw DZException("File %s already exists. Use -! to overwrite", out.c_str());
 		else
-			LOG("File %s already exists. Overwriting it.", out.c_str());
+			WARN("File %s already exists. Overwriting it.", out.c_str());
 	}
 	try {
 		FileCompressor sc(out, in, optRef, optBlock);
@@ -232,7 +233,7 @@ void decompress (const vector<string> &in, const string &out) {
 		if (!optForce)
 			throw DZException("File %s already exists. Use -! to overwrite", out.c_str());
 		else
-			LOG("File %s already exists. Overwriting it.", out.c_str());
+			WARN("File %s already exists. Overwriting it.", out.c_str());
 	}
 	if (!optStdout) 
 		DEBUG("Using output file %s", out.c_str());
@@ -241,10 +242,10 @@ void decompress (const vector<string> &in, const string &out) {
 	
 	if (in.size() <= 1)
 		sd.decompress(optFlag);
-	else if (optQuery == "")
-		sd.decompress(in[0] + "i", in[1], optFlag);
-	else
-		sd.query(optQuery, in[1]);
+	else //if (optQuery == "")
+		sd.decompress(in[1], optFlag);
+	//else 
+	//	sd.query(optQuery, in[1]);
 }
 
 void test (vector<string> s) {
@@ -253,14 +254,14 @@ void test (vector<string> s) {
 
 	int64_t t = dz_time();
 	compress(s, tmp + ".dz");
-	LOG("Compression time: %'lld", dz_time() - t);
+	WARN("Compression time: %'lld", dz_time() - t);
 
 	t = dz_time();
 
 	vector<string> tx;
 	tx.push_back(tmp + ".dz");
 	decompress(tx, tmp + ".sam");
-	LOG("Decompression time: %'lld", dz_time() - t);
+	WARN("Decompression time: %'lld", dz_time() - t);
 
 	string cmd = "cmp " + s[0] + " " + tmp + ".sam";
 	system(cmd.c_str());
@@ -281,35 +282,31 @@ int main (int argc, char **argv) {
     		throw DZException("Input not specified. Please run deez --help for explanation");
     	for (int i = 0; i < optInput.size(); i++) if (!FileExists(optInput[i].c_str()) && i != optInput.size() - 1)
 			throw DZException("File %s does not exist", optInput[i].c_str());
-		DEBUG("Using input file %s", full_path(optInput).c_str());
-
-    	if (optSort) {
+		
+    	if (optSort)
     		sort(optOutput);
-    	}
     	else if (optStats)
     		decompress(optInput, "");
-    	else {
-	    	if (!optInvalidChr && !FileExists(optRef.c_str()) && (optRef.size() == 0 || optRef[optRef.size() - 1] != '/'))
-	    		throw DZException("Reference file %s does not exist", optRef.c_str());
-	    	else if (optInvalidChr) LOG("No reference provided -- compression performance will be suboptimal");
-	    	else DEBUG("Using reference file %s", full_path(optRef).c_str());
-			DEBUG("Using block size %'lu", optBlock);
+    	else if (optTest)
+            test(optInput);
+        else {
+	    //	if (!optInvalidChr && !FileExists(optRef.c_str()) && (optRef.size() == 0 || optRef[optRef.size() - 1] != '/'))
+	    //		throw DZException("Reference file %s does not exist", optRef.c_str());
+	    //	else if (optInvalidChr) LOG("No reference provided -- compression performance will be suboptimal");
+	    //	else DEBUG("Using reference file %s", full_path(optRef).c_str());
+		//	DEBUG("Using block size %'lu", optBlock);
 
-			if (optTest)
-				test(optInput);
-			else {
-				bool isCompress = !is_dz_file(optInput[0]);
-				string output = optOutput;
-				if (output == "" && !optStdout) {
-					output = remove_extension(optInput[0]) + ".dz";
-					if (!isCompress) output += ".sam";
-				}
-				
-				if (isCompress) 
-					compress(optInput, output);
-				else 
-					decompress(optInput, output);
-			}
+            bool isCompress = !is_dz_file(optInput[0]);
+            string output = optOutput;
+            if (output == "" && !optStdout) {
+                output = remove_extension(optInput[0]) + ".dz";
+                if (!isCompress) output += ".sam";
+            }
+            WARN("%s",output.c_str());
+            if (isCompress)
+                compress(optInput, output);
+            else
+                decompress(optInput, output);
 		}
 	}
 	catch (DZException &e) {

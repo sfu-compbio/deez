@@ -105,7 +105,7 @@ public:
 	}
 
 	void setCurrentState (uint8_t *in, size_t sz) {
-		LOG("WAHAI!");
+	//	LOG("WAHAI!");
 		hadSought = true;
 	}
 };

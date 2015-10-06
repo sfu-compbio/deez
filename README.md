@@ -47,12 +47,28 @@ DeeZ is invoked as following:
 - `--reference, -r [file|directory]`
 
 	Specify the FASTA reference file.
+	If no reference file is provided, DeeZ will either try to download
+	reference specified in SAM @SQ:UR field. If such field is not
+	available or if reference specified therein is not accessible, 
+	DeeZ will use no reference. 
+
+	If no reference is being used, compression rate will not be optimal.
 
 	> **Note**: Chromosome names in the SAM and FASTA files must match. Also, instead of one big FASTA file, DeeZ supports reference lookup in the given directory for chr\*.fa files, where chr\* is the chromosome ID from the SAM file.
 
 - `--force, -!`
 	
 	Force overwrite of exiting files.
+
+- `--verbosity, -v [level]`
+	
+	Set the logging level. 
+	Level 0 shows only errors and warnings.
+	Level 1 shows many other useful information (e.g. download progress,
+		compression progress, per-field data usage etc.)
+	Level 2 shows debug information, including detailed CURL output.
+
+	Default valie: **0**
 
 - `--stdout, -c`
 
@@ -65,6 +81,12 @@ DeeZ is invoked as following:
 - `--lossy, -l`
 
 	Set lossy parameter for quality lossy encoding (for more information, please check [SCALCE][1]).
+
+- `--read-lossy, -L`
+
+	Enables lossy compression of read names. 
+
+	**WARNING: This option is experimental and might require a lot of memory!**
 
 - `--quality, -q [mode]`
 
@@ -91,6 +113,10 @@ DeeZ is invoked as following:
 	Maximum memory used for sorting. 
 	
 	Default value: **1G**
+
+- `--noqual, -Q`
+	
+	Disable quality score output during decompression.
 
 ---
 

@@ -2,8 +2,11 @@
 #define Stats_H
 
 #include "Common.h"
+#include "Reference.h"
 #include <map>
 #include <string>
+
+class SequenceCompressor;
 
 class Stats {
 public:
@@ -12,18 +15,19 @@ public:
 private:
 	size_t flags[FLAGCOUNT];
 	size_t reads;
-	std::map<std::string, size_t> chromosomes;
-	// CRCs?
+
+public:
+	std::string fileName;
+	std::map<std::string, Reference::Chromosome> chromosomes;
 
 public:
 	Stats();
-	Stats(Array<uint8_t> &in);
+	Stats(Array<uint8_t> &in, uint32_t);
 	~Stats();
 
 public:
 	void addRecord (uint16_t flag);
-	void addChromosome (const std::string &chr, size_t len);
-	void writeStats (Array<uint8_t> &out);
+	void writeStats (Array<uint8_t> &out, SequenceCompressor*);
 	size_t getStats (int flag);
 
 	size_t getReadCount() { return reads; }

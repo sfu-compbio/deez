@@ -1,0 +1,8 @@
+tests/out
+tests/log
+deez
+gmon.out*
+*.o
+*.sublime-*
+*.json
+run

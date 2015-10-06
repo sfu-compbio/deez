@@ -67,7 +67,7 @@ public:
 	bool eof ();
 	void *handle ();
 
-	static FILE *Download (const string &path);
+	static File *Download (const string &path, bool detectGZFiles = false);
 
 private:
 	void get_size ();
@@ -88,6 +88,7 @@ class GzFile: public File
 	gzFile fh;
 
 public:
+	GzFile (FILE *handle);
 	GzFile (const string &path, const char *mode);
 	~GzFile ();
 

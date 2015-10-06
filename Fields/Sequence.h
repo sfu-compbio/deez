@@ -9,6 +9,7 @@
 #include <zlib.h>
 
 #include "../Common.h"
+#include "../Stats.h"
 #include "../Reference.h"
 #include "../Engines/Engine.h"
 #include "../Engines/GenericEngine.h"
@@ -18,6 +19,8 @@
 #include "EditOperation.h"
 
 class SequenceCompressor: public Compressor {
+	friend class Stats;
+	
 	Reference reference;
 	
 	CompressionStream *fixesStream;
@@ -51,7 +54,8 @@ public:
 	std::string getChromosome (void) const { return chromosome; }
 	void scanChromosome (const std::string &s);
 	size_t getChromosomeLength (void) const { return reference.getChromosomeLength(chromosome); }
-	
+	void scanSAMComment (const string &comment) { reference.scanSAMComment(comment); } 
+
 private:
 	static void applyFixesThread(EditOperationCompressor &editOperation, Array<int*> &stats, size_t fixedStart, size_t offset, size_t size);
 	static void updateGenomeLoc (size_t loc, char ch, Array<int*> &stats);
@@ -81,6 +85,7 @@ public:
 	void setFixed (EditOperationDecompressor &editOperation);
 	void scanChromosome (const std::string &s);
 	std::string getChromosome (void) const { return chromosome; }
+	void scanSAMComment (const string &comment) { reference.scanSAMComment(comment); } 
 };
 
 #endif

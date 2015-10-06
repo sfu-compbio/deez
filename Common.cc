@@ -81,3 +81,13 @@ string S (const char* fmt, ...) {
     free(ptr);
     return s;
 }
+
+string fullPath (const string &s) {
+	if (IsWebFile(s))
+		return s;
+	char *pp = realpath(s.c_str(), 0);
+	string p = pp;
+	free(pp);
+	return p;
+}
+

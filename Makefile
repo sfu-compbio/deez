@@ -1,16 +1,16 @@
 CC = g++
-CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE  -std=c++0x
-LDFLAGS = -lz -lpthread -lcurl 
+CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE  -std=c++0x -DOPENSSL  -pthread
+LDFLAGS = -pthread -lz -lcurl -lcrypto
 
 GIT_VERSION := $(shell git describe --dirty --always --tags)
-SOURCES := $(shell find . -name '*.cc' -not -path "./run/*")
+SOURCES := $(shell find . -name '*.cc' -not -path "./run/*" -not -path "./Java/*")
 OBJECTS = $(SOURCES:.cc=.o)
 EXECUTABLE = deez
 LIB = libdeez
 TESTEXE = deeztest
 
-all: CFLAGS += -O3 -DNDEBUG
-all: $(SOURCES) $(EXECUTABLE) 
+#all: CFLAGS += -O3 -DNDEBUG
+#all: $(SOURCES) $(EXECUTABLE) 
 
 debug: CFLAGS += -g -fno-omit-frame-pointer
 debug: $(SOURCES) $(EXECUTABLE)
@@ -22,9 +22,8 @@ profile: CFLAGS += -g -pg -O3
 profile: LDFLAGS += -pg
 profile: $(SOURCES) $(EXECUTABLE)
 
-openssl: CFLAGS += -DOPENSSL -O3 -DNDEBUG
-openssl: LDFLAGS += -lcrypto
-openssl: $(SOURCES) $(EXECUTABLE)
+all: CFLAGS += -O3 -DNDEBUG 
+all: $(SOURCES) $(EXECUTABLE)
 
 gprofile: LDFLAGS += -ltcmalloc -lprofiler
 gprofile: CFLAGS += -g
@@ -39,6 +38,9 @@ testdebug: $(SOURCES) $(TESTEXE)
 lib: CFLAGS += -O3 -DNDEBUG -fpic -DDEEZLIB
 lib: $(SOURCES) $(LIB)
 
+libdebug: CFLAGS += -g -fpic -DDEEZLIB
+libdebug: $(SOURCES) $(LIB)
+
 $(TESTEXE): OBJECTS := $(subst ./Main.o,,$(OBJECTS))
 $(TESTEXE): $(OBJECTS)
 	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
@@ -49,7 +51,7 @@ $(EXECUTABLE): $(OBJECTS)
 
 $(LIB): OBJECTS := $(subst ./Test.o,,$(OBJECTS))
 $(LIB): $(OBJECTS) 
-	$(CC) $(OBJECTS) $(LDFLAGS) -shared -o $@.so
+	$(CC) $(OBJECTS) $(LDFLAGS) -fpic -shared -o $@.so
 	rm -rf $(LIB).a
 	ar rvs $(LIB).a $(OBJECTS) 
 

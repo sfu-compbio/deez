@@ -3,7 +3,8 @@ using namespace std;
 
 QualityScoreCompressor::QualityScoreCompressor (int blockSize):
 	StringCompressor<QualityCompressionStream>(blockSize),
-	statMode(true)
+	statMode(true),
+	offset(0)
 {
 	memset(lossy, 0, 128 * sizeof(int));
 	memset(stat, 0, 128 * sizeof(int));
@@ -135,7 +136,6 @@ void QualityScoreCompressor::addRecord (string qual, int flag) {
 void QualityScoreCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {
 	if (!offset) {
 		offset = calculateOffset();
-	//	LOG("Quality offset is %d", offset);
 	}
 	if (optLossy && statMode) {
 		calculateLossyTable(optLossy);

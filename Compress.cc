@@ -5,6 +5,7 @@ using namespace std;
 #include <fcntl.h>
 #include <sys/time.h>
 #include <time.h>
+
 double _zaman_ (void) {
 	struct timeval t;
 	gettimeofday(&t, 0);
@@ -15,15 +16,14 @@ static const char *NAMES[8] = {
 	"MQ","QQ","PE","OF" 
 };
 
-string xoutfile;
 FileCompressor::FileCompressor (const string &outFile, const vector<string> &samFiles, const string &genomeFile, int bs): 
 	blockSize(bs) 
 {
 	for (int f = 0; f < samFiles.size(); f++) {
-		FILE *fi = fopen(samFiles[f].c_str(), "rb");
+		File *fi = OpenFile(samFiles[f].c_str(), "rb");
 		char mc[2];
-		fread(mc, 1, 2, fi);
-		fclose(fi);
+		fi->read(mc, 2);
+		delete fi;
 		if (mc[0] == char(0x1f) && mc[1] == char(0x8b)) 
 			parsers.push_back(new BAMParser(samFiles[f]));
 		else
@@ -57,11 +57,9 @@ FileCompressor::FileCompressor (const string &outFile, const vector<string> &sam
 	
 	int tmpFile = dup(fileno(tmp));
 	indexTmp = fdopen(tmpFile, "rb");
-
 	indexFile = gzdopen(fileno(tmp), "wb6");
 	if (indexFile == Z_NULL)	
 		throw DZException("Cannot open temporary file");
-	//gzwrite(indexFile, "HAMO", 5);
 }
 
 FileCompressor::~FileCompressor (void) {
@@ -112,6 +110,7 @@ void FileCompressor::outputMagic (void) {
 void FileCompressor::outputComment (void) {
 	for (int f = 0; f < parsers.size(); f++) {
 		string comment = parsers[f]->readComment();
+		sequence[f]->scanSAMComment(comment);
 		size_t arcsz = comment.size();
 		fwrite(&arcsz, sizeof(size_t), 1, outputFile);
 		if (arcsz) {
@@ -148,7 +147,9 @@ void FileCompressor::outputBlock (Array<uint8_t> &out, Array<uint8_t> &idxOut) {
 }
 
 void FileCompressor::outputRecords (void) {
-	Stats stats;
+	vector<Stats> stats(parsers.size());
+	for (int16_t f = 0; f < parsers.size(); f++) 
+		stats[f].fileName = parsers[f]->fileName();
 
 	vector<size_t> lastStart(parsers.size(), 0);
 	vector<int64_t> bsc(parsers.size(), blockSize);
@@ -179,8 +180,8 @@ void FileCompressor::outputRecords (void) {
 			string chr = parsers[f]->head();
 			while (sequence[f]->getChromosome() != parsers[f]->head()) 
 				sequence[f]->scanChromosome(parsers[f]->head()), op = 1, prev_loc[f] = 0;
-			if (op)
-				stats.addChromosome(sequence[f]->getChromosome(), sequence[f]->getChromosomeLength());
+			//if (op)
+			//	stats[f].addChromosome(sequence[f]->getChromosome(), sequence[f]->getChromosomeLength());
 
 			for (; currentSize[f] < bsc[f] && parsers[f]->hasNext() 
 					&& parsers[f]->head() == sequence[f]->getChromosome(); currentSize[f]++) 
@@ -210,7 +211,7 @@ void FileCompressor::outputRecords (void) {
 					sequence[f]->getChromosome(), rc.getLocation()));
 				optField[f]->addRecord(rc.getOptional());
 
-				stats.addRecord(rc.getMappingFlag());
+				stats[f].addRecord(rc.getMappingFlag());
 
 				lastStart[f] = loc;
 				parsers[f]->readNext();		
@@ -305,13 +306,16 @@ void FileCompressor::outputRecords (void) {
 	
 	size_t posStats = ftell(outputFile);
 	fwrite("DZSTATS", 1, 7, outputFile);
-	stats.writeStats(outputBuffer[0]);
-	size_t sz = outputBuffer->size();
-	fwrite(&sz, 8, 1, outputFile);
-	fwrite(outputBuffer->data(), 1, outputBuffer->size(), outputFile);
+	for (int i = 0; i < stats.size(); i++) {
+		stats[i].writeStats(outputBuffer[0], sequence[i]);
+		size_t sz = outputBuffer->size();
+		fwrite(&sz, 8, 1, outputFile);
+		fwrite(outputBuffer->data(), 1, outputBuffer->size(), outputFile);
+	}
 	
 	//gzclose(indexFile);
-	LOG("gzstatus %d", gzclose(indexFile));
+	int gzst = gzclose(indexFile);
+	DEBUG("gzstatus %d", gzst);
 	//gzclose(indexFile);
 	fwrite("DZIDX", 1, 5, outputFile);
 	char *buffer = (char*)malloc(MB);
@@ -320,7 +324,7 @@ void FileCompressor::outputRecords (void) {
 	//fseek(indexTmp, 0, SEEK_END);
 	//LOG("Index gz'd sz=%'lu", ftell(indexTmp));
 	fseek(indexTmp, 0, SEEK_SET);
-	while ((sz = fread(buffer, 1, MB, indexTmp)))
+	while (size_t sz = fread(buffer, 1, MB, indexTmp))
 		fwrite(buffer, 1, sz, outputFile);
 	free(buffer);
 	fclose(indexTmp);
