@@ -12,7 +12,8 @@ Just clone our repository and issue `make` command:
 git clone https://bitbucket.org/compbio/dz.git
 cd dz && make
 ```
-> **Note**: You will need at least g++ 4.4 to compile the sources.
+> **Note**: You will need at least g++ 4.4 to compile the sources, 
+as well as CURL and OpenSSL libraries.
 
 ### How do I run DeeZ?
 DeeZ is invoked as following:
@@ -33,6 +34,10 @@ DeeZ is invoked as following:
 
 	You can also specify the region of interest while decompressing (i.e. randomly access the region). For example, to extract some reads from chr16 to standard output, you should run:
 	`deez -r [reference] input.dz  -c chr16:15000000-16000000`
+
+DeeZ supports URLs as input files. Supported protocols are file://, ftp://, http(s):// and s3://.
+For Amazon S3 access, DeeZ accepts `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment 
+variables if you need to access private repositories.
 
 ---
 
