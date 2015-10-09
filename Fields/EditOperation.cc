@@ -232,7 +232,7 @@ void EditOperationDecompressor::setFixed (char *f, size_t fs) {
 
 void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	if (in_size == 0) return;
-	assert(recordCount == records.size());
+	//assert(recordCount == records.size());
 
 	Array<uint8_t> stitches;
 	decompressArray(stitchStream, in, stitches);

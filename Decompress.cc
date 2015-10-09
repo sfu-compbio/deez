@@ -78,7 +78,7 @@ void FileDecompressor::printStats (const string &path, int filterFlag) {
 }
 
 FileDecompressor::FileDecompressor (const string &inFilePath, const string &outFile, const string &genomeFile, int bs): 
-	blockSize(bs), genomeFile(genomeFile), outFile(outFile)
+	blockSize(bs), genomeFile(genomeFile), outFile(outFile), finishedRange(false)
 {
 	string name1 = inFilePath;
 	this->inFile = OpenFile(name1.c_str(), "rb");
@@ -250,8 +250,7 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 	size_t start, size_t end, int filterFlag) 
 {
 	static string chr;
-	static bool done(false);
-	if (done)
+	if (finishedRange) 
 		return 0;
 	if (chromosome != "")
 		chr = chromosome;
@@ -283,10 +282,16 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 		size_t sz = inFile->readU64();
 		in[ti].resize(sz);
 		if (sz) inFile->read(in[ti].data(), sz);
+	//#ifdef DEEZLIB
+	//	readBlockThread(di[ti], in[ti]);
+	//#else
 		t[ti] = thread(readBlockThread, di[ti], ref(in[ti]));
+	//#endif
 	}
-	for (int ti = 0; ti < 7; ti++)
-		t[ti].join();
+	//#ifndef DEEZLIB
+		for (int ti = 0; ti < 7; ti++)
+			t[ti].join();
+	//#endif
 
 	size_t count = 0;
 	while (editOp[f]->hasRecord()) {
@@ -307,7 +312,7 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 		if (eo.start < start)
 			continue;
 		if (eo.start > end) {
-			done = true;
+			finishedRange = true;
 			return count;
 		}
 
@@ -469,6 +474,7 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 				sequence[f], editOp[f], readName[f], mapFlag[f], 
 				mapQual[f], quality[f], pairedEnd[f], optField[f] 
 			};
+
 			for (int ti = 0; ti < 8; ti++) if (i->second.fieldData[ti].size()) 
 				di[ti]->setIndexData(i->second.fieldData[ti].data(), i->second.fieldData[ti].size());
 
@@ -476,6 +482,11 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 			if (!blockSz) break;
 			totalSz += blockSz;
 			blockCount++;
+
+			if (finishedRange) {
+				finishedRange = false;
+				break;
+			}
 
 			i++;
 		}

@@ -302,7 +302,7 @@ int main (int argc, char **argv) {
                 output = remove_extension(optInput[0]) + ".dz";
                 if (!isCompress) output += ".sam";
             }
-            WARN("%s",output.c_str());
+            //WARN("%s",output.c_str());
             if (isCompress)
                 compress(optInput, output);
             else

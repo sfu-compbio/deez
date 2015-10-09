@@ -177,7 +177,7 @@ ReadNameDecompressor::~ReadNameDecompressor (void) {
 void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size) {
 	if (in_size == 0) return;
 
-	assert(recordCount == records.size());
+	//assert(recordCount == records.size());
 
 	Array<uint8_t> index;
 	size_t s1 = decompressArray(indexStream, in, index);

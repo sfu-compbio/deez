@@ -6,9 +6,20 @@
 #include "../Streams/Order0Stream.h"
 #include "../Engines/GenericEngine.h"
 
+#if __cplusplus <= 199711L
+	#include <tr1/unordered_map>
+	typedef std::tr1::unordered_map<string, int32_t> ReadMap;
+#else
+	#include <unordered_map>
+	typedef std::unordered_map<string, int32_t> ReadMap;
+#endif
+
+
 class ReadNameLossyCompressor: 
 	public GenericCompressor<uint32_t, GzipCompressionStream<6> >  
 {
+	ReadMap mmap;
+
 public:
 	ReadNameLossyCompressor(int blockSize);
 	virtual ~ReadNameLossyCompressor(void);

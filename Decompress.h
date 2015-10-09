@@ -60,6 +60,8 @@ class FileDecompressor {
     size_t blockSize;
    	vector<int> fileBlockCount;
 
+   	bool finishedRange;
+
 protected:
     virtual inline void printRecord(const string &rname, int flag, const string &chr, const EditOperation &eo, int mqual,
         const string &qual, const string &optional, const PairedEndInfo &pe, int file)

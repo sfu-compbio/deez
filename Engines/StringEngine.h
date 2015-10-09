@@ -83,7 +83,7 @@ void StringDecompressor<TStream>::importRecords (uint8_t *in, size_t in_size) {
 	if (in_size == 0) 
 		return;
 
-	assert(this->recordCount == this->records.size());
+	//assert(this->recordCount == this->records.size());
 	assert(in_size >= sizeof(size_t));
 	
 	Array<uint8_t> out;
