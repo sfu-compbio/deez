@@ -10,65 +10,55 @@
 
 struct PairedEndInfo {
 	std::string chr;
+	int32_t tlen, diff;
 	size_t pos;
-	int32_t tlen;
-	size_t ospan, opos;
-	int flag;
+	char bit;
 	
 	PairedEndInfo (void) {}
-	PairedEndInfo (const std::string &c, size_t p, int32_t t, size_t op, size_t os, int f):
-		chr(c), pos(p), tlen(t), opos(op), ospan(os), flag(f)
+	PairedEndInfo (const std::string &c, size_t pos, int32_t t, size_t opos, size_t ospan, bool reverse):
+		chr(c), tlen(t), bit(-1), pos(pos)
 	{
-		/*if ( (mc == "=") && !((mpos <= pos && tlen <= 0) || (mpos > pos && tlen >= 0)) )
-			throw DZException("Mate position and template length inconsistent! pos=%lu matepos=%lu tlen=%d", mpos, pos, tlen);
-		if (mc == "=") {
-			if (tlen <= 0)
-				pos -= mpos;
-			else
-				pos = mpos - pos;
+		if ((tlen < 0) == reverse) {
+			bit = 0;
+		} else {
+			bit = 1 + (tlen < 0);
 		}
-		pos++;*/
+		if (tlen > 0) { // replace opos with size
+			diff = opos + tlen - ospan - pos;
+		} else {
+			diff = opos + tlen + ospan - pos;
+		} 
+		//LOG("%d %d %d %d %s", tlen, pos, diff, bit, chr.c_str());
 	}
 };
 
 class PairedEndCompressor: 
 	public GenericCompressor<PairedEndInfo, GzipCompressionStream<6> > 
 {
-	CompressionStream *chromosomeStream;
-	CompressionStream *tlenStream[5];
-	CompressionStream *tlenBitStream;
-
+	std::vector<CompressionStream*> streams;
 
 public:
 	PairedEndCompressor (int blockSize);
 	virtual ~PairedEndCompressor (void);
 
-	size_t compressedSize(void) { 
-		LOGN("[RNEXT %'lu TLEN %'lu TLEN2 %'lu TLEN_Bit %'lu RPOS %'lu]\n", 
-			chromosomeStream->getCount(),
-			tlenStream[0]->getCount(),
-			tlenStream[1]->getCount(),
-			tlenBitStream->getCount(),
-			stream->getCount()
-		);
-		return stream->getCount() + tlenStream[0]->getCount() +
-			chromosomeStream->getCount() + tlenBitStream->getCount();
-	}
-
 public:
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
+	size_t compressedSize(void);
+	void printDetails(void);
 };
 
 class PairedEndDecompressor: 
 	public GenericDecompressor<PairedEndInfo, GzipDecompressionStream> 
 {
+	std::vector<DecompressionStream*> streams;
+
 public:
 	PairedEndDecompressor (int blockSize);
 	virtual ~PairedEndDecompressor (void);
 	
 public:
 	void importRecords (uint8_t *in, size_t in_size);
-	const PairedEndInfo &getRecord (const std::string &mc, size_t mpos);
+	const PairedEndInfo &getRecord (size_t opos, size_t ospan, bool reverse);
 };
 
 #endif

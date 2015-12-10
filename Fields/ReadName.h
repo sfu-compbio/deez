@@ -30,10 +30,8 @@ public:
 public:
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
 	void getIndexData (Array<uint8_t> &out);
-	size_t compressedSize(void) { 
-		LOGN("[Index %lu Content %lu]", indexStream->getCount(), stream->getCount());
-		return stream->getCount() + indexStream->getCount(); 
-	}
+	size_t compressedSize(void);
+	void printDetails(void);
 
 private:
 //	void detectToken (const std::string &rn);

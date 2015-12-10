@@ -17,7 +17,7 @@ struct EditOperation {
 	size_t end;
 	std::string seq;
 	std::string op;
-	
+
 	EditOperation() {}
 	EditOperation(size_t s, const std::string &se, const std::string &o) :
 		start(s), seq(se), op(o)
@@ -113,21 +113,10 @@ struct ACTGStream {
 	}
 };
 
-enum {
-	OPCODES,
-	SEQPOS,
-	SEQEND,
-	XLEN,
-	HSLEN,
-	LEN,
-	OPLEN
-};
-const int OUTSIZE=7;
-
 class EditOperationCompressor: 
 	public GenericCompressor<EditOperation, GzipCompressionStream<6> >
 {
-	CompressionStream *unknownStream[OUTSIZE];
+	std::vector<CompressionStream*> streams;
 	CompressionStream *stitchStream;
 	CompressionStream *locationStream;
 
@@ -141,39 +130,22 @@ public:
 public:
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
 	void getIndexData (Array<uint8_t> &out);
-	size_t compressedSize(void) { 
-		LOGN("[Nucleotides %'lu Locations %'lu Stitch %'lu ", 
-			stream->getCount(),
-			locationStream->getCount(),
-			stitchStream->getCount()
-		);
-		int res = 0;
-		for (int i = 0; i < OUTSIZE; i++) {
-			LOGN("OP%d %'lu ", i, unknownStream[i]->getCount());
-			res += unknownStream[i]->getCount();
-		}
-		LOGN("]\n");
-		return stream->getCount() + locationStream->getCount() + stitchStream->getCount() + res;
-	}
-	
+	size_t compressedSize(void);
+	void printDetails(void);
+
 private:
 	friend class SequenceCompressor;
 	void setFixed(char *f, size_t fs);
 	const EditOperation &operator[] (int idx);
 	
-	void addOperation(char op, int seqPos, int size, Array<uint8_t> *out);
-	void addEditOperation(const EditOperation &eo,
-		ACTGStream &nucleotides, Array<uint8_t> *out);
-
+	void addOperation(char op, int seqPos, int size, vector<Array<uint8_t>> &out);
+	void addEditOperation(const EditOperation &eo, ACTGStream &nucleotides, vector<Array<uint8_t>> &out);
 };
 
 class EditOperationDecompressor: 
 	public GenericDecompressor<EditOperation, GzipDecompressionStream>  
 {
-	DecompressionStream *unknownStream;
-	DecompressionStream *operandStream;
-	DecompressionStream *lengthStream;
-
+	std::vector<DecompressionStream*> streams;
 	DecompressionStream *stitchStream;
 	DecompressionStream *locationStream;
 
@@ -189,7 +161,7 @@ public:
 	void setIndexData (uint8_t *in, size_t in_size);
 
 private:
-	EditOperation getEditOperation (size_t loc, ACTGStream &nucleotides, uint8_t *&op, uint8_t *&len);
+	EditOperation getEditOperation (size_t loc, ACTGStream &nucleotides, vector<uint8_t*> &fields);
 
 	friend class SequenceDecompressor;
 	void setFixed(char *f, size_t fs);

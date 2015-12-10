@@ -112,7 +112,6 @@ void GenericDecompressor<T, TStream>::importRecords (uint8_t *in, size_t in_size
 	
 	Array<uint8_t> out;
 	size_t s = decompressArray(stream, in, out);
-__debug_fwrite(out.data(), 1, out.size(), ____debug_file[__DC++]);
 	assert(s % sizeof(T) == 0);
 	records.resize(0);
 	records.add((T*)out.data(), s / sizeof(T));

@@ -22,6 +22,18 @@ ReadNameCompressor::ReadNameCompressor (int blockSize):
 ReadNameCompressor::~ReadNameCompressor (void) {
 	delete indexStream;
 }
+
+size_t ReadNameCompressor::compressedSize(void)
+{ 
+	return stream->getCount() + indexStream->getCount(); 
+}
+
+void ReadNameCompressor::printDetails(void)
+{
+	LOG("  Index     : %'20lu", indexStream->getCount());
+	LOG("  Content   : %'20lu", stream->getCount());
+}
+
 /*
 void ReadNameCompressor::detectToken (const string &rn) {
 	char al[256] = { 0 };

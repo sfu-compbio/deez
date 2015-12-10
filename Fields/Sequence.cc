@@ -21,6 +21,18 @@ SequenceCompressor::~SequenceCompressor (void)
 	delete fixesReplaceStream;
 }
 
+size_t SequenceCompressor::compressedSize(void) 
+{ 
+	return fixesStream->getCount() + fixesReplaceStream->getCount(); 
+}
+
+void SequenceCompressor::printDetails(void) 
+{
+	LOG("  Fixes     : %'20lu", fixesStream->getCount());
+	LOG("  Replace   : %'20lu", fixesReplaceStream->getCount());
+}
+
+
 void SequenceCompressor::updateBoundary (size_t loc) 
 {
 	maxEnd = max(maxEnd, loc);

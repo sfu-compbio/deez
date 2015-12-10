@@ -1,6 +1,17 @@
 #include "EditOperation.h"
 using namespace std;
 
+enum EditOperationFields {
+	OPCODES,
+	SEQPOS,
+	SEQEND,
+	XLEN,
+	HSLEN,
+	LEN,
+	OPLEN,
+	ENUM_COUNT
+};
+
 EditOperationCompressor::EditOperationCompressor (int blockSize):
 	GenericCompressor<EditOperation, GzipCompressionStream<6> >(blockSize),
 	fixed(0), fixedStart(0)
@@ -8,71 +19,86 @@ EditOperationCompressor::EditOperationCompressor (int blockSize):
 	locationStream = new AC0CompressionStream<256>();
 	stitchStream = new GzipCompressionStream<6>();
 
-	for (int i = 0; i < OUTSIZE; i++)
-		unknownStream[i] = new GzipCompressionStream<6>();
+	for (int i = 0; i < EditOperationFields::ENUM_COUNT; i++)
+		streams.push_back(new GzipCompressionStream<6>());
 }
 
-
-EditOperationCompressor::~EditOperationCompressor (void) {
-	for (int i = 0; i < OUTSIZE; i++)
-		delete unknownStream[i];
+EditOperationCompressor::~EditOperationCompressor (void) 
+{
+	for (int i = 0; i < streams.size(); i++)
+		delete streams[i];
 	delete locationStream;
 	delete stitchStream;
 }
 
-const EditOperation& EditOperationCompressor::operator[] (int idx) {
+size_t EditOperationCompressor::compressedSize(void) 
+{ 
+	int res = 0;
+	for (int i = 0; i < streams.size(); i++) 
+		res += streams[i]->getCount();
+	return stream->getCount() + locationStream->getCount() + stitchStream->getCount() + res;
+}
+
+void EditOperationCompressor::printDetails(void) 
+{
+	LOG("  Nuc       : %'20lu", stream->getCount());
+	LOG("  Positions : %'20lu", locationStream->getCount());
+	LOG("  Stitches  : %'20lu", stitchStream->getCount());
+	vector<const char*> s { "OPCODES", "SEQPOS", "SEQEND", "XLEN", "HSLEN", "LEN", "OPLEN" };
+	for (int i = 0; i < streams.size(); i++) 
+		LOG("  %-10s: %'20lu ", s[i], streams[i]->getCount());
+}
+
+const EditOperation& EditOperationCompressor::operator[] (int idx) 
+{
 	assert(idx < records.size());
 	return records[idx];
 }
 
-void EditOperationCompressor::getIndexData (Array<uint8_t> &out) {
+void EditOperationCompressor::getIndexData (Array<uint8_t> &out) 
+{
 	out.resize(0);
 	locationStream->getCurrentState(out);
 }
 
-void EditOperationCompressor::setFixed (char *f, size_t fs) {
+void EditOperationCompressor::setFixed (char *f, size_t fs) 
+{
 	fixed = f, fixedStart = fs;
 }
 
-void EditOperationCompressor::addOperation (char op, int seqPos, int size, Array<uint8_t> *out) 
+void EditOperationCompressor::addOperation (char op, int seqPos, int size, vector<Array<uint8_t>> &out) 
 {
-	//static const char *DB = "ABC\1EFG\2\3JKLM\4O\5QR\6TUVW\7YZ";
-	static const char *DB = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
 	if (op == '=' || op == '*') 
 		return;
+
 	seqPos++; // Avoid zeros
-	addEncoded(seqPos, out[SEQPOS]);
+	addEncoded(seqPos, out[EditOperationFields::SEQPOS]);
 	if (!size) {
-		out[OPCODES].add('0');
-		out[OPCODES].add(op);
-	} else if (op == 'N') {
-		out[OPCODES].add(DB[op - 'A']);
-		assert(size > 0);
-		addEncoded(size, out[LEN]);
+		out[EditOperationFields::OPCODES].add('0');
+		out[EditOperationFields::OPCODES].add(op);
 	} else if (op == 'X') {
-		out[OPCODES].add(DB[op - 'A']); 
-		addEncoded(size, out[XLEN]);
+		out[EditOperationFields::OPCODES].add(op); 
+		addEncoded(size, out[EditOperationFields::XLEN]);
 	} else if (op == 'H' || op == 'S') {
-		out[OPCODES].add(DB[op - 'A']); 
-		addEncoded(size, out[HSLEN]);
+		out[EditOperationFields::OPCODES].add(op); 
+		addEncoded(size, out[EditOperationFields::HSLEN]);
 	} else {
-		out[OPCODES].add(DB[op - 'A']); 
-		addEncoded(size, out[LEN]);
+		out[EditOperationFields::OPCODES].add(op); 
+		addEncoded(size, out[EditOperationFields::LEN]);
 	}
 }
 
-void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStream &nucleotides, Array<uint8_t> *out) 
+void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStream &nucleotides, vector<Array<uint8_t>> &out) 
 {
 	if (eo.op == "*") {
 		if (eo.seq != "*") {
 			nucleotides.add(eo.seq.c_str(), eo.seq.size());
-			addEncoded(eo.seq.size() + 1, out[SEQEND]);
+			addEncoded(eo.seq.size() + 1, out[EditOperationFields::SEQEND]);
 		} else {
-			addEncoded(1, out[SEQEND]);
+			addEncoded(1, out[EditOperationFields::SEQEND]);
 		}
-		out[OPCODES].add('*');
-		out[OPCODES].add(0);
+		out[EditOperationFields::OPCODES].add('*');
+		addEncoded(1 + 1, out[EditOperationFields::OPLEN]);
 		return;
 	}
 	assert(fixed != 0);
@@ -85,7 +111,7 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStre
 	int  lastOPSize = 0;
 
 	bool checkSequence = eo.seq[0] != '*';
-	int x=out[OPCODES].size();
+	int opcodeOffset = out[EditOperationFields::OPCODES].size();
 	for (size_t pos = 0; pos < eo.op.size(); pos++) {
 		if (isdigit(eo.op[pos])) {
 			size = size * 10 + (eo.op[pos] - '0');
@@ -94,10 +120,8 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStre
 
 		lastOP = 0;
 		lastOPSize = 0;
-		// M -> X=
-		// =,X,I,S,D,N,H,P -> same
 		switch (eo.op[pos]) {
-			case 'M': // any
+			case 'M': // any; will become =X in DeeZ's internal structure
 			case '=': // match
 			case 'X': // mismatch
 				if (!size) {
@@ -108,59 +132,62 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStre
 						if (lastOP == '=')
 							lastOPSize++;
 						else {
-							if (lastOP) addOperation(lastOP, seqPos - prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
+							if (lastOP && lastOP != '=') {
+								addOperation(lastOP, seqPos - prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
+							}
 							lastOP = '=', lastOPSize = 1;
 						}
 					}
 					else if (checkSequence && lastOP == 'X')
 						nucleotides.add(eo.seq.c_str() + seqPos, 1), lastOPSize++;
 					else {
-						if (lastOP) addOperation(lastOP, seqPos-prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
+						if (lastOP && lastOP != '=') {
+							addOperation(lastOP, seqPos - prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
+						}
 						if (checkSequence) nucleotides.add(eo.seq.c_str() + seqPos, 1);
 						lastOP = 'X', lastOPSize = 1;
 					}
 					genPos++;
 					seqPos++;
 				}
-				if (lastOP)
-					addOperation(lastOP, seqPos-prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
+				if (lastOP && lastOP != '=')
+					addOperation(lastOP, seqPos - prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
 				break;
 			case 'I':
 			case 'S':
 				if (checkSequence) nucleotides.add(eo.seq.c_str() + seqPos, size);	
 				seqPos += size;
-				addOperation(eo.op[pos], seqPos-prevSeqPos, size, out), prevSeqPos = seqPos;
+				addOperation(eo.op[pos], seqPos - prevSeqPos, size, out), prevSeqPos = seqPos;
 				break;
 			case 'D':
 			case 'N':
-				addOperation(eo.op[pos], seqPos-prevSeqPos, size, out), prevSeqPos = seqPos;
+				addOperation(eo.op[pos], seqPos - prevSeqPos, size, out), prevSeqPos = seqPos;
 				genPos += size;
 				break;
 			case 'H':
 			case 'P':
-				addOperation(eo.op[pos], seqPos-prevSeqPos, size, out), prevSeqPos = seqPos;
+				addOperation(eo.op[pos], seqPos - prevSeqPos, size, out), prevSeqPos = seqPos;
 				break;
 			default:
 				throw DZException("Bad CIGAR detected: %s", eo.op.c_str());
 		}
 		size = 0;
 	}
-	out[OPLEN].add(out[OPCODES].size()-x);
-	addEncoded((checkSequence ? eo.seq.size() : 0) + 1, out[SEQEND]);
+	addEncoded(out[EditOperationFields::OPCODES].size() - opcodeOffset + 1, out[EditOperationFields::OPLEN]);
+	addEncoded((checkSequence ? eo.seq.size() : 0) + 1, out[EditOperationFields::SEQEND]);
 }
 
-void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {
+void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) 
+{
 	if (!records.size()) { 
 		out.resize(0);
 		return;
 	}
 	assert(k <= records.size());
 
-	Array<uint8_t> oa[OUTSIZE];
-	for (int i = 0; i < OUTSIZE; i++) {
-		oa[i].realloc(k * records[0].op.size());
-		oa[i].set_extend(MB);
-	}
+	vector<Array<uint8_t>> oa;
+	for (int i = 0; i < streams.size(); i++) 
+		oa.push_back(Array<uint8_t>(k, MB));
 	Array<uint8_t> locations(k);
 	Array<uint32_t> stitches(k);	
 
@@ -185,19 +212,8 @@ void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_off
 	compressArray(stream, nucleotides.seqvec, out, out_offset);
 	compressArray(stream, nucleotides.Nvec, out, out_offset);
 
-	//Array<uint8_t> opq(operands.size(), MB);
-	// uint8_t _p = 0, _c = 0;
-	// printf("\n\nOPX\n");
-	// for (int i = 0; i < operands.size(); i++) {
-	// 	printf("%c", operands[i] ? operands[i] : '\n');
-	// 	//_p = (_p << 4) | (operands[i] & 15);
-	// 	//_c ++;
-	// 	//if (_c == 2) { opq.add(_p); _p = _c = 0;  }
-	// }
-	//if (_c) opq.add(_c);
-
-	for (int i = 0; i < OUTSIZE; i++)
-		compressArray(unknownStream[i], oa[i], out, out_offset);
+	for (int i = 0; i < streams.size(); i++)
+		compressArray(streams[i], oa[i], out, out_offset);
 	
 	records.remove_first_n(k);
 }
@@ -208,138 +224,116 @@ void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_off
 EditOperationDecompressor::EditOperationDecompressor (int blockSize):
 	GenericDecompressor<EditOperation, GzipDecompressionStream>(blockSize)
 {
-	unknownStream  = new GzipDecompressionStream();
-	operandStream  = new GzipDecompressionStream();
-	lengthStream   = new GzipDecompressionStream();
+	for (int i = 0; i < EditOperationFields::ENUM_COUNT; i++)
+		streams.push_back(new GzipDecompressionStream());
 	locationStream = new AC0DecompressionStream<256>();
 	stitchStream   = new GzipDecompressionStream();
 }
 
-EditOperationDecompressor::~EditOperationDecompressor (void) {
-	delete unknownStream;
-	delete operandStream;
-	delete lengthStream;
+EditOperationDecompressor::~EditOperationDecompressor (void) 
+{
+	for (int i = 0; i < streams.size(); i++)
+		delete streams[i];
 	delete locationStream;
 	delete stitchStream;
 }
 
-void EditOperationDecompressor::setFixed (char *f, size_t fs) {
+void EditOperationDecompressor::setFixed (char *f, size_t fs) 
+{
 	fixed = f, fixedStart = fs;
 }
 
-void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size) {
+void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size) 
+{
 	if (in_size == 0) return;
-	//assert(recordCount == records.size());
 
 	Array<uint8_t> stitches;
 	decompressArray(stitchStream, in, stitches);
 	Array<uint8_t> locations;
 	size_t sz = decompressArray(locationStream, in, locations);
 
+
 	ACTGStream nucleotides;
 	decompressArray(stream, in, nucleotides.seqvec);
 	decompressArray(stream, in, nucleotides.Nvec);
 	nucleotides.initDecode();
 
-	Array<uint8_t> operands;
-	decompressArray(operandStream, in, operands);
-	Array<uint8_t> lengths;
-	decompressArray(lengthStream, in, lengths);
+	vector<Array<uint8_t>> oa(streams.size());
+	vector<uint8_t*> fields;
+	for (int i = 0; i < streams.size(); i++)  {
+		decompressArray(streams[i], in, oa[i]);
+		fields.push_back(oa[i].data());
+	}
 
 	records.resize(0);
 
 	size_t stitchIdx = 0;
 	uint32_t lastLoc = 0;
-	uint8_t *op = operands.data();
-	uint8_t *len = lengths.data();
 	for (size_t i = 0; i < sz; i++) {
 		if (locations.data()[i] == 255)
 			lastLoc = ((uint32_t*)stitches.data())[stitchIdx++];
 		else
 			lastLoc += locations.data()[i];
-		records.add(getEditOperation(lastLoc, nucleotides, op, len));
+		records.add(getEditOperation(lastLoc, nucleotides, fields));
 	}
 
 	recordCount = 0;
 }
 
-EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStream &nucleotides, uint8_t *&op, uint8_t *&len) {
-//	assert(fixed != NULL);
-//	assert(loc >= fixedStart);
-
+EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStream &nucleotides, vector<uint8_t*> &fields) 
+{
 	EditOperation eo;
-	eo.start = loc;
-	eo.end = loc; 
-
+	eo.start = eo.end = loc;
+	
 	static Array<char> opChr(100, 100);
 	static Array<int>  opLen(100, 100);
 
 	opChr.resize(0);
 	opLen.resize(0);
 
-	int prevloc = 0;
-	while (1) {
-		// maybe gzip can catch this?
-		size_t endPos = getEncoded(len);
-		endPos--; // Avoid zeros fix
-		
-		//LOG(">> %c_%d %d %d", *op, *op, endPos, prevloc);
-
-		// End case. Check is prevloc at end. If not, add = and exit
-		if (!*op) { 
-			if (!endPos)
-				eo.seq = "*";
-			else if (endPos > prevloc)  
-				opChr.add('='), opLen.add(endPos - prevloc);
-			op++;
-			break;
-		}
-		// Unmapped case. Just add * and exit
-		else if (*op == '*') {
+	size_t prevLoc = 0, endPos = 0; 
+	int count = getEncoded(fields[EditOperationFields::OPLEN]) - 1;
+	for (int i = 0; i < count; i++) {
+		char c = *fields[EditOperationFields::OPCODES]++;
+		assert(c);
+		int l = 0;
+		if (c == '*') { // Unmapped case. Just add * and exit
+			assert(count == 1);
+			endPos = getEncoded(fields[EditOperationFields::SEQEND]) - 1;
 			opChr.add('*'), opLen.add(endPos);
-			op++; op++; 
-			break;
-		}
-		// Other cases
-		else {
-			// Get op
-			char c = *op;
-			// Get length
-			int l = 0;
-			if (*op == '0') 
-				c = *(++op), l = 0, ++op;
-			else if (*op == 'N')
-				l = getEncoded(len), op++;
-			else while (*op == c)
-				l++, op++; 
-			op++; // 0
-
-			// Do  we have trailing = ?
-			if ((c == 'N' || c == 'D' || c == 'H' || c == 'P') && endPos > prevloc) 
-				opChr.add('='), opLen.add(endPos - prevloc);
-			else if (c != 'N' && c != 'D' && c != 'H' && c != 'P' && (int)endPos - l > prevloc) 
-				opChr.add('='), opLen.add(endPos - l - prevloc);
-			prevloc = endPos;
-			opChr.add(c), opLen.add(l);
+			goto end;
 		} 
-	}
-
-	string XX;
-	for (int i = 0; i < opChr.size(); i++) {
-		if (opChr[i] == 'X') {
-			nucleotides.get(XX, opLen[i]);
-		} else if (opChr[i] == '*' || opChr[i] == 'S' || opChr[i] == 'I') {
-			nucleotides.get(XX, opLen[i]);
+		
+		endPos += getEncoded(fields[EditOperationFields::SEQPOS]) - 1;
+		if (c == '0') {
+			c = *fields[EditOperationFields::OPCODES]++, l = 0; i++;
+		} else if (c == 'X') {
+			l = getEncoded(fields[EditOperationFields::XLEN]);
+		} else if (c == 'H' || c == 'S') {
+			l = getEncoded(fields[EditOperationFields::HSLEN]);
+		} else {
+			l = getEncoded(fields[EditOperationFields::LEN]);
 		}
-		printf("%c%d", opChr[i], opLen[i]);
-	}
-	printf(" %s\n", XX.c_str());
-	return eo;
 
-	//for (int i = 0; i < opChr.size(); i++) 
-	//	LOGN("%d%c ", opLen[i], opChr[i]);
-	//LOG("");
- 
+		// Do  we have trailing = ?
+		if ((c == 'N' || c == 'D' || c == 'H' || c == 'P') && endPos > prevLoc) 
+			opChr.add('='), opLen.add(endPos - prevLoc);
+		else if (c != 'N' && c != 'D' && c != 'H' && c != 'P' && endPos - l > prevLoc) 
+			opChr.add('='), opLen.add(endPos - l - prevLoc);
+		prevLoc = endPos;
+		opChr.add(c), opLen.add(l);
+	}
+	// End case. Check is prevLoc at end. If not, add = and exit
+	endPos = getEncoded(fields[EditOperationFields::SEQEND]) - 1;
+	if (!endPos)
+		eo.seq = "*";
+	else if (endPos > prevLoc)  
+		opChr.add('='), opLen.add(endPos - prevLoc);
+
+end:
+	//for (int i = 0; i < opLen.size(); i++)
+	//	LOG("%c %d", opChr[i], opLen[i]);
+
 	size_t genPos = loc - fixedStart;
 	char lastOP = 0;
 	int  lastOPSize = 0;
@@ -368,49 +362,38 @@ EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStrea
 			case 'S':
 			case 'I':
 				nucleotides.get(eo.seq, opLen[i]);
-				if (lastOP != 0) {
-					eo.op += inttostr(lastOPSize) + lastOP;
-					if (lastOP != 'S' && lastOP != 'I')
-						eo.end += lastOPSize;
-					lastOP = 0, lastOPSize = 0;
-				}
-				if (opChr[i] == '*')
-					eo.op = "*";
-				else {
-					eo.op += inttostr(opLen[i]) + char(opChr[i]);
-					if (opChr[i] != 'S' && opChr[i] != 'I')
-						eo.end += lastOPSize;
-				}
-				break;
-
 			case 'H':
 			case 'P':
 				if (lastOP != 0) {
 					eo.op += inttostr(lastOPSize) + lastOP;
-					if (lastOP != 'S' && lastOP != 'I')
+					if (lastOP != 'S' && lastOP != 'I' && lastOP != 'H' && lastOP != 'P')
 						eo.end += lastOPSize;
 					lastOP = 0, lastOPSize = 0;
 				}
-				eo.op += inttostr(opLen[i]) + char(opChr[i]);
-			//	genPos += opLen[i];
+				if (opChr[i] == '*') {
+					eo.op = "*";
+				} else {
+					eo.op += inttostr(opLen[i]) + char(opChr[i]);
+				}
 				break;
 
 			case 'D':
 			case 'N': 
 				if (lastOP != 0) {
 					eo.op += inttostr(lastOPSize) + lastOP;
-					if (lastOP != 'S' && lastOP != 'I')
+					if (lastOP != 'S' && lastOP != 'I' && lastOP != 'H' && lastOP != 'P')
 						eo.end += lastOPSize;
 					lastOP = 0, lastOPSize = 0;
 				}
 				eo.op += inttostr(opLen[i]) + char(opChr[i]);
+				eo.end += opLen[i];
 				genPos += opLen[i];
 				break;
 		}
 	}
 	if (lastOP != 0) {
 		eo.op += inttostr(lastOPSize) + lastOP;
-		if (lastOP != 'S' && lastOP != 'I')
+		if (lastOP != 'S' && lastOP != 'I' && lastOP != 'H' && lastOP != 'P')
 			eo.end += lastOPSize;
 	}
 
@@ -419,6 +402,7 @@ EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStrea
 	return eo;
 }
 
-void EditOperationDecompressor::setIndexData (uint8_t *in, size_t in_size) {
+void EditOperationDecompressor::setIndexData (uint8_t *in, size_t in_size) 
+{
 	locationStream->setCurrentState(in, in_size);
 }

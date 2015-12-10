@@ -22,6 +22,7 @@ public:
 	virtual void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) = 0;
 	virtual void getIndexData (Array<uint8_t> &out) = 0;
 	virtual size_t compressedSize(void) { return stream->getCount(); }
+	virtual void printDetails(void) {}
 };
 
 

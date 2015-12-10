@@ -4,19 +4,15 @@
 #include "../Common.h"
 #include "../Streams/GzipStream.h"
 #include "../Engines/StringEngine.h"
-
-// typedef StringCompressor<GzipCompressionStream<6> >    
-// 	OptionalFieldCompressor;
-typedef StringDecompressor<GzipDecompressionStream> 
- 	OptionalFieldDecompressor;
-
+#include <vector>
+#include <unordered_map>
 
 class OptionalFieldCompressor: 
 	public StringCompressor<GzipCompressionStream<6> >  
 {
 	CompressionStream *indexStream;
-	std::vector<CompressionStream*> fieldStreams;
-	std::map<std::string, int> fields;
+	std::unordered_map<std::string, CompressionStream*> fieldStreams;
+	std::unordered_map<std::string, int> fields;
 
 public:
 	OptionalFieldCompressor (int blockSize);
@@ -24,42 +20,28 @@ public:
 
 public:
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
-	void getIndexData (Array<uint8_t> &out);
+	//void getIndexData (Array<uint8_t> &out);
 
-	size_t compressedSize(void) { 
-		LOGN("[FieldIndex %'lu ", indexStream->getCount());
-			int res = 0;
-		for (auto &m: fields) {
-			res += fieldStreams[m.second]->getCount();
-			LOGN("%s %'lu ", m.first.c_str(), fieldStreams[m.second]->getCount());
-		}
-		LOGN("]\n");
-		return indexStream->getCount() + res; 
-	}
+	size_t compressedSize(void);
+	void printDetails(void);
 
 private:
-	bool tokenize(const string &rec, vector<Array> &out, Array<uint8_t> &tags);
+	int processFields(const string &rec, std::vector<Array<uint8_t>> &out, Array<uint8_t> &tags);
 };
 
-/*
-class OptionalFieldDecompressor: public Compressor {
-	DecompressionStream *keyStream;
-
-	std::vector<std::string> fieldKey;	// tags
-	std::vector<char> fieldType;		// types
-	std::vector<std::deque<std::string> > fieldData;	// tag contents
-	std::vector<std::vector<short> > records;			// tag list for each record
-	int recordCount;
+class OptionalFieldDecompressor: 
+	public StringDecompressor<GzipDecompressionStream> 
+{
+	DecompressionStream *indexStream;
+	std::unordered_map<std::string, DecompressionStream*> fieldStreams;
 
 public:
 	OptionalFieldDecompressor (int blockSize);
-	~OptionalFieldDecompressor (void);
-
+	virtual ~OptionalFieldDecompressor (void);
+	
 public:
-	std::string getRecord (void);
-	bool hasRecord (void);
-	void importRecords (const std::vector<char> &input);
+	void importRecords (uint8_t *in, size_t in_size);
 };
-*/
+
 
 #endif

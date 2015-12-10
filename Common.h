@@ -52,8 +52,8 @@ std::string int2str (int k);
 std::string inttostr (int k);
 char getDNAValue (char ch);
 
-void addEncoded (int n, Array<uint8_t> &o);
-size_t getEncoded (uint8_t *&len);
+void addEncoded (ssize_t n, Array<uint8_t> &o, uint8_t offset = 0);
+ssize_t getEncoded (uint8_t *&len, uint8_t offset = 0);
 std::string fullPath (const std::string &s);
 
 #define __debug_fwrite(a,b,c,d)

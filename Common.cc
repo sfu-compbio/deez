@@ -44,16 +44,17 @@ char getDNAValue (char ch) {
 	return c[ch];
 }
 
-void addEncoded (int n, Array<uint8_t> &o) {
-	if (n < (1 << 8))
+void addEncoded (ssize_t n, Array<uint8_t> &o, uint8_t offset) {
+	n += offset;
+	assert(n != offset);
+	if (n < (1 << 8)) {
 		o.add(n);
-	else if (n < (1 << 16)) {
-		o.add(0);
+	} else if (n < (1 << 16)) {
+		o.add(offset);
 		o.add((n >> 8) & 0xff);
 		o.add(n & 0xff);
-	}
-	else {
-		REPEAT(2) o.add(0);
+	} else {
+		REPEAT(2) o.add(offset);
 		o.add((n >> 24) & 0xff);
 		o.add((n >> 16) & 0xff);
 		o.add((n >> 8) & 0xff);
@@ -61,13 +62,14 @@ void addEncoded (int n, Array<uint8_t> &o) {
 	}
 }
 
-size_t getEncoded (uint8_t *&len) {
+ssize_t getEncoded (uint8_t *&len, uint8_t offset) {
 	int T = 1;
-	if (!*len) T = 2, len++;
-	if (!*len) T = 4, len++;
-	size_t size = 0;
+	if (*len == offset) T = 2, len++;
+	if (*len == offset) T = 4, len++;
+	ssize_t size = 0;
 	REPEAT(T) size |= *len++ << (8 * (T-_-1));
-	assert(size > 0);
+	assert(size != offset);
+	size -= offset;
 	return size;
 }
 

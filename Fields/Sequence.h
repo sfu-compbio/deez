@@ -43,10 +43,8 @@ public:
 	void updateBoundary (size_t loc);
 	void outputRecords (Array<uint8_t> &output, size_t out_offset, size_t k);
 	void getIndexData (Array<uint8_t> &out) { out.resize(0); }
-	size_t compressedSize(void) { 
-		LOGN("[Fixes %'lu Replace %'lu]\n", fixesStream->getCount(), fixesReplaceStream->getCount());
-		return fixesStream->getCount() + fixesReplaceStream->getCount(); 
-	}
+	size_t compressedSize(void);
+	void printDetails(void);
 
 	size_t applyFixes (size_t end, EditOperationCompressor &editOperation, size_t&, size_t&, size_t&, size_t&, size_t&);
 	

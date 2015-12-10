@@ -20,13 +20,17 @@ public:
 	}
 
 	Array (size_t c, size_t e = 100):
-		_size(0), _capacity(c), _extend(e) 
+		_records(0), _size(0), _capacity(c), _extend(e) 
 	{
 		_records = new T[_capacity];
 	}
 
-	~Array (void) {
-		delete[] _records;
+	~Array (void)
+	{
+		if (_records) {
+			delete[] _records;
+			_records = 0;
+		}
 	}
 
 	Array (const Array& a)
@@ -38,22 +42,34 @@ public:
 		std::copy(a._records, a._records + a._size, _records);
 	}
 
-	Array& operator= (const Array& a) 
+	Array(Array&& a): Array()
 	{
-		_size = a._size;
-		_capacity = a._capacity;
-		_extend = a._extend;
-		_records = new T[a._capacity];
-		std::copy(a._records, a._records + a._size, _records);	
+		swap(*this, a);
+	}
+
+	Array& operator= (Array a) 
+	{
+		swap(*this, a);
 		return *this;
 	}
+
+	friend void swap(Array& a, Array& b) // nothrow
+	{
+		using std::swap;
+
+		swap(a._records, b._records);
+		swap(a._size, b._size);
+		swap(a._capacity, b._capacity);
+		swap(a._extend, b._extend);
+	}
+
 
 public:
 	void realloc (size_t sz) {
 		_capacity = sz + _extend;
 
 		if (_size > _capacity) _size = _capacity;
-		if (!_capacity) { _records = 0; return; }
+		if (!_capacity) { _records = nullptr; return; }
 
 		T *tmp = new T[_capacity];
 		std::copy(_records, _records + _size, tmp);
