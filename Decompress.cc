@@ -281,24 +281,25 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 	for (int ti = 0; ti < 7; ti++) {
 		size_t sz = inFile->readU64();
 		in[ti].resize(sz);
-		if (sz) inFile->read(in[ti].data(), sz);
-	//#ifdef DEEZLIB
-	//	readBlockThread(di[ti], in[ti]);
-	//#else
-		t[ti] = thread(readBlockThread, di[ti], ref(in[ti]));
-	//#endif
+		if (ti == 0) {
+			if (sz) inFile->read(in[ti].data(), sz); 
+			readBlockThread(di[ti], in[ti]);
+			//t[ti] = thread(readBlockThread, di[ti], ref(in[ti]));
+		} else {
+			inFile->advance(sz);
+		}
 	}
 	//#ifndef DEEZLIB
-		for (int ti = 0; ti < 7; ti++)
-			t[ti].join();
+	//	for (int ti = 0; ti < 7; ti++)
+	//		t[ti].join();
 	//#endif
 
 	size_t count = 0;
 	while (editOp[f]->hasRecord()) {
-		string rname = readName[f]->getRecord();
-		int flag = mapFlag[f]->getRecord();
+		//string rname = readName[f]->getRecord();
+		//int flag = mapFlag[f]->getRecord();
 		EditOperation eo = editOp[f]->getRecord();
-		int mqual = mapQual[f]->getRecord();
+		/*int mqual = mapQual[f]->getRecord();
 		string qual = quality[f]->getRecord(eo.seq.size(), flag);
 		string optional = optField[f]->getRecord();
 		PairedEndInfo pe = pairedEnd[f]->getRecord(chr, eo.start);
@@ -315,11 +316,12 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 			finishedRange = true;
 			return count;
 		}
-
+		
 		if (chr != "*") eo.start++;
 		if (pe.chr != "*") pe.pos++;
-
-		printRecord(rname, flag, chr, eo, mqual, qual, optional, pe, f);
+		*/
+		//printRecord(rname, flag, chr, eo, mqual, qual, optional, pe, f);
+		
 		if (count % (1 << 16) == 0) 
 			LOGN("\r   Chr %-6s %5.2lf%%", chr.c_str(), (100.0 * inFile->tell()) / inFileSz);
 		count++;

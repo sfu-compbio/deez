@@ -29,7 +29,7 @@ string SetS3File (string url, CURL *ch, string method = "GET")
 			url = S("https://%s.s3.amazonaws.com/%s", bucket.c_str(), location.c_str());
 			//LOG("Using %s", url.c_str());
 
-#ifdef OPENSSL
+	#ifdef OPENSSL
 			char *accessKey = getenv("AWS_ACCESS_KEY_ID");
 			char *secretKey = getenv("AWS_SECRET_ACCESS_KEY");
 			if (accessKey && secretKey && string(accessKey) != "" && string(secretKey) != "") {
@@ -78,7 +78,7 @@ string SetS3File (string url, CURL *ch, string method = "GET")
 				list = curl_slist_append(list, S("Authorization: AWS %s:%s", accessKey, encodedSecret).c_str());
 				curl_easy_setopt(ch, CURLOPT_HTTPHEADER, list);
 			}
-#endif
+	#endif
 			//curl_easy_setopt(ch, CURLOPT_VERBOSE, 1);
 		}
 	}
@@ -161,6 +161,12 @@ ssize_t File::read (void *buffer, size_t size, size_t offset)
 	fseek(fh, offset, SEEK_SET);
 	return read(buffer, size);
 }
+
+size_t File::advance(size_t size)
+{
+	fseek(fh, size, SEEK_CUR);
+	return ftell(fh);
+}	
 
 char File::getc ()
 {

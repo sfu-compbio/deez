@@ -1,192 +1,109 @@
 #include "OptionalField.h"
 using namespace std;
 
-// OptionalFieldCompressor::OptionalFieldCompressor (int blockSize) {
-// 	stream = new GzipCompressionStream<6>();
-// 	keyStream = new GzipCompressionStream<6>();
-// 	fieldIdx.resize(256 * 256, 0);
-// 	records.reserve(blockSize);
-// }
+OptionalFieldCompressor::OptionalFieldCompressor (int blockSize):
+	StringCompressor<GzipCompressionStream<6> >(blockSize) 
+{
+	fieldCompressor = new GzipCompressionStream<6>();
+}
 
-// OptionalFieldCompressor::~OptionalFieldCompressor (void) {
-// 	delete keyStream;
-// 	delete stream;
-// }
+OptionalFieldCompressor::~OptionalFieldCompressor (void) 
+{
+	delete indexStream;
+	for (int i = 0; i < fieldStreams.size(); i++)
+		delete fieldStreams[i];
+}
 
-// void OptionalFieldCompressor::processFields (const string &rec) {
-// 	vector<short> keys;
-// 	bit[26*26*26*26*10];
+bool OptionalFieldCompressor::processFields (const string &rec, vector<Array> &out, Array<uint8_t> &tags) 
+{
+	bool ordered = true;
+	int prevKey = 0, tagStartIndex = tags.size();
+	for (int i = 0; i < rec.size(); i++) {
+		if (rec.size() - i < 5 || rec[2] != ':' || rec[4] != ':')
+			throw DZException("Invalid SAM tag %s", rec.substr(i));
 
-// 	for (int i = 0; i < rec.size(); i++) {
-// 		int j = i;
-// 		while (j < rec.size() && rec[j] != '\t') 
-// 			j++;
-// 		if (j - i < 5)
-// 			throw DZException("SAM optional tag is invalid!");
+		string key = rec.substr(i, 2) + rec[3];
 		
+		int keyIndex;
+		auto it = fields.find(key);
+		if (it == fields.end()) {
+			keyIndex = fields.size();
+			fields[key] = keyIndex;
+			fieldStreams.push_back(new GzipCompressionStream<6>());
+			out.push_back(Array<uint8_t>(k, MB));
 
-// 		short idx = ota[rec[i]] * (26 * 26 * 10) + ota[rec[i + 1]];
-		
-// 		if (!fieldIdx[idx]) {
-// 			fieldKey.push_back(rec.substr(i, 2));
-// 			fieldType.push_back(rec[i + 3]);
-// 			fieldData.push_back(vector<string>());
-// 			fieldIdx[idx] = fieldKey.size();
-// 		}
-// 		fieldData[fieldIdx[idx] - 1].push_back(rec.substr(i + 5, j - i - 5));
-// 		keys.push_back(fieldIdx[idx] - 1);
-// 		i = j;
-// 	}
-// 	records.push_back(keys);
-// }
+			if (keyIndex + 2 > 255) 
+				throw DZException("Too many tags!");
+			tags.add(prevKey = keyIndex + 2);
+			for (auto c: key) tags.add(c); tags.add(0);
+		} else {
+			keyIndex = it->second;
+			ordered &= (prevKey <= keyIndex + 2);
+			tags.add(prevKey = keyIndex + 2);
+		}
 
-// void OptionalFieldCompressor::outputRecords (std::vector<char> &output) {
-// 	if (records.size() > 0) {
-// 		vector<char> c;
-		
-// 		/**
-// 		 * Block contents:
-// 		 * {size_t} size
-// 		 * {...}    keys   --> {short}  size
-// 		 *                     {short*} array
-// 		 * {...}    values --> {short}  size
-// 		 *                     {...}    tags   --> {char.2} key
-// 		 *                                         {char}   type
-// 		 *                                         {char*}  value
-// 		 **/
-		
-// 		size_t s = records.size();
-// 		c.insert(c.end(), (char*)&s, (char*)(&s + sizeof(size_t)));
+		switch (key[2]) {
+		case 'c':
+		case 'C': {
+			uint8_t num = (uint8_t)atoi(rec.size() + 5);
+			out[keyIndex].add(num);
+			break;
+		}
+		case 's':
+		case 'S': {
+			uint16_t num = (uint16_t)atoi(rec.size() + 5);
+			DO(2) out[keyIndex].add(num & 0xff), num >>= 8;
+			break;
+		}
+		case 'i':
+		case 'I': {
+			uint32_t num = (uint32)atoi(rec.size() + 5);
+			DO(4) out[keyIndex].add(num & 0xff), num >>= 8;
+			break;
+		}
+		case 'f': {
+			float num = double(rec.size() + 5);
+			DO(4) out[keyIndex].add(num & 0xff), num >>= 8;
+			break;
+		}
+		case 'A':
+			out[keyIndex].add(rec.size()[5]);
+			break;
+		default:
+			// check MDZ, XAZ
+			for (; rec[i] != '\t' && i < rec.size(); i++)
+				out[keyIndex].add(rec[i]);
+			out[keyIndex].add(0);
+		}
+		for (; rec[i] != '\t' && i < rec.size(); i++);
+	}
+	if (ordered) {
+		//IMPLEMENT;
+	} 
+	return ordered;
+}
 
-// 		for (size_t i = 0; i < records.size(); i++) {
-// 			short sz = records[i].size();
-// 			c.insert(c.end(), (char*)&sz, (char*)(&sz + sizeof(short)));
-// 			keyStream->compress(&records[i][0], sz * sizeof(short), c);
-// 		}
+void OptionalFieldCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) 
+{
+	if (!records.size()) { 
+		out.resize(0);
+		return;
+	}
+	assert(k <= records.size());
 
-// 		short sz = fieldKey.size();
-// 		c.insert(c.end(), (char*)&sz, (char*)(&sz + sizeof(short)));
-// 		for (size_t i = 0; i < fieldKey.size(); i++) {
-// 			stream->compress((void*)fieldKey[i].c_str(), 2 * sizeof(char), c);
-// 			stream->compress(&fieldType[i], sizeof(char), c);
+	vector<Array<uint8_t>> oa;
+	Array<uint8_t> buffer(l * 10, MB);
 
-// 			int l = fieldData[i].size();
-// 			c.insert(c.end(), (char*)&l, (char*)(&l + sizeof(int)));
-// 			for (int j = 0; j < l; j++)
-// 				stream->compress((void*)fieldData[i][j].c_str(), fieldData[i][j].size() + 1, c);
-// 			fieldData[i].clear();
-// 		}
-// 		records.erase(records.begin(), records.end());
-// 	}
-// }
+	for (size_t i = 0; i < k; i++) {
+		bool ordered = tokenize(this->records[i], oa, buffer);
+		buffer.add(!ordered); 
+		this->totalSize -= this->records[i].size() + 1;
+	}
 
-// OptionalFieldDecompressor::OptionalFieldDecompressor (int blockSize):
-// 	recordCount(0) 
-// {
-// 	stream = new GzipDecompressionStream();
-// 	keyStream = new GzipDecompressionStream();
-// 	records.reserve(blockSize);
-// }
-
-// OptionalFieldDecompressor::~OptionalFieldDecompressor (void) {
-// 	delete stream;
-// 	delete keyStream;
-// }
-
-// string OptionalFieldDecompressor::getRecord (void) {
-// 	assert(hasRecord());
+	for (int i = 0; i < oa.size(); i++)
+		compressArray(fieldStreams[i], oa[i], out, out_offset);
+	compressArray(indexStream, buffer, out, out_offset);
 	
-// 	const vector<short> &v = records[recordCount++];
-// 	string result = "";
-// 	for (int i = 0; i < v.size(); i++) {
-// 		if (i) result += "\t";
-// 		result += fieldKey[v[i]] + ":" + fieldType[v[i]] + ":";
-// 		result += fieldData[v[i]][0];
-// 		fieldData[v[i]].pop_front();
-// 	}
-// 	return result;
-// }
+	this->records.remove_first_n(k);
+}
 
-// bool OptionalFieldDecompressor::hasRecord (void) {
-// 	return recordCount < records.size();
-// }
-
-// void OptionalFieldDecompressor::importRecords (const std::vector<char> &input) {
-// 	/**
-// 	* Block contents:
-// 	* {size_t} size
-// 	* {...}    keys   --> {short}  size
-// 	*                     {short*} array
-// 	* {...}    values --> {short}  size
-// 	*                     {...}    tags   --> {char.2} key
-// 	*                                         {char}   type
-// 	*                                         {char*}  value
-// 	**/
-		
-// 	const char *ptr = &input[0];
-	
-// 	size_t s = * (size_t*)ptr;
-// 	ptr += sizeof(size_t);
-// 	for (size_t i = 0; i < s; i++) {
-// 		short sz = * (short*)ptr; 
-// 		ptr += sizeof(short);
-		
-// 		records.push_back(vector<short>(sz));
-// 		keyStream->decompress(ptr, sz, 
-// 		c.insert(c.end(), (char*)&sz, (char*)(&sz + sizeof(short)));
-// 		keyStream->compress(&records[i][0], sz * sizeof(short), c);
-// 	}
-
-// 	short sz = fieldKey.size();
-// 	c.insert(c.end(), (char*)&sz, (char*)(&sz + sizeof(short)));
-// 	for (size_t i = 0; i < fieldKey.size(); i++) {
-// 		stream->compress((void*)fieldKey[i].c_str(), 2 * sizeof(char), c);
-// 		stream->compress(&fieldType[i], sizeof(char), c);
-
-// 		int l = fieldData[i].size();
-// 		c.insert(c.end(), (char*)&l, (char*)(&l + sizeof(int)));
-// 		for (int j = 0; j < l; j++)
-// 			stream->compress((void*)fieldData[i][j].c_str(), fieldData[i][j].size() + 1, c);
-// 		fieldData[i].clear();
-// 	}
-// 	records.erase(records.begin(), records.end());
-
-
-
-// 	short s;
-// 	for (int i = 0; i < blockSize; i++) {
-// 		short sz;
-// 		sz = &input[0] + i * 
-// 		if (!gzread(keyFile, &s, sizeof(short)))
-// 			break;
-// 		records.push_back(vector<short>(s));
-// 		gzread(keyFile, &records[i][0], s * sizeof(short));
-// 	}
-
-// 	gzread(valueFile, &s, sizeof(short));
-// 	fieldKey.resize(s);
-// 	fieldType.resize(s);
-// 	fieldData.resize(s);
-// 	char buf[2];
-// 	for (int i = 0; i < s; i++) {
-// 		gzread(valueFile, buf, 2 * sizeof(char));
-// 		fieldKey[i] = string(buf, 2);
-// 		gzread(valueFile, buf, sizeof(char)); 
-// 		fieldType[i] = buf[0];
-
-// 		int l;
-// 		gzread(valueFile, &l, sizeof(int));
-// 		fieldData[i].resize(l);
-// 		for (int j = 0; j < l; j++) {
-// 			// do only strings for now...
-// 			fieldData[i][j] = "";
-// 			while (1) {
-// 				gzread(valueFile, buf, sizeof(char));
-// 				if (!buf[0]) break;
-// 				fieldData[i][j] += buf[0];
-// 			}
-// 		}
-// 	}
-
-// 	LOG("%d optional fields are loaded", records.size());
-// }

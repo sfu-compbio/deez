@@ -5,30 +5,43 @@
 #include "../Streams/GzipStream.h"
 #include "../Engines/StringEngine.h"
 
-typedef StringCompressor<GzipCompressionStream<6> >    
-	OptionalFieldCompressor;
+// typedef StringCompressor<GzipCompressionStream<6> >    
+// 	OptionalFieldCompressor;
 typedef StringDecompressor<GzipDecompressionStream> 
-	OptionalFieldDecompressor;
+ 	OptionalFieldDecompressor;
 
-/*
-class OptionalFieldCompressor: public Compressor {
-	CompressionStream *keyStream;
 
-	std::vector<short> fieldIdx;		// indices for tags
-	std::vector<std::string> fieldKey;	// tags
-	std::vector<char> fieldType;		// types
-	std::vector<std::vector<std::string> > fieldData;	// tag contents
-	std::vector<std::vector<short> > records;			// tag list for each record
+class OptionalFieldCompressor: 
+	public StringCompressor<GzipCompressionStream<6> >  
+{
+	CompressionStream *indexStream;
+	std::vector<CompressionStream*> fieldStreams;
+	std::map<std::string, int> fields;
 
 public:
 	OptionalFieldCompressor (int blockSize);
 	~OptionalFieldCompressor (void);
 
 public:
-	void addRecord (const std::string &rec);
-	void outputRecords (std::vector<char> &output);
+	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
+	void getIndexData (Array<uint8_t> &out);
+
+	size_t compressedSize(void) { 
+		LOGN("[FieldIndex %'lu ", indexStream->getCount());
+			int res = 0;
+		for (auto &m: fields) {
+			res += fieldStreams[m.second]->getCount();
+			LOGN("%s %'lu ", m.first.c_str(), fieldStreams[m.second]->getCount());
+		}
+		LOGN("]\n");
+		return indexStream->getCount() + res; 
+	}
+
+private:
+	bool tokenize(const string &rec, vector<Array> &out, Array<uint8_t> &tags);
 };
 
+/*
 class OptionalFieldDecompressor: public Compressor {
 	DecompressionStream *keyStream;
 

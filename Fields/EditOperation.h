@@ -113,12 +113,21 @@ struct ACTGStream {
 	}
 };
 
+enum {
+	OPCODES,
+	SEQPOS,
+	SEQEND,
+	XLEN,
+	HSLEN,
+	LEN,
+	OPLEN
+};
+const int OUTSIZE=7;
+
 class EditOperationCompressor: 
 	public GenericCompressor<EditOperation, GzipCompressionStream<6> >
 {
-	CompressionStream *unknownStream;
-	CompressionStream *operandStream;
-	CompressionStream *lengthStream;
+	CompressionStream *unknownStream[OUTSIZE];
 	CompressionStream *stitchStream;
 	CompressionStream *locationStream;
 
@@ -133,17 +142,18 @@ public:
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
 	void getIndexData (Array<uint8_t> &out);
 	size_t compressedSize(void) { 
-		LOGN("[Nucleotides %lu Unknown %lu Operations %lu Oplens %lu Locations %lu Stitch %lu]", 
+		LOGN("[Nucleotides %'lu Locations %'lu Stitch %'lu ", 
 			stream->getCount(),
-			unknownStream->getCount(),
-			operandStream->getCount(),
-			lengthStream->getCount(),
 			locationStream->getCount(),
 			stitchStream->getCount()
 		);
-		return stream->getCount() + unknownStream->getCount() +
-			operandStream->getCount() + lengthStream->getCount() +
-			locationStream->getCount() + stitchStream->getCount();
+		int res = 0;
+		for (int i = 0; i < OUTSIZE; i++) {
+			LOGN("OP%d %'lu ", i, unknownStream[i]->getCount());
+			res += unknownStream[i]->getCount();
+		}
+		LOGN("]\n");
+		return stream->getCount() + locationStream->getCount() + stitchStream->getCount() + res;
 	}
 	
 private:
@@ -151,10 +161,9 @@ private:
 	void setFixed(char *f, size_t fs);
 	const EditOperation &operator[] (int idx);
 	
-	void addOperation(char op, int seqPos, int size,
-		Array<uint8_t> &operands, Array<uint8_t> &lengths);
+	void addOperation(char op, int seqPos, int size, Array<uint8_t> *out);
 	void addEditOperation(const EditOperation &eo,
-		ACTGStream &nucleotides, Array<uint8_t> &operands, Array<uint8_t> &lengths);
+		ACTGStream &nucleotides, Array<uint8_t> *out);
 
 };
 

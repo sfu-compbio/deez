@@ -26,6 +26,7 @@ public:
 	virtual ssize_t read (void *buffer, size_t size);
 	virtual ssize_t read (void *buffer, size_t size, size_t offset);
 	virtual ssize_t write (void *buffer, size_t size);
+	virtual size_t advance(size_t size);
 
 	virtual char getc();
 	virtual uint8_t readU8();

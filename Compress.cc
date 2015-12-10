@@ -200,18 +200,19 @@ void FileCompressor::outputRecords (void) {
 				EditOperation eo(loc, rc.getSequence(), rc.getCigar());
 				sequence[f]->updateBoundary(eo.end);
 				editOp[f]->addRecord(eo);
-				if (optReadLossy)
-					((ReadNameLossyCompressor*)readName[f])->addRecord(rc.getReadName());
-				else
-					((ReadNameCompressor*)readName[f])->addRecord(rc.getReadName());
-				mapFlag[f]->addRecord(rc.getMappingFlag());
-				mapQual[f]->addRecord(rc.getMappingQuality());
-				quality[f]->addRecord(rc.getQuality()/*, rc.getSequence()*/, rc.getMappingFlag());
+				// if (optReadLossy)
+				// 	((ReadNameLossyCompressor*)readName[f])->addRecord(rc.getReadName());
+				// else
+				// 	((ReadNameCompressor*)readName[f])->addRecord(rc.getReadName());
+				// mapFlag[f]->addRecord(rc.getMappingFlag());
+				// mapQual[f]->addRecord(rc.getMappingQuality());
+				// quality[f]->addRecord(rc.getQuality()/*, rc.getSequence()*/, rc.getMappingFlag());
 				pairedEnd[f]->addRecord(PairedEndInfo(rc.getPairChromosome(), p_loc, rc.getTemplateLenght(), 
-					sequence[f]->getChromosome(), rc.getLocation()));
-				optField[f]->addRecord(rc.getOptional());
+					eo.start, eo.end - eo.start, rc.getMappingFlag()));
+				 	//sequence[f]->getChromosome(), rc.getLocation()));
+				// optField[f]->addRecord(rc.getOptional());
 
-				stats[f].addRecord(rc.getMappingFlag());
+				// stats[f].addRecord(rc.getMappingFlag());
 
 				lastStart[f] = loc;
 				parsers[f]->readNext();		
@@ -279,18 +280,18 @@ void FileCompressor::outputRecords (void) {
 			//	currentBlockFirstLoc,currentBlockLastLoc,fixedStartPos,fixedEndPos);
 
 			//ZAMAN_START();
-			Compressor *ci[] = { sequence[f], editOp[f], readName[f], mapFlag[f], mapQual[f], quality[f], pairedEnd[f], optField[f] };
+			Compressor *ci[] = { sequence[f], editOp[f], pairedEnd[f], readName[f], mapFlag[f], mapQual[f], quality[f], /*pairedEnd[f],*/ optField[f] };
 			thread t[8];
-			for (size_t ti = 0; ti < 8; ti++) {
+			for (size_t ti = 0; ti < 3 /*8*/; ti++) {
 				ci[ti]->debugStream = (FILE*)ti;
 				t[ti] = thread(compressBlock, ci[ti], ref(outputBuffer[ti]), ref(idxBuffer[ti]), currentBlockCount);
 			}
-			for (int ti = 0; ti < 8; ti++)
+			for (int ti = 0; ti < 3; ti++)
 				t[ti].join();
 			//ZAMAN_END("CALC");
 
 			//ZAMAN_START();
-			for (int ti = 0; ti < 8; ti++)
+			for (int ti = 0; ti < 3; ti++)
 				outputBlock(outputBuffer[ti], idxBuffer[ti]);
 			//LOG("ZP %'lu ", zpos);
 			//ZAMAN_END("IO");
@@ -331,16 +332,16 @@ void FileCompressor::outputRecords (void) {
 	
 	fwrite(&posStats, sizeof(size_t), 1, outputFile);
 	
-	#define VERBOSE(x)  LOG("%s: %lu", #x, x->compressedSize())
+	#define VERBOSE(x)  LOG("%s: %'lu", #x, x->compressedSize())
 	for (int f = 0; f < parsers.size(); f++) {
 		VERBOSE(sequence[f]);
 		VERBOSE(editOp[f]);
-		VERBOSE(readName[f]);
-		VERBOSE(mapFlag[f]);
-		VERBOSE(mapQual[f]);
-		VERBOSE(quality[f]);
+	//	VERBOSE(readName[f]);
+	//	VERBOSE(mapFlag[f]);
+	//	VERBOSE(mapQual[f]);
+	//	VERBOSE(quality[f]);
 		VERBOSE(pairedEnd[f]);
-		VERBOSE(optField[f]);
+	//	VERBOSE(optField[f]);
 	}
 }
 

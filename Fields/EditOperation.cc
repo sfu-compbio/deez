@@ -5,18 +5,17 @@ EditOperationCompressor::EditOperationCompressor (int blockSize):
 	GenericCompressor<EditOperation, GzipCompressionStream<6> >(blockSize),
 	fixed(0), fixedStart(0)
 {
-	operandStream = new GzipCompressionStream<6>();
-	lengthStream = new GzipCompressionStream<6>();
-	unknownStream  = new GzipCompressionStream<6>();
 	locationStream = new AC0CompressionStream<256>();
 	stitchStream = new GzipCompressionStream<6>();
+
+	for (int i = 0; i < OUTSIZE; i++)
+		unknownStream[i] = new GzipCompressionStream<6>();
 }
 
 
 EditOperationCompressor::~EditOperationCompressor (void) {
-	delete operandStream;
-	delete lengthStream;
-	delete unknownStream;
+	for (int i = 0; i < OUTSIZE; i++)
+		delete unknownStream[i];
 	delete locationStream;
 	delete stitchStream;
 }
@@ -35,71 +34,58 @@ void EditOperationCompressor::setFixed (char *f, size_t fs) {
 	fixed = f, fixedStart = fs;
 }
 
-void EditOperationCompressor::addOperation (char op, int seqPos, int size,
-	Array<uint8_t> &operands, Array<uint8_t> &lengths) 
+void EditOperationCompressor::addOperation (char op, int seqPos, int size, Array<uint8_t> *out) 
 {
-	//LOGN("\n <%c %d %d> ", op, seqPos, size);
+	//static const char *DB = "ABC\1EFG\2\3JKLM\4O\5QR\6TUVW\7YZ";
+	static const char *DB = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
 	if (op == '=' || op == '*') 
 		return;
 	seqPos++; // Avoid zeros
-	addEncoded(seqPos, lengths);
+	addEncoded(seqPos, out[SEQPOS]);
 	if (!size) {
-		operands.add('0');
-		operands.add(op);
-	}
-	else if (op == 'N') {
-		operands.add(op);
+		out[OPCODES].add('0');
+		out[OPCODES].add(op);
+	} else if (op == 'N') {
+		out[OPCODES].add(DB[op - 'A']);
 		assert(size > 0);
-		addEncoded(size, lengths);
+		addEncoded(size, out[LEN]);
+	} else if (op == 'X') {
+		out[OPCODES].add(DB[op - 'A']); 
+		addEncoded(size, out[XLEN]);
+	} else if (op == 'H' || op == 'S') {
+		out[OPCODES].add(DB[op - 'A']); 
+		addEncoded(size, out[HSLEN]);
+	} else {
+		out[OPCODES].add(DB[op - 'A']); 
+		addEncoded(size, out[LEN]);
 	}
-	// seems to be working very well for XISD  [HP]
-	else for (int i = 0; i < size; i++) 
-		operands.add(op); 
-	operands.add(0);
 }
 
-void EditOperationCompressor::addEditOperation(const EditOperation &eo,
-	ACTGStream &nucleotides, Array<uint8_t> &operands, Array<uint8_t> &lengths) 
+void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStream &nucleotides, Array<uint8_t> *out) 
 {
 	if (eo.op == "*") {
 		if (eo.seq != "*") {
 			nucleotides.add(eo.seq.c_str(), eo.seq.size());
-			addEncoded(eo.seq.size() + 1, lengths);
+			addEncoded(eo.seq.size() + 1, out[SEQEND]);
+		} else {
+			addEncoded(1, out[SEQEND]);
 		}
-		else 
-			addEncoded(1, lengths);
-		operands.add('*');
-		operands.add(0);
+		out[OPCODES].add('*');
+		out[OPCODES].add(0);
 		return;
 	}
-	/*else if (eo.seq == "*") { // weird, but happens!
-		addEncoded(1, lengths);
-		for (size_t pos = 0; pos < eo.op.size(); pos++) {
-			if (isdigit(eo.op[pos])) {
-				size = size * 10 + (eo.op[pos] - '0');
-				continue;
-			}
-			operands.add('*');
-			switch (eo.op[pos]) {
-				addOperation(lastOP, 0, size, operands, lengths);
-				break;
-			}
-			size = 0;
-		}
-		operands.add(0);
-		addEncoded(eo.seq.size() + 1, lengths);
-	}*/
 	assert(fixed != 0);
 
 	size_t size   = 0;
 	size_t genPos = eo.start - fixedStart;
-	size_t seqPos = 0;
+	size_t seqPos = 0, prevSeqPos = 0;
 
 	char lastOP = 0;
 	int  lastOPSize = 0;
 
 	bool checkSequence = eo.seq[0] != '*';
-
+	int x=out[OPCODES].size();
 	for (size_t pos = 0; pos < eo.op.size(); pos++) {
 		if (isdigit(eo.op[pos])) {
 			size = size * 10 + (eo.op[pos] - '0');
@@ -114,24 +100,22 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 			case 'M': // any
 			case '=': // match
 			case 'X': // mismatch
-			//LOG("%c~%d %d\n",eo.op[pos], size,lastOP);
 				if (!size) {
-					//addOperation(lastOP, seqPos, lastOPSize, operands, lengths);
-					lastOP = 'X' /*eo.op[pos]*/, lastOPSize = 0;
+					lastOP = 'X', lastOPSize = 0;
 				}
 				for (size_t i = 0; i < size; i++) {
 					if (checkSequence && eo.seq[seqPos] == fixed[genPos]) {
 						if (lastOP == '=')
 							lastOPSize++;
 						else {
-							if (lastOP) addOperation(lastOP, seqPos, lastOPSize, operands, lengths);
+							if (lastOP) addOperation(lastOP, seqPos - prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
 							lastOP = '=', lastOPSize = 1;
 						}
 					}
 					else if (checkSequence && lastOP == 'X')
 						nucleotides.add(eo.seq.c_str() + seqPos, 1), lastOPSize++;
 					else {
-						if (lastOP) addOperation(lastOP, seqPos, lastOPSize, operands, lengths);
+						if (lastOP) addOperation(lastOP, seqPos-prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
 						if (checkSequence) nucleotides.add(eo.seq.c_str() + seqPos, 1);
 						lastOP = 'X', lastOPSize = 1;
 					}
@@ -139,30 +123,30 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo,
 					seqPos++;
 				}
 				if (lastOP)
-					addOperation(lastOP, seqPos, lastOPSize, operands, lengths);
+					addOperation(lastOP, seqPos-prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
 				break;
 			case 'I':
 			case 'S':
 				if (checkSequence) nucleotides.add(eo.seq.c_str() + seqPos, size);	
 				seqPos += size;
-				addOperation(eo.op[pos], seqPos, size, operands, lengths);
+				addOperation(eo.op[pos], seqPos-prevSeqPos, size, out), prevSeqPos = seqPos;
 				break;
 			case 'D':
 			case 'N':
-				addOperation(eo.op[pos], seqPos, size, operands, lengths);
+				addOperation(eo.op[pos], seqPos-prevSeqPos, size, out), prevSeqPos = seqPos;
 				genPos += size;
 				break;
 			case 'H':
 			case 'P':
-				addOperation(eo.op[pos], seqPos, size, operands, lengths);
+				addOperation(eo.op[pos], seqPos-prevSeqPos, size, out), prevSeqPos = seqPos;
 				break;
 			default:
 				throw DZException("Bad CIGAR detected: %s", eo.op.c_str());
 		}
 		size = 0;
 	}
-	operands.add(0);
-	addEncoded((checkSequence ? eo.seq.size() : 0) + 1, lengths);
+	out[OPLEN].add(out[OPCODES].size()-x);
+	addEncoded((checkSequence ? eo.seq.size() : 0) + 1, out[SEQEND]);
 }
 
 void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {
@@ -172,9 +156,11 @@ void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_off
 	}
 	assert(k <= records.size());
 
-	Array<uint8_t> operands(k * records[0].op.size(), MB);
-	Array<uint8_t> lengths(k * records[0].op.size(), MB);
-
+	Array<uint8_t> oa[OUTSIZE];
+	for (int i = 0; i < OUTSIZE; i++) {
+		oa[i].realloc(k * records[0].op.size());
+		oa[i].set_extend(MB);
+	}
 	Array<uint8_t> locations(k);
 	Array<uint32_t> stitches(k);	
 
@@ -189,7 +175,7 @@ void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_off
 			locations.add(records[i].start - lastLoc);
 		lastLoc = records[i].start;
 
-		addEditOperation(records[i], nucleotides, operands, lengths);
+		addEditOperation(records[i], nucleotides, oa);
 	}
 	
 	compressArray(stitchStream, stitches, out, out_offset);
@@ -199,9 +185,20 @@ void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_off
 	compressArray(stream, nucleotides.seqvec, out, out_offset);
 	compressArray(stream, nucleotides.Nvec, out, out_offset);
 
-	compressArray(operandStream, operands, out, out_offset);
-	compressArray(lengthStream, lengths, out, out_offset);
+	//Array<uint8_t> opq(operands.size(), MB);
+	// uint8_t _p = 0, _c = 0;
+	// printf("\n\nOPX\n");
+	// for (int i = 0; i < operands.size(); i++) {
+	// 	printf("%c", operands[i] ? operands[i] : '\n');
+	// 	//_p = (_p << 4) | (operands[i] & 15);
+	// 	//_c ++;
+	// 	//if (_c == 2) { opq.add(_p); _p = _c = 0;  }
+	// }
+	//if (_c) opq.add(_c);
 
+	for (int i = 0; i < OUTSIZE; i++)
+		compressArray(unknownStream[i], oa[i], out, out_offset);
+	
 	records.remove_first_n(k);
 }
 
@@ -326,6 +323,18 @@ EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStrea
 			opChr.add(c), opLen.add(l);
 		} 
 	}
+
+	string XX;
+	for (int i = 0; i < opChr.size(); i++) {
+		if (opChr[i] == 'X') {
+			nucleotides.get(XX, opLen[i]);
+		} else if (opChr[i] == '*' || opChr[i] == 'S' || opChr[i] == 'I') {
+			nucleotides.get(XX, opLen[i]);
+		}
+		printf("%c%d", opChr[i], opLen[i]);
+	}
+	printf(" %s\n", XX.c_str());
+	return eo;
 
 	//for (int i = 0; i < opChr.size(); i++) 
 	//	LOGN("%d%c ", opLen[i], opChr[i]);

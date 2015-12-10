@@ -1,6 +1,6 @@
 CC = g++
 CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE  -std=c++0x -DOPENSSL  -pthread
-LDFLAGS = -pthread -lz -lcurl -lcrypto
+LDFLAGS = -pthread -lz -lcurl -lcrypto 
 
 GIT_VERSION := $(shell git describe --dirty --always --tags)
 SOURCES := $(shell find . -name '*.cc' -not -path "./run/*" -not -path "./Java/*")
@@ -8,9 +8,6 @@ OBJECTS = $(SOURCES:.cc=.o)
 EXECUTABLE = deez
 LIB = libdeez
 TESTEXE = deeztest
-
-#all: CFLAGS += -O3 -DNDEBUG
-#all: $(SOURCES) $(EXECUTABLE) 
 
 debug: CFLAGS += -g -fno-omit-frame-pointer
 debug: $(SOURCES) $(EXECUTABLE)
