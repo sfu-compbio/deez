@@ -1,6 +1,9 @@
 #ifndef rANSStream_H
 #define rANSStream_H
 
+// Based on rans_byte.h from https://github.com/rygorous/ryg_rans 
+// Simple byte-aligned rANS encoder/decoder - public domain - Fabian 'ryg' Giesen 2014
+
 #include <vector>
 #include <zlib.h>
 #include "../Common.h"

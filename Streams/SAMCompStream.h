@@ -5,11 +5,11 @@
 #include "../Common.h"
 #include "Order0Stream.h"	
 
-template<int AS>
+template<typename TEncoder, int AS>
 class SAMCompStream: public CompressionStream, public DecompressionStream {
 	static const int QBITS  = 12;
 	static const int MOD_SZ = (1 << QBITS) * 16 * 16;
-	AC0CompressionStream<AS> mod[MOD_SZ];
+	AC0CompressionStream<TEncoder, AS> mod[MOD_SZ];
 
 	uint8_t q1, q2;
 	uint32_t context;
@@ -71,7 +71,7 @@ public:
 		// thus, just resize dest
 		dest.resize(dest_offset + sizeof(size_t));
 		memcpy(dest.data() + dest_offset, &source_sz, sizeof(size_t));
-		ACType *ac = new ACType();
+		TEncoder *ac = new TEncoder();
 		ac->initEncode(&dest);
 		for (size_t i = 0; i < source_sz; i++)
 			encode(source[i], ac);
@@ -86,7 +86,7 @@ public:
 			Array<uint8_t> &dest, size_t dest_offset) 
 	{
 		size_t num = *((size_t*)source);
-		ACType *ac = new ACType();
+		TEncoder *ac = new TEncoder();
 		ac->initDecode(source + sizeof(size_t), source_sz);
 		dest.resize(dest_offset + num);
 

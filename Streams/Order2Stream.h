@@ -5,10 +5,10 @@
 #include "../Common.h"
 #include "Order0Stream.h"	
 
-template<int AS>
+template<typename TEncoder, int AS>
 class AC2CompressionStream: public CompressionStream, public DecompressionStream {
 	static const int MOD_SZ = AS * AS;
-	AC0CompressionStream<AS> mod[MOD_SZ];
+	AC0CompressionStream<TEncoder, AS> mod[MOD_SZ];
 
 	uint8_t loq, hiq;
 	uint8_t q1;
@@ -57,7 +57,7 @@ public:
 		// thus, just resize dest
 		dest.resize(dest_offset + sizeof(size_t));
 		memcpy(dest.data() + dest_offset, &source_sz, sizeof(size_t));
-		ACType *ac = new ACType();
+		TEncoder *ac = new TEncoder();
 		ac->initEncode(&dest);
 		for (size_t i = 0; i < source_sz; i++)
 			encode(source[i], ac);
@@ -95,7 +95,7 @@ public:
 		phteven[phteven.size()-1]++;*/
 
 		size_t num = *((size_t*)source);
-		ACType *ac = new ACType();
+		TEncoder *ac = new TEncoder();
 		ac->initDecode(source + sizeof(size_t), source_sz);
 		dest.resize(dest_offset + num);
 		for (size_t i = 0; i < num; i++) {

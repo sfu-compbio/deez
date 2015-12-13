@@ -10,12 +10,10 @@
 #include "rANSStream.h"	
 using namespace std;
 
-#define ACType AC
-
-template<int AS>
+template<typename TEncoder, int AS>
 class AC2CompressionStream;
 
-template<int AS> 
+template<typename TEncoder, int AS> 
 class AC0CompressionStream: public CompressionStream, public DecompressionStream 
 {
 	static const int RescaleFactor = 32;
@@ -118,7 +116,7 @@ public:
 		if (source_sz == 0) return 0;
 		dest.resize(dest_offset + sizeof(size_t));
 		memcpy(dest.data() + dest_offset, &source_sz, sizeof(size_t));
-		ACType *ac = new ACType();
+		TEncoder *ac = new TEncoder();
 		ac->initEncode(&dest);
 		for (size_t i = 0; i < source_sz; i++)
 			encode(source[i], ac);
@@ -133,7 +131,7 @@ public:
 	{
 		size_t num = *((size_t*)source);
 		if (!num) return 0;
-		ACType *ac = new ACType();
+		TEncoder *ac = new TEncoder();
 		ac->initDecode(source + sizeof(size_t), source_sz);
 		dest.resize(dest_offset + num);
 		for (size_t i = 0; i < num; i++) 

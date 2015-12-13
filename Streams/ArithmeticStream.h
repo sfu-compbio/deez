@@ -1,6 +1,9 @@
 #ifndef ArithmeticStream_H
 #define ArithmeticStream_H
 
+// Based on cld-c.inc from aridemo6.rar package available at http://compression.ru/sh/aridemo6.rar
+// Dword-oriented Rangecoder by Eugene D. Shelwien -- Plain C++
+
 #include <vector>
 #include <zlib.h>
 #include "../Common.h"
