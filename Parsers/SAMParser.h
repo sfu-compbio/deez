@@ -12,6 +12,7 @@
 
 class SAMParser: public Parser {
 	FILE *input;
+	shared_ptr<File> webFile;
 	
 	Record currentRecord;
     size_t file_size;

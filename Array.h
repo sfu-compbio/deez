@@ -63,6 +63,17 @@ public:
 		swap(a._extend, b._extend);
 	}
 
+public: // for range based loops
+	const T *begin() const
+	{
+		return _records;
+	}
+
+	const T *end() const
+	{
+		return _records + _size;
+	}
+
 
 public:
 	void realloc (size_t sz) {
@@ -111,7 +122,17 @@ public:
 		return _records;
 	}
 
+	const T *data (void) const {
+		return _records;
+	}
+
+
 	T &operator[] (size_t i) {
+		assert(i < _size);
+		return _records[i];
+	}
+
+	const T &operator[] (size_t i) const {
 		assert(i < _size);
 		return _records[i];
 	}

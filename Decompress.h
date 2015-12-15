@@ -49,13 +49,13 @@ class FileDecompressor {
 	vector<FILE*> samFiles;
 	vector<map<string, map<size_t, index_t>>> indices;
 
-	File *inFile;
+	shared_ptr<File> inFile;
 	uint32_t magic;
 	gzFile idxFile;
 	
 	string genomeFile;
 	string outFile;
-	Stats *stats;
+	shared_ptr<Stats> stats;
 	size_t inFileSz;
     size_t blockSize;
    	vector<int> fileBlockCount;

@@ -4,7 +4,7 @@
 #include "../Common.h"
 #include "../Streams/GzipStream.h"
 #include "../Streams/Order0Stream.h"
-#include "../Engines/GenericEngine.h"
+#include "ReadName.h"
 
 #if __cplusplus <= 199711L
 	#include <tr1/unordered_map>
@@ -16,7 +16,7 @@
 
 
 class ReadNameLossyCompressor: 
-	public GenericCompressor<uint32_t, GzipCompressionStream<6> >  
+	public ReadNameCompressor  
 {
 	ReadMap mmap;
 
@@ -28,7 +28,6 @@ public:
 	void addRecord (const string &s);
 };
 
-typedef GenericDecompressor<uint32_t, GzipDecompressionStream> 
-	ReadNameLossyDecompressor;
+typedef ReadNameDecompressor ReadNameLossyDecompressor;
 
 #endif

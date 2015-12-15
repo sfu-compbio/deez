@@ -13,22 +13,32 @@ struct PairedEndInfo {
 	int32_t tlen, diff;
 	size_t pos;
 	char bit;
+
+	enum Bits {
+		LOOK_AHEAD,
+		LOOK_BACK,
+		OK,
+		GREATER_THAN_0,
+		LESS_THAN_0
+	};
 	
 	PairedEndInfo (void) {}
 	PairedEndInfo (const std::string &c, size_t pos, int32_t t, size_t opos, size_t ospan, bool reverse):
 		chr(c), tlen(t), bit(-1), pos(pos)
 	{
+		ZAMAN_START(ParsePE);
 		if ((tlen < 0) == reverse) {
-			bit = 0;
+			bit = OK;
 		} else {
-			bit = 1 + (tlen < 0);
+			bit = GREATER_THAN_0 + (tlen < 0);
 		}
 		if (tlen > 0) { // replace opos with size
 			diff = opos + tlen - ospan - pos;
 		} else {
 			diff = opos + tlen + ospan - pos;
 		} 
-		//LOG("%d %d %d %d %s", tlen, pos, diff, bit, chr.c_str());
+		ZAMAN_END(ParsePE);
+		//LOG("%d %d %d %d %s %d %d", tlen, pos, diff, bit, chr.c_str(), opos, ospan);
 	}
 };
 
@@ -45,6 +55,16 @@ public:
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
 	size_t compressedSize(void);
 	void printDetails(void);
+
+public:
+	enum Fields {
+		DIFF,
+		CHROMOSOME,
+		TLEN,
+		TLENBIT,
+		POINTER,
+		ENUM_COUNT
+	};
 };
 
 class PairedEndDecompressor: 

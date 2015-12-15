@@ -1,12 +1,14 @@
 #include "EditOperation.h"
+#include "Sequence.h"
 using namespace std;
 
-EditOperationDecompressor::EditOperationDecompressor (int blockSize):
-	GenericDecompressor<EditOperation, GzipDecompressionStream>(blockSize)
+EditOperationDecompressor::EditOperationDecompressor (int blockSize, const SequenceDecompressor &seq):
+	GenericDecompressor<EditOperation, GzipDecompressionStream>(blockSize),
+	sequence(seq)
 {
 	for (int i = 0; i < EditOperationCompressor::Fields::ENUM_COUNT; i++)
 		streams.push_back(new GzipDecompressionStream());
-	locationStream = new AC0DecompressionStream<rANS, 256>();
+	locationStream = new AC0DecompressionStream<AC, 256>();
 	stitchStream   = new GzipDecompressionStream();
 }
 
@@ -114,7 +116,7 @@ end:
 	//for (int i = 0; i < opLen.size(); i++)
 	//	LOG("%c %d", opChr[i], opLen[i]);
 
-	size_t genPos = loc - fixedStart;
+	size_t genPos = loc;
 	char lastOP = 0;
 	int  lastOPSize = 0;
 	int mdOperLen = 0;
@@ -127,18 +129,17 @@ end:
 					lastOPSize += opLen[i];
 				else 
 					lastOP = 'M', lastOPSize = opLen[i];
-				eo.seq.append(fixed + genPos, opLen[i]);
-
+				
 				for (int j = 0; j < opLen[i]; j++) {
-					if (fixed[genPos + j] != ref[genPos + j]) {
+					eo.seq += sequence[genPos + j];
+					if (sequence[genPos + j] != sequence.getReference()[genPos + j]) {
 						eo.MD += inttostr(mdOperLen), mdOperLen = 0;
-						eo.MD += ref[genPos + j];
+						eo.MD += sequence.getReference()[genPos + j];
 						eo.NM++;
 					} else {
 						mdOperLen++;
 					}
 				}
-
 				genPos += opLen[i];
 				break;
 
@@ -150,9 +151,9 @@ end:
 				nucleotides.get(eo.seq, opLen[i]);
 
 				for (int j = 0; j < opLen[i]; j++) {
-					if (ref[genPos + j] != eo.seq[eo.seq.size() - j - 1]) {
+					if (sequence.getReference()[genPos + j] != eo.seq[eo.seq.size() - opLen[i] + j]) {
 						eo.MD += inttostr(mdOperLen), mdOperLen = 0;
-						eo.MD += ref[genPos + j];
+						eo.MD += sequence.getReference()[genPos + j];
 						eo.NM++;
 					} else {
 						mdOperLen++;
@@ -185,7 +186,8 @@ end:
 			case 'D':
 				eo.MD += inttostr(mdOperLen), mdOperLen = 0;
 				eo.MD += "^";
-				eo.MD += string(ref + genPos, opLen[i]); 
+				for (int j = 0; j < opLen[i]; j++)
+					eo.MD += sequence.getReference()[genPos + j]; 
 				eo.NM += opLen[i];
 			case 'N': 
 				if (lastOP != 0) {
@@ -218,10 +220,5 @@ end:
 void EditOperationDecompressor::setIndexData (uint8_t *in, size_t in_size) 
 {
 	locationStream->setCurrentState(in, in_size);
-}
-
-void EditOperationDecompressor::setFixed (char *f, char *r, size_t fs) 
-{
-	ref = r, fixed = f, fixedStart = fs;
 }
 

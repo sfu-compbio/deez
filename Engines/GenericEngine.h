@@ -17,6 +17,7 @@ public:
 	virtual void addRecord (const T &rec);
 	virtual void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
 	virtual void getIndexData (Array<uint8_t> &out);
+	virtual T& operator[] (int idx);
 
 public:
 	virtual size_t size (void) const { return records.size(); }
@@ -34,6 +35,9 @@ public:
 
 public:
 	const T &getRecord (void);
+	virtual T& operator[] (int idx);
+	virtual size_t size() const { return records.size(); }
+
 	virtual bool hasRecord (void);
 	virtual void importRecords (uint8_t *in, size_t in_size);
 	virtual void setIndexData (uint8_t *in, size_t in_size);
@@ -57,12 +61,20 @@ void GenericCompressor<T, TStream>::addRecord (const T &rec) {
 }
 
 template<typename T, typename TStream>
+T& GenericCompressor<T, TStream>::operator[] (int idx) {
+	assert(idx < records.size());
+	return records[idx];
+}
+
+template<typename T, typename TStream>
 void GenericCompressor<T, TStream>::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) {
 	if (!records.size()) { 
 		out.resize(0);
 		return;
 	}
 	assert(k <= records.size());
+
+	ZAMAN_START(Compress_Generic);
 	Array<uint8_t> buffer(k * sizeof(T));
 	
 	for (size_t i = 0; i < k; i++)
@@ -70,6 +82,7 @@ void GenericCompressor<T, TStream>::outputRecords (Array<uint8_t> &out, size_t o
 	
 	compressArray(stream, buffer, out, out_offset);
 	records.remove_first_n(k);
+	ZAMAN_END(Compress_Generic);
 }
 
 template<typename T, typename TStream>
@@ -100,6 +113,12 @@ template<typename T, typename TStream>
 const T &GenericDecompressor<T, TStream>::getRecord (void) {
 	assert(hasRecord());
 	return records.data()[recordCount++];
+}
+
+template<typename T, typename TStream>
+T& GenericDecompressor<T, TStream>::operator[] (int idx) {
+	assert(idx < records.size());
+	return records.data()[idx];
 }
 
 template<typename T, typename TStream>

@@ -3,6 +3,10 @@
 #include <sys/stat.h>
 using namespace std;
 
+#ifdef OPENSSL
+#include <openssl/md5.h>
+#endif
+
 // Load order:
 // 	-r
 //		if FASTA file, provided file
@@ -11,13 +15,13 @@ using namespace std;
 //  No file
 
 Reference::Reference (const string &fn):
-	input(0)
+	input(nullptr), bufferStart(0), bufferEnd(0)
 {
 	chromosomes["*"] = {"*", "", "", 0, 0};
 
-	if (fn == "") // Load filename later via SQ header, if applicable
+	if (fn == "") { // Load filename later via SQ header, if applicable
 		return;
-	else if (!IsWebFile(fn)) { // If directory, load later
+	} else if (!File::IsWeb(fn)) { // If directory, load later
 		struct stat st;
 		lstat(fn.c_str(), &st);
 		if (fn == "" || S_ISDIR(st.st_mode)) {
@@ -25,8 +29,7 @@ Reference::Reference (const string &fn):
 			LOG("Using directory %s for searching chromosome FASTA files", directory.c_str());
 			return;
 		}
-	}
-	else if (fn.size() > 0 && fn[fn.size() - 1] == '/') { // Web directory
+	} else if (fn.size() > 0 && fn[fn.size() - 1] == '/') { // Web directory
 		directory = fn;
 		LOG("Using web directory %s for searching chromosome FASTA files", directory.c_str());
 		return;
@@ -36,38 +39,35 @@ Reference::Reference (const string &fn):
 
 Reference::~Reference (void) 
 {
-	if (input) delete input;
 }
 
 void Reference::loadFromFASTA (const string &fn)
 {
-	input = OpenFile(fn, "rb");
+	ZAMAN_START(Reference_LoadFASTA);
+	input = File::Open(fn, "rb");
 	LOG("Loaded reference file %s", fn.c_str());
 
 	try { // Try loading .fai file
 		string faidx = fn + ".fai";
-		File *fastaidx;
-		if (IsWebFile(faidx)) 
+		shared_ptr<File> fastaidx;
+		if (File::IsWeb(faidx)) {
 			fastaidx = WebFile::Download(faidx);
-		else
-			fastaidx = new File(faidx, "rb");
-		if (!fastaidx)
+		} else {
+			fastaidx = make_shared<File>(faidx, "rb");
+		}
+		if (fastaidx == nullptr)
 			throw DZException("Cannot open FASTA index %s", faidx.c_str());
 		char chr[50];
 		size_t len, loc;
 		while (fscanf((FILE*) fastaidx->handle(), "%s %lu %lu %*lu %*lu", chr, &len, &loc) != EOF) 
 			chromosomes[chr] = {chr, "", fn, len, loc};
-		delete fastaidx;
 		LOG("Loaded reference index %s", faidx.c_str());
-	}
-	catch (DZException &e) {
+	} catch (DZException &e) {
 		FILE *fastaidx = 0;
-		if (IsWebFile(fn)) {
-			delete input, input = 0;
+		if (File::IsWeb(fn)) {
 			input = WebFile::Download(fn, true);
 			currentWebFile = fn;
-		}
-		else {
+		} else {
 			LOG("FASTA index for %s not found, creating one ...", fn.c_str());
 			fastaidx = fopen(string(fn + ".fai").c_str(), "wb");
 			if (!fastaidx)
@@ -109,7 +109,8 @@ void Reference::loadFromFASTA (const string &fn)
 		input->seek(0);
 	}
 
-	filename = fullPath(fn);
+	filename = File::FullPath(fn);
+	ZAMAN_END(Reference_LoadFASTA);
 }
 
 string Reference::getChromosomeName (void) const 
@@ -120,10 +121,11 @@ string Reference::getChromosomeName (void) const
 size_t Reference::getChromosomeLength(const std::string &s) const 
 {
 	auto it = chromosomes.find(s);
-	if (it != chromosomes.end())
+	if (it != chromosomes.end()) {
 		return it->second.len;
-	else
+	} else {
 		return 0;
+	}
 }
 
 void Reference::scanSAMComment (const string &comment) 
@@ -157,6 +159,9 @@ void Reference::scanSAMComment (const string &comment)
 
 std::string Reference::scanChromosome (const string &s) 
 {
+	buffer = "";
+	bufferStart = bufferEnd = currentPos = 0;
+
 	if (s == "*")
 		return currentChr = s;
 
@@ -166,50 +171,31 @@ std::string Reference::scanChromosome (const string &s)
 			if (it == chromosomes.end()) 
 				throw DZException("Chromosome %s not found in the reference", s.c_str());
 			input->seek(it->second.loc);
-		}
-		else {
+		} else {
 			string fn = directory + "/" + s + ".fa";
 			if (directory.size() && directory[directory.size() - 1] == '/')
 				fn = directory + s + ".fa";
-			delete input, input = 0;
-			if (IsWebFile(fn)) {
+			if (File::IsWeb(fn)) {
 				input = WebFile::Download(fn, true);
 				currentWebFile = fn;
+			} else {
+				input = File::Open(fn, "rb");
 			}
-			else
-				input = OpenFile(fn, "rb");
-			
 			LOG("Loaded reference file %s for chromosome %s", fn.c_str(), s.c_str());
-			/*char c;
-			while ((c = input->getc()) != EOF) {
-				if (c == '>') {
-					string chr;
-					size_t pos = input->tell();
-					c = input->getc();
-					while (!isspace(c) && c != EOF) 
-						chr += c, c = input->getc();
-					chromosomes[chr] = {chr, "", fn, 0, pos};
-				}
-			}
-			input->seek(0);
-			input->getc();*/
-
-			filename = fullPath(fn);
+			filename = File::FullPath(fn);
 		}
-	}
-	catch (DZException &e) {
+	} catch (DZException &e) {
 		// Try Doing Sth Else
 		try {
 			auto it = samCommentData[s].find("UR");
-			if (it != samCommentData[s].end() && IsWebFile(it->second) && currentWebFile != it->second) {
+			if (it != samCommentData[s].end() && File::IsWeb(it->second) && currentWebFile != it->second) {
 				LOG("Loaded reference file %s for chromosome %s via @SQ:UR field", it->second.c_str(), s.c_str());
-				delete input, input = 0;
 				input = WebFile::Download(currentWebFile = it->second, true);
-				filename = fullPath(it->second);
+				filename = File::FullPath(it->second);
+			} else {
+				throw DZException("Cannot find reference in @SQ:UR");
 			}
-			else throw DZException("Cannot find reference in @SQ:UR");
-		}
-		catch (DZException &e) {
+		} catch (DZException &e) {
 			WARN("Could not find reference file for chromosome %s, using no reference instead", s.c_str());
 			filename = "";
 			chromosomes[s] = {s, "", "<implicit>", 0, 0};
@@ -233,61 +219,97 @@ std::string Reference::scanChromosome (const string &s)
 	chromosomes[currentChr].chr = currentChr;
 	chromosomes[currentChr].filename = filename;
 	chromosomes[currentChr].loc = input->tell();
-	if (chromosomes[currentChr].loc) chromosomes[currentChr].loc--;
+	if (chromosomes[currentChr].loc) 
+		chromosomes[currentChr].loc--;
 
-#ifdef OPENSSL // calculate MD5 of chromosome
-	MD5_CTX ctx;
-    MD5_Init(&ctx);
-    size_t pos = input->tell(), cnt = 0;
-    string buf = "";
-    while (c != '>' && c != EOF) {
-    //	LOGN("%c",c);
-    	if (isalpha(c)) buf += c;
-    	c = input->getc();
-    	if (buf.size() == 1024 * 1024)
-    		MD5_Update(&ctx, buf.c_str(), buf.size()), cnt += buf.size(), buf = "";
-    }
-	if (buf.size())
-		MD5_Update(&ctx, buf.c_str(), buf.size()), cnt += buf.size(), buf = "";
-	uint8_t md5[MD5_DIGEST_LENGTH];
-	MD5_Final(md5, &ctx);
-	string md5sum = "";
-	for (int i = 0; i < MD5_DIGEST_LENGTH; i++)
-		md5sum += S("%02x", md5[i]);
-	chromosomes[currentChr].len = cnt;
-	chromosomes[currentChr].md5 = md5sum;
-	DEBUG("%s %s %d...",currentChr.c_str(),md5sum.c_str(),cnt);
-	input->seek(pos);
-#endif
+	#if 0 && defined OPENSSL // calculate MD5 of chromosome
+	ZAMAN_START(Reference_MD5);
+		MD5_CTX ctx;
+		MD5_Init(&ctx);
+		size_t pos = input->tell(), cnt = 0;
+		string buf = "";
+		while (c != '>' && c != EOF) {
+		//	LOGN("%c",c);
+			if (isalpha(c)) buf += c;
+			c = input->getc();
+			if (buf.size() == 1024 * 1024)
+				MD5_Update(&ctx, buf.c_str(), buf.size()), cnt += buf.size(), buf = "";
+		}
+		if (buf.size())
+			MD5_Update(&ctx, buf.c_str(), buf.size()), cnt += buf.size(), buf = "";
+		uint8_t md5[MD5_DIGEST_LENGTH];
+		MD5_Final(md5, &ctx);
+		string md5sum = "";
+		for (int i = 0; i < MD5_DIGEST_LENGTH; i++)
+			md5sum += S("%02x", md5[i]);
+		chromosomes[currentChr].len = cnt;
+		chromosomes[currentChr].md5 = md5sum;
+		DEBUG("%s %s %d...",currentChr.c_str(),md5sum.c_str(),cnt);
+		input->seek(pos);
+	ZAMAN_END(Reference_MD5);
+	#endif
 
-	currentPos = 0;
 	if (c == '>' || c == EOF) 
 		return currentChr = s; // Empty chromosome
+
 	return currentChr;
 }
 
-void Reference::load (char *arr, size_t s, size_t e) 
+void Reference::loadIntoBuffer(size_t end)
 {
+	assert(currentPos == bufferEnd);
+	if (end < bufferEnd) return;
+
+	DEBUG("Loading to %'lu", end);
+
+	ZAMAN_START(Reference_Load);
+	buffer.reserve(buffer.size() + (end - bufferEnd + 1));
+	bufferEnd = end;
+
 	auto it = chromosomes.find(currentChr);
-	if (it == chromosomes.end() || it->second.len == 0) {
-		for (size_t i = 0; i < e - s; i++)
-			arr[i] = 'N';
-		return;
-	}
-
-	size_t i = 0;
-	while (currentPos < e) {
-		if (currentPos >= s) 
-			arr[i++] = c;
-
-		c = input->getc();
-		while (isspace(c) && c != EOF)
+	if (it != chromosomes.end() && it->second.len > 0) {
+		while (currentPos < bufferEnd) {
+			buffer += c;
+			
 			c = input->getc();
-		if (c == '>' || c == EOF) 
-			break;
-		currentPos++;
+			while (isspace(c) && c != EOF) 
+				c = input->getc();
+			if (c == '>' || c == EOF) 
+				break;
+			currentPos++;
+		}
 	}
-	while (i < e - s)
-		arr[i++] = 'N';
-	assert(i == e - s);
+	while (currentPos < bufferEnd) 
+		buffer += 'N', currentPos++;
+	ZAMAN_END(Reference_Load);
+}
+
+// Assumes that everything is loaded
+char Reference::operator[](size_t pos) const
+{
+	assert(pos >= bufferStart); // Access is sequential
+	assert(pos < bufferEnd);
+
+	return buffer[pos - bufferStart];
+}
+
+string Reference::copy(size_t start, size_t end)
+{
+	assert(start >= bufferStart);
+	if (end >= bufferEnd) 
+		loadIntoBuffer(end + 10 * MB);
+	assert(end < bufferEnd);
+
+	return buffer.substr(start - bufferStart, end - start);
+}
+
+void Reference::trim(size_t start) 
+{
+	if (start >= bufferEnd) {
+		buffer = "";
+		bufferStart = bufferEnd = currentPos;
+	} else {
+		buffer = buffer.substr(start - bufferStart);
+		bufferStart = start;
+	}
 }

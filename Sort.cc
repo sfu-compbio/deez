@@ -253,13 +253,13 @@ void sortFile (const string &path, const string &pathNew, size_t memLimit) {
 			i += p;
 		}
 
-		ZAMAN_START();
+		//ZAMAN_START();
 		sort(nodes.data(), nodes.data() + nodes.size(), SAMNode::sortComp);
 		//radixSort(nodes, 0, 0, nodes.size());
-		ZAMAN_END("SORT");
+		//ZAMAN_END("SORT");
 
 		char fn[100];
-		ZAMAN_START();
+		//ZAMAN_START();
 		snprintf(fn, 100, "%s_%d.%02d", path.c_str(), fp, fi++);
 
 		file *f;
@@ -277,7 +277,7 @@ void sortFile (const string &path, const string &pathNew, size_t memLimit) {
 
 		files.push_back(f);
 		fileNames.push_back(fn);
-		ZAMAN_END("FLUSH");
+		//ZAMAN_END("FLUSH");
 
 		memmove(buffer, buffer + i, offset = sz - i);
 		
@@ -305,7 +305,7 @@ void sortFile (const string &path, const string &pathNew, size_t memLimit) {
 			if (files.size() <= fsz)
 				f->write(header.data(), header.size());
 			size_t sz;
-			ZAMAN_START();
+			//ZAMAN_START();
 			sz = mergeSort(files.data() + i, 
 				min(fsz, (int)files.size() - i), 
 				f, buffer, bufsz);
@@ -314,7 +314,7 @@ void sortFile (const string &path, const string &pathNew, size_t memLimit) {
 				f = new gzfile(fn, "rb");
 			else
 				f = new rawfile(fn, "rb");
-			ZAMAN_END("SORT");
+			//ZAMAN_END("SORT");
 			nf.push_back(f);
 			nfn.push_back(fn);
 

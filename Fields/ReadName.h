@@ -8,10 +8,16 @@
 #include "../Engines/GenericEngine.h"
 #include "../Engines/StringEngine.h"
 
-// typedef StringCompressor<GzipCompressionStream<6> >    
-// 	ReadNameCompressor;
-// typedef StringDecompressor<GzipDecompressionStream> 
-// 	ReadNameDecompressor;
+/*
+ * Three types of names DeeZ supports:
+ * SRR:
+ 	* SRR00000000	.	1
+ * Solexa
+	* EAS139		: 136	: FC706VJ	: 2 	: 2104		: 15343	: 197393 
+ * Illumina
+	* HWUSI-EAS100R	: 6		: 73		: 941	: 197393	#0/1
+*/
+
 
 const int MAX_TOKEN = 20;
 
@@ -21,7 +27,6 @@ class ReadNameCompressor:
 	CompressionStream *indexStream;
 	std::string prevTokens[MAX_TOKEN];
 	char prevCharTokens[MAX_TOKEN];
-//	char token;
 
 public:
 	ReadNameCompressor(int blockSize);
@@ -34,7 +39,6 @@ public:
 	void printDetails(void);
 
 private:
-//	void detectToken (const std::string &rn);
 	void addTokenizedName (const std::string &rn, Array<uint8_t> &content, Array<uint8_t> &index);
 };
 
@@ -42,7 +46,6 @@ class ReadNameDecompressor:
 	public StringDecompressor<GzipDecompressionStream>  
 {
 	DecompressionStream *indexStream;
-//	char token;
 
 public:
 	ReadNameDecompressor(int blockSize);

@@ -5,7 +5,6 @@
 #include "../Streams/GzipStream.h"
 #include "../Streams/Order2Stream.h"
 #include "../Streams/SAMCompStream.h"
-#include "../Streams/MyStream.h"
 #include "../Engines/StringEngine.h"
 
 extern char optQuality;
@@ -15,12 +14,10 @@ extern bool optNoQual;
 const int QualRange = 96;
 
 typedef 
-	//GzipCompressionStream<6>
-	AC2CompressionStream<QualRange>
+	AC2CompressionStream<AC, QualRange>
 	QualityCompressionStream;
 typedef 
-	//GzipDecompressionStream
-	AC2DecompressionStream<QualRange>
+	AC2DecompressionStream<AC, QualRange>
 	QualityDecompressionStream;
 
 class QualityScoreCompressor: 
@@ -36,8 +33,9 @@ public:
 	virtual ~QualityScoreCompressor (void);
 
 public:
-	void addRecord (std::string qual, int flag);
+	void addRecord (const std::string &qual);
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
+	void shrink(size_t i, int flag);
 	
 private:
 	static double phredScore (char c, int offset);

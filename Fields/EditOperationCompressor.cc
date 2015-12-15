@@ -1,11 +1,96 @@
 #include "EditOperation.h"
+#include "Sequence.h"
 using namespace std;
 
-EditOperationCompressor::EditOperationCompressor (int blockSize):
-	GenericCompressor<EditOperation, GzipCompressionStream<6> >(blockSize),
-	fixed(0), fixedStart(0)
+EditOperation::EditOperation(size_t s, const std::string &se, const std::string &op) :
+	start(s), end(s), seq(se), NM(-1), ops(2, op.size() / 2)
 {
-	locationStream = new AC0CompressionStream<rANS, 256>();
+	ZAMAN_START(ParseEO);
+	if (op == "*") {
+		ops.add(make_pair('*', 0));
+		ZAMAN_END(ParseEO);
+		return;
+	}
+
+	for (size_t pos = 0, size = 0; pos < op.length(); pos++) {
+		if (isdigit(op[pos])) {
+			size = size * 10 + (op[pos] - '0');
+			continue;
+		}
+		switch (op[pos]) {
+		case 'M':
+		case '=':
+		case 'X':
+			end += size;
+			break;
+		case 'D':
+		case 'N':
+			end += size;
+			break;
+		case 'I':
+		case 'S':
+		case 'H':
+		case 'P':
+			break;
+		default:
+			throw DZException("Bad CIGAR detected: %c in %s", op[pos], op.c_str());
+		}
+		ops.add(make_pair(op[pos], size));
+		size = 0;
+	}
+	ZAMAN_END(ParseEO);
+}
+
+void EditOperation::calculateTags(Reference &reference) 
+{
+	ZAMAN_START(ParseEO_Calculate);
+	NM = 0;
+	size_t mdOperLen = 0, seqPos = 0, genPos = start;
+	for (auto &op: ops) {
+		switch (op.first) {
+		case 'M':
+		case '=':
+		case 'X':
+			for (size_t i = 0; i < op.second; i++, seqPos++, genPos++) {
+				if (reference[genPos] != seq[seqPos]) {
+					MD += inttostr(mdOperLen), mdOperLen = 0;
+					MD += reference[genPos];
+					NM++;
+				} else {
+					mdOperLen++;
+				}
+			}
+			break;
+		case 'D':
+			MD += inttostr(mdOperLen), mdOperLen = 0;
+			MD += "^";
+			for (size_t i = 0; i < op.second; i++) 
+				MD += reference[genPos + i]; 
+			NM += op.second;
+		case 'N':
+			genPos += op.second;
+			break;
+		case 'I':
+			NM += op.second;
+		case 'S':
+			seqPos += op.second;
+			break;
+		}
+	}
+	if (mdOperLen || !isdigit(MD.back())) 
+		MD += inttostr(mdOperLen);
+	if (!isdigit(MD[0])) 
+		MD = "0" + MD;
+
+	ZAMAN_END(ParseEO_Calculate);
+}
+
+
+EditOperationCompressor::EditOperationCompressor (int blockSize, const SequenceCompressor &seq):
+	GenericCompressor<EditOperation, GzipCompressionStream<6> >(blockSize),
+	sequence(seq)
+{
+	locationStream = new AC0CompressionStream<AC, 256>();
 	stitchStream = new GzipCompressionStream<6>();
 
 	for (int i = 0; i < Fields::ENUM_COUNT; i++)
@@ -86,7 +171,7 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStre
 {
 	ZAMAN_START(Compress_EditOperation_AddEditOperation);
 	
-	if (eo.op == "*") {
+	if (eo.ops[0].first == '*') {
 		if (eo.seq != "*") {
 			nucleotides.add(eo.seq.c_str(), eo.seq.size());
 			addEncoded(eo.seq.size() + 1, out[Fields::SEQEND]);
@@ -99,10 +184,9 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStre
 		ZAMAN_END(Compress_EditOperation_AddEditOperation);
 		return;
 	}
-	assert(fixed != 0);
 
 	size_t size   = 0;
-	size_t genPos = eo.start - fixedStart;
+	size_t genPos = eo.start;
 	size_t seqPos = 0, prevSeqPos = 0;
 
 	char lastOP = 0;
@@ -110,65 +194,58 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStre
 
 	bool checkSequence = eo.seq[0] != '*';
 	int opcodeOffset = out[Fields::OPCODES].size();
-	for (size_t pos = 0; pos < eo.op.size(); pos++) {
-		if (isdigit(eo.op[pos])) {
-			size = size * 10 + (eo.op[pos] - '0');
-			continue;
-		}
-
-		lastOP = 0;
-		lastOPSize = 0;
-		switch (eo.op[pos]) {
-			case 'M': // any; will become =X in DeeZ's internal structure
-			case '=': // match
-			case 'X': // mismatch
-				if (!size) {
-					lastOP = 'X', lastOPSize = 0;
-				}
-				for (size_t i = 0; i < size; i++) {
-					if (checkSequence && eo.seq[seqPos] == fixed[genPos]) {
-						if (lastOP == '=')
-							lastOPSize++;
-						else {
-							if (lastOP && lastOP != '=') {
-								addOperation(lastOP, seqPos - prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
-							}
-							lastOP = '=', lastOPSize = 1;
-						}
-					} else if (checkSequence && lastOP == 'X') {
-						nucleotides.add(eo.seq.c_str() + seqPos, 1), lastOPSize++;
-					} else {
+	for (auto &op: eo.ops) {
+		lastOP = lastOPSize = 0;
+		switch (op.first) {
+		case 'M': // any; will become =X in DeeZ's internal structure
+		case '=': // match
+		case 'X': // mismatch
+			if (!op.second) {
+				lastOP = 'X', lastOPSize = 0;
+			}
+			for (size_t i = 0; i < op.second; i++) {
+				if (checkSequence && eo.seq[seqPos] == sequence[genPos]) {
+					if (lastOP == '=')
+						lastOPSize++;
+					else {
 						if (lastOP && lastOP != '=') {
 							addOperation(lastOP, seqPos - prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
 						}
-						if (checkSequence) nucleotides.add(eo.seq.c_str() + seqPos, 1);
-						lastOP = 'X', lastOPSize = 1;
+						lastOP = '=', lastOPSize = 1;
 					}
-					genPos++;
-					seqPos++;
+				} else if (checkSequence && lastOP == 'X') {
+					nucleotides.add(eo.seq.c_str() + seqPos, 1), lastOPSize++;
+				} else {
+					if (lastOP && lastOP != '=') {
+						addOperation(lastOP, seqPos - prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
+					}
+					if (checkSequence) nucleotides.add(eo.seq.c_str() + seqPos, 1);
+					lastOP = 'X', lastOPSize = 1;
 				}
-				if (lastOP && lastOP != '=')
-					addOperation(lastOP, seqPos - prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
-				break;
-			case 'I':
-			case 'S':
-				if (checkSequence) nucleotides.add(eo.seq.c_str() + seqPos, size);	
-				seqPos += size;
-				addOperation(eo.op[pos], seqPos - prevSeqPos, size, out), prevSeqPos = seqPos;
-				break;
-			case 'D':
-			case 'N':
-				addOperation(eo.op[pos], seqPos - prevSeqPos, size, out), prevSeqPos = seqPos;
-				genPos += size;
-				break;
-			case 'H':
-			case 'P':
-				addOperation(eo.op[pos], seqPos - prevSeqPos, size, out), prevSeqPos = seqPos;
-				break;
-			default:
-				throw DZException("Bad CIGAR detected: %s", eo.op.c_str());
+				genPos++;
+				seqPos++;
+			}
+			if (lastOP && lastOP != '=')
+				addOperation(lastOP, seqPos - prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
+			break;
+		case 'I':
+		case 'S':
+			if (checkSequence) nucleotides.add(eo.seq.c_str() + seqPos, op.second);	
+			seqPos += op.second;
+			addOperation(op.first, seqPos - prevSeqPos, op.second, out), prevSeqPos = seqPos;
+			break;
+		case 'D':
+		case 'N':
+			addOperation(op.first, seqPos - prevSeqPos, op.second, out), prevSeqPos = seqPos;
+			genPos += op.second;
+			break;
+		case 'H':
+		case 'P':
+			addOperation(op.first, seqPos - prevSeqPos, op.second, out), prevSeqPos = seqPos;
+			break;
+		default:
+			throw DZException("Bad CIGAR detected: %s", op.first);
 		}
-		size = 0;
 	}
 	addEncoded(out[Fields::OPCODES].size() - opcodeOffset + 1, out[Fields::OPLEN]);
 	addEncoded((checkSequence ? eo.seq.size() : 0) + 1, out[Fields::SEQEND]);
@@ -207,9 +284,3 @@ void EditOperationCompressor::getIndexData (Array<uint8_t> &out)
 	out.resize(0);
 	locationStream->getCurrentState(out);
 }
-
-void EditOperationCompressor::setFixed (char *f, size_t fs) 
-{
-	fixed = f, fixedStart = fs;
-}
-

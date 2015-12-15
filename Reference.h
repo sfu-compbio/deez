@@ -8,10 +8,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef OPENSSL
-#include <openssl/md5.h>
-#endif
-
 #include "Common.h"
 #include "FileIO.h"
 
@@ -30,17 +26,20 @@ public:
 	};
 
 private:
-	File *input;
+	shared_ptr<File> input;
 	std::string directory, filename;
 	std::string currentChr;
-	size_t currentPos;
-	char c;
 
 	std::unordered_map<std::string, Chromosome> 
 		chromosomes;
 	std::unordered_map<std::string, std::unordered_map<std::string, std::string>>
 		samCommentData;
 	std::string currentWebFile;
+
+private:
+	std::string buffer;
+	size_t bufferStart, bufferEnd, currentPos;
+	char c;
 	
 public:
 	Reference (const std::string &filename);
@@ -49,7 +48,7 @@ public:
 public:
 	std::string getChromosomeName(void) const;
 	std::string scanChromosome(const std::string &s);
-	void load(char *arr, size_t s, size_t e);
+	//void load(char *arr, size_t s, size_t e);
 	size_t getChromosomeLength(const std::string &s) const;
 	void scanSAMComment (const std::string &comment);
 
@@ -57,9 +56,13 @@ public:
 		return chromosomes[chr];
 	}
 
+	void loadIntoBuffer(size_t end);
+	char operator[](size_t pos) const;
+	std::string copy(size_t start, size_t end);
+	void trim(size_t from);
+
 private:
 	void loadFromFASTA (const std::string &fn);
-
 };
 
 #endif

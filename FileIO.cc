@@ -7,116 +7,135 @@
 #include <openssl/buffer.h>
 #endif
 
-bool IsWebFile (const string &path)
+shared_ptr<File> File::Open (const string &path, const char *mode) 
 {
-	return path.find("://") != string::npos;
-}
-
-bool IsS3File (const string &path)
-{
-	return IsWebFile(path) && (path.size() > 5 && path.substr(0, 5) == "s3://");
-}
-
-string SetS3File (string url, CURL *ch, string method = "GET") 
-{
-	if (IsS3File(url)) {
-		url = url.substr(5);
-		auto pos = url.find('/');
-		if (pos != string::npos) {
-			string bucket = url.substr(0, pos);
-			string location = url.substr(pos + 1);
-
-			url = S("https://%s.s3.amazonaws.com/%s", bucket.c_str(), location.c_str());
-			//LOG("Using %s", url.c_str());
-
-	#ifdef OPENSSL
-			char *accessKey = getenv("AWS_ACCESS_KEY_ID");
-			char *secretKey = getenv("AWS_SECRET_ACCESS_KEY");
-			if (accessKey && secretKey && string(accessKey) != "" && string(secretKey) != "") {
-				curl_slist *list = 0;
-				//LOG("Using AWS credentials found in AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY");
-				
-				list = curl_slist_append(list, "Accept:");
-				list = curl_slist_append(list, S("Host: %s.s3.amazonaws.com", bucket.c_str()).c_str());
-
-				// Proper AWS date
-				time_t rawtime;
-				time(&rawtime);
-				tm *tms = localtime(&rawtime);
-				char date[150];
-				strftime(date, 150, "%a, %d %b %Y %T %z", tms);
-				list = curl_slist_append(list, S("Date: %s", date).c_str());
-
-				// HMAC-SHA1 hash
-				string data = S("%s\n\n\n%s\n/%s/%s", method.c_str(), date, bucket.c_str(), location.c_str());
-				unsigned char* digest = HMAC(
-					EVP_sha1(), 
-					secretKey, strlen(secretKey), 
-					(unsigned char*)data.c_str(), data.size(), 
-					NULL, NULL
-				);    
-
-				// Base64 
-				BUF_MEM *bufferPtr;
-				BIO *b64 = BIO_new(BIO_f_base64());
-				BIO *bio = BIO_new(BIO_s_mem());
-				bio = BIO_push(b64, bio);
-				BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); //Ignore newlines - write everything in one line
-				BIO_write(bio, digest, 20);
-				BIO_flush(bio);
-				BIO_get_mem_ptr(bio, &bufferPtr);
-				BIO_set_close(bio, BIO_NOCLOSE);
-				BIO_free_all(bio);
-
-				char *encodedSecret = (*bufferPtr).data;
-
-				//auto q =S("curl -X GET -H 'Host: 1000genomes.s3.amazonaws.com' -H 'Date: %s' -H 'Authorization: AWS %s:%s' %s",
-				//	date, accessKey, encodedSecret, url.c_str());
-				//LOG("%s",q.c_str());
-				//system(q.c_str());
-
-				list = curl_slist_append(list, S("Authorization: AWS %s:%s", accessKey, encodedSecret).c_str());
-				curl_easy_setopt(ch, CURLOPT_HTTPHEADER, list);
-			}
-	#endif
-			//curl_easy_setopt(ch, CURLOPT_VERBOSE, 1);
-		}
+	if (IsWeb(path)) {
+		return make_shared<WebFile>(path, mode);
+	} else {
+		return make_shared<File>(path, mode);
 	}
-	return url;
 }
 
-
-File *OpenFile (const string &path, const char *mode) 
-{
-	if (IsWebFile(path)) 
-		return new WebFile(path, mode);
-	else
-		return new File(path, mode);
-}
-
-bool FileExists (const string &path)
+bool File::Exists (const string &path)
 {
 	bool result = false;
-	if (IsWebFile(path)) {
+	if (IsWeb(path)) {
 		CURL *ch = curl_easy_init();
 		curl_easy_setopt(ch, CURLOPT_NOBODY, 1);
 		curl_easy_setopt(ch, CURLOPT_FAILONERROR, 1);
 
 		string url = path;
-		if (IsS3File(url))
-			url = SetS3File(url, ch, "HEAD");
+		if (IsS3(url))
+			url = GetURLforS3(url, ch, "HEAD");
 		curl_easy_setopt(ch, CURLOPT_URL, url.c_str());
 
 		result = (curl_easy_perform(ch) == CURLE_OK);
 		curl_easy_cleanup(ch);
-	}
-	else {
+	} else {
 		FILE *f = fopen(path.c_str(), "r");
 		result = (f != 0);
 		if (f) fclose(f);
 	}
 	return result;
 }
+
+string File::FullPath (const string &s) 
+{
+	if (IsWeb(s))
+		return s;
+	char *pp = realpath(s.c_str(), 0);
+	string p = pp;
+	free(pp);
+	return p;
+}
+
+string File::RemoveExtension (const string &s) 
+{
+	int i = s.find_last_of(".");
+	if (i == string::npos) 
+		i = s.size();
+	return s.substr(0, i);
+}
+
+bool File::IsWeb (const string &path)
+{
+	return path.find("://") != string::npos;
+}
+
+bool File::IsS3 (const string &path)
+{
+	return IsWeb(path) && (path.size() > 5 && path.substr(0, 5) == "s3://");
+}
+
+string File::GetURLforS3 (string url, CURL *ch, string method) 
+{
+	if (!IsS3(url))
+		return url;
+	
+	url = url.substr(5);
+	auto pos = url.find('/');
+	if (pos == string::npos)
+		return url; 
+
+	string bucket = url.substr(0, pos);
+	string location = url.substr(pos + 1);
+
+	url = S("https://%s.s3.amazonaws.com/%s", bucket.c_str(), location.c_str());
+	//LOG("Using %s", url.c_str());
+	#ifdef OPENSSL
+		char *accessKey = getenv("AWS_ACCESS_KEY_ID");
+		char *secretKey = getenv("AWS_SECRET_ACCESS_KEY");
+		if (accessKey && secretKey && string(accessKey) != "" && string(secretKey) != "") {
+			curl_slist *list = 0;
+			//LOG("Using AWS credentials found in AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY");
+			
+			list = curl_slist_append(list, "Accept:");
+			list = curl_slist_append(list, S("Host: %s.s3.amazonaws.com", bucket.c_str()).c_str());
+
+			// Proper  AWS date
+			time_t rawtime;
+			time(&rawtime);
+			tm *tms = localtime(&rawtime);
+			char date[150];
+			strftime(date, 150, "%a, %d %b %Y %T %z", tms);
+			list = curl_slist_append(list, S("Date: %s", date).c_str());
+
+			// HMAC-SHA1 hash
+			string data = S("%s\n\n\n%s\n/%s/%s", method.c_str(), date, bucket.c_str(), location.c_str());
+			unsigned char* digest = HMAC(
+				EVP_sha1(), 
+				secretKey, strlen(secretKey), 
+				(unsigned char*)data.c_str(), data.size(), 
+				NULL, NULL
+			);    
+
+			// Base64 
+			BUF_MEM *bufferPtr;
+			BIO *b64 = BIO_new(BIO_f_base64());
+			BIO *bio = BIO_new(BIO_s_mem());
+			bio = BIO_push(b64, bio);
+			BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL); //Ignore newlines - write everything in one line
+			BIO_write(bio, digest, 20);
+			BIO_flush(bio);
+			BIO_get_mem_ptr(bio, &bufferPtr);
+			BIO_set_close(bio, BIO_NOCLOSE);
+			BIO_free_all(bio);
+
+			char *encodedSecret = (*bufferPtr).data;
+
+			//auto q =S("curl -X GET -H 'Host: 1000genomes.s3.amazonaws.com' -H 'Date: %s' -H 'Authorization: AWS %s:%s' %s",
+			//	date, accessKey, encodedSecret, url.c_str());
+			//LOG("%s",q.c_str());
+			//system(q.c_str());
+
+			list = curl_slist_append(list, S("Authorization: AWS %s:%s", accessKey, encodedSecret).c_str());
+			curl_easy_setopt(ch, CURLOPT_HTTPHEADER, list);
+		}
+	#endif
+	return url;
+}
+
+/*************************************************************************/
 
 File::File () 
 {
@@ -261,8 +280,8 @@ void WebFile::open (const string &path, const char *mode)
 	if (!ch) throw DZException("Cannot open file %s", path.c_str());
 
 	string url = path;
-	if (IsS3File(url))
-		url = SetS3File(url, ch);
+	if (IsS3(url))
+		url = GetURLforS3(url, ch);
 
 	curl_easy_setopt(ch, CURLOPT_URL, url.c_str());
 	curl_easy_setopt(ch, CURLOPT_VERBOSE, optLogLevel >= 2);
@@ -335,13 +354,13 @@ void WebFile::get_size ()
 	curl_easy_setopt(ch, CURLOPT_NOBODY, 0);
 }
 
-File *WebFile::Download (const string &path, bool detectGZFiles)
+shared_ptr<File> WebFile::Download (const string &path, bool detectGZFiles)
 {
 	LOGN("Downloading %s ...     ", path.c_str());
 	CURL *ch = curl_easy_init();
 	string url = path;
-	if (IsS3File(url))
-		url = SetS3File(url, ch);
+	if (IsS3(url))
+		url = GetURLforS3(url, ch);
 	curl_easy_setopt(ch, CURLOPT_URL, url.c_str());
 	curl_easy_setopt(ch, CURLOPT_VERBOSE, optLogLevel >= 2);
 	curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, WebFile::CURLDownloadCallback); 
@@ -363,11 +382,10 @@ File *WebFile::Download (const string &path, bool detectGZFiles)
 
 	if (detectGZFiles && magic[0] == 0x1f && magic[1] == 0x8b) {
 		LOG("\b\b\b\b opened as GZ file"); 
-		return new GzFile(f);
-	} 
-	else {
+		return make_shared<GzFile>(f);
+	} else {
 		LOG("");
-		return new File(f);
+		return make_shared<File>(f);
 	}
 }
 
@@ -395,7 +413,6 @@ size_t WebFile::CURLCallback (void *ptr, size_t size, size_t nmemb, void *data)
 	return realsize;
 }
 
-
 void *WebFile::handle ()
 {
 	return ch;
@@ -410,10 +427,6 @@ GzFile::GzFile (FILE *handle)
 {
 	fh = gzdopen(fileno(handle), "rb");
 	if (!fh) throw DZException("Cannot open GZ file via handle");
-
-	//char r[50];
-	//gzread(fh, r, 50); r[49] = 0;
-	//LOG("%s",r);
 }
 
 GzFile::~GzFile () 
@@ -436,9 +449,9 @@ void GzFile::close ()
 ssize_t GzFile::read (void *buffer, size_t size) 
 { 
 	const size_t offset = 1 * (size_t)GB;
-	if (size > offset) 
+	if (size > offset) {
 		return gzread(fh, buffer, offset) + read((char*)buffer + offset, size - offset); 
-	else {
+	} else {
 		return gzread(fh, buffer, size);
 	}
 }

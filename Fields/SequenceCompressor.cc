@@ -5,10 +5,8 @@ using namespace std;
 
 SequenceCompressor::SequenceCompressor (const string &refFile, int bs):
 	reference(refFile), 
-	fixes_loc(MB, MB),
-	fixes_replace(MB, MB),
-	fixed(0),
-	chromosome("") // first call to scanNextChr will populate this one
+	fixesLoc(MB, MB),
+	fixesReplace(MB, MB)
 {
 	fixesStream = new GzipCompressionStream<6>();
 	fixesReplaceStream = new GzipCompressionStream<6>();
@@ -16,7 +14,6 @@ SequenceCompressor::SequenceCompressor (const string &refFile, int bs):
 
 SequenceCompressor::~SequenceCompressor (void) 
 {
-	delete[] fixed;
 	delete fixesStream;
 	delete fixesReplaceStream;
 }
@@ -43,16 +40,25 @@ void SequenceCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, 
 		return;
 
 	ZAMAN_START(Compress_Sequence);
+
 	out.add((uint8_t*)&fixedStart, sizeof(size_t));
 	out.add((uint8_t*)&fixedEnd,   sizeof(size_t));
 	out_offset += sizeof(size_t) * 2;
-	compressArray(fixesStream, fixes_loc, out, out_offset);
-	compressArray(fixesReplaceStream, fixes_replace, out, out_offset);
+	compressArray(fixesStream, fixesLoc, out, out_offset);
+	compressArray(fixesReplaceStream, fixesReplace, out, out_offset);
 
-	fixes_loc.resize(0);
-	fixes_replace.resize(0);
+	fixesLoc.resize(0);
+	fixesReplace.resize(0);
 
 	ZAMAN_END(Compress_Sequence);
+}
+
+char SequenceCompressor::operator[] (size_t pos) const
+{
+	assert(pos >= fixedStart);
+	assert(pos < fixedEnd);
+	assert(pos - fixedStart < fixed.size());
+	return fixed[pos - fixedStart];
 }
 
 void SequenceCompressor::scanChromosome (const string &s) 
@@ -60,12 +66,11 @@ void SequenceCompressor::scanChromosome (const string &s)
 	ZAMAN_START(Compress_Sequence_ScanChromosome);
 
 	// by here, all should be fixed ...
-	assert(fixes_loc.size() == 0);
-	assert(fixes_replace.size() == 0);
+	assert(fixesLoc.size() == 0);
+	assert(fixesReplace.size() == 0);
 	
 	// clean genomePager
-	delete[] fixed;
-	fixed = 0;
+	fixed.resize(0);
 	fixedStart = fixedEnd = maxEnd = 0;
 
 	chromosome = reference.scanChromosome(s);
@@ -75,21 +80,32 @@ void SequenceCompressor::scanChromosome (const string &s)
 
 // called at the end of the block!
 // IS NOT ATOMIC!
-inline void SequenceCompressor::updateGenomeLoc (size_t loc, char ch, Array<int*> &stats) 
+
+#define _ 0
+static __m128i getSSEvalueCache[] =  {
+	_mm_set_epi16(_,_,_,_,_,_,_,1),
+	_mm_set_epi16(_,_,_,_,_,_,1,_),
+	_mm_set_epi16(_,_,_,_,_,1,_,_),
+	_mm_set_epi16(_,_,_,_,1,_,_,_),
+	_mm_set_epi16(_,_,_,1,_,_,_,_),
+	_mm_set_epi16(_,_,1,_,_,_,_,_),
+	_mm_set_epi16(_,1,_,_,_,_,_,_),
+	_mm_set_epi16(1,_,_,_,_,_,_,_),
+};
+#undef _
+inline void SequenceCompressor::updateGenomeLoc (size_t loc, char ch, Stats &stats) 
 {
-	assert(loc < stats.size());
-	if (!stats.data()[loc]) {
-		stats.data()[loc] = new int[6];
-		memset(stats.data()[loc], 0, sizeof(int) * 6);
-	}
-	stats.data()[loc][getDNAValue(ch)]++;
+	#ifdef __SSE2__
+		stats[loc] = _mm_add_epi16(stats[loc], getSSEvalueCache[getDNAValue(ch)]);
+	#else
+		stats[loc][getDNAValue(ch)]++;
+	#endif
 }
 
-std::mutex SequenceCompressor::mtx;
-void SequenceCompressor::applyFixesThread(EditOperationCompressor &editOperation, Array<int*> &stats, 
-	size_t fixedStart, size_t offset, size_t size, const char *fixed) 
+void SequenceCompressor::applyFixesThread(EditOperationCompressor &editOperation, Stats &stats,
+	size_t fixedStart, size_t offset, size_t size) 
 {
-	ZAMAN_START(Compress_Sequence_Fixes_ApplyThread);
+	ZAMAN_START(Compress_Sequence_Fixes_CalculateThread);
 
 	for (size_t k = 0; k < editOperation.size(); k++) {
 		if (editOperation[k].op == "*" || editOperation[k].seq == "*") 
@@ -100,67 +116,35 @@ void SequenceCompressor::applyFixesThread(EditOperationCompressor &editOperation
 			continue;
 		
 		size_t genPos = editOperation[k].start;
-		size_t num = 0;
 		size_t seqPos = 0;
 
-		size_t mdOperLen = 0;
-		string mdOperTag;
-		int NM = 0;
-
-		for (size_t pos = 0; genPos < offset + size && pos < editOperation[k].op.length(); pos++) {
-			if (isdigit(editOperation[k].op[pos])) {
-				num = num * 10 + (editOperation[k].op[pos] - '0');
-				continue;
+		for (int opi = 0; opi < editOperation[k].ops.size(); opi++) {
+			auto &op = editOperation[k].ops[opi];
+			if (genPos >= offset + size) break;
+			switch (op.first) {
+			case 'M':
+			case '=':
+			case 'X':
+				for (size_t i = 0; genPos < offset + size && i < op.second; i++, genPos++, seqPos++) {
+					if (genPos < offset) continue;
+					updateGenomeLoc(genPos - fixedStart, editOperation[k].seq[seqPos], stats);
+				}
+				break;
+			case 'D':
+			//case 'N':
+				for (size_t i = 0; genPos < offset + size && i < op.second; i++, genPos++) {
+					if (genPos < offset) continue;
+					updateGenomeLoc(genPos - fixedStart, '.', stats);
+				}
+				break;
+			case 'I':
+			case 'S':
+				seqPos += op.second; 
+				break;
 			}
-			switch (editOperation[k].op[pos]) {
-				case 'M':
-				case '=':
-				case 'X':
-					for (size_t i = 0; genPos < offset + size && i < num; i++, genPos++, seqPos++) {
-						if (genPos >= offset) {
-							updateGenomeLoc(genPos - fixedStart, editOperation[k].seq[seqPos], stats);
-
-							if (fixed[genPos - fixedStart] != editOperation[k].seq[seqPos]) {
-								mdOperTag += inttostr(mdOperLen), mdOperLen = 0;
-								mdOperTag += fixed[genPos - fixedStart];
-								NM++;
-							} else {
-								mdOperLen++;
-							}
-						}
-					}
-					break;
-				case 'D':
-					if (genPos + num < size) {
-						mdOperTag += inttostr(mdOperLen), mdOperLen = 0;
-						mdOperTag += "^";
-						mdOperTag += string(fixed + genPos - fixedStart, num); 
-					}
-					NM += num;
-				case 'N':
-					for (size_t i = 0; genPos < offset + size && i < num; i++, genPos++) {
-						if (genPos >= offset)
-							updateGenomeLoc(genPos - fixedStart, '.', stats);
-					}
-					break;
-				case 'I':
-					NM += num;
-				case 'S':
-					seqPos += num; 
-					break;
-			}
-			num = 0;
 		}
-		if (mdOperLen || !isdigit(mdOperTag.back())) mdOperTag += inttostr(mdOperLen);
-		if (!isdigit(mdOperTag[0])) mdOperTag = "0" + mdOperTag;
-
-		mtx.lock();
-		editOperation[k].MD = mdOperTag;
-		editOperation[k].NM = NM;
-		mtx.unlock();
 	}
-
-	ZAMAN_END(Compress_Sequence_Fixes_ApplyThread);
+	ZAMAN_END(Compress_Sequence_Fixes_CalculateThread);
 }
 
 /*
@@ -194,48 +178,44 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 			assert(fixedStart <= newFixedStart);
 
 			// Update fixing table
-			Array<char> newFixed(newFixedEnd - newFixedStart);
-			newFixed.resize(newFixed.capacity());
-			//char *newFixed = new char[newFixedEnd - newFixedStart];
-			// copy old fixes!
-			if (fixed && newFixedStart < fixedEnd) {
-				memcpy(newFixed.data(), fixed.data() + (newFixedStart - fixedStart), 
-					fixedEnd - newFixedStart);
+			if (fixed.size() && newFixedStart < fixedEnd) { // Copy old fixes
 				ZAMAN_START(Compress_Sequence_Fixes_Initialize_Load);
-				reference.load(newFixed.data() + (fixedEnd - newFixedStart), 
-					fixedEnd, newFixedEnd);
+				fixed = fixed.substr(newFixedStart - fixedStart, fixedEnd - newFixedStart);
+				fixed += reference.copy(fixedEnd, newFixedEnd);
+				reference.trim(fixedEnd);
 				ZAMAN_END(Compress_Sequence_Fixes_Initialize_Load);
 			} else {
 				ZAMAN_START(Compress_Sequence_Fixes_Initialize_Load);
-				reference.load(newFixed.data(), newFixedStart, newFixedEnd);
+				fixed = reference.copy(newFixedStart, newFixedEnd);
+				reference.trim(newFixedStart);
 				ZAMAN_END(Compress_Sequence_Fixes_Initialize_Load);
 			}
 
 			fixedStart = newFixedStart, fixedEnd = newFixedEnd;
-			fixed = newFixed;
 		}
 		ZAMAN_END(Compress_Sequence_Fixes_Initialize);
 
 		//	SCREEN("Given boundary is %'lu\n", nextBlockBegin);
-		//	SCREEN("Fixing from %'lu to %'lu\n", fixedStart, fixedEnd);
-		//	SCREEN("Reads from %'lu to %'lu\n", records[0].start, records[records.size()-1].end);
+		DEBUG("Fixing from %'lu to %'lu\n", fixedStart, fixedEnd);
+		//LOG("Reads from %'lu to %'lu\n", records[0].start, records[records.size()-1].end);
 
 		// obtain statistics
-
 		
 		ZAMAN_START(Compress_Sequence_Fixes_Calculate);
-		Array<int*> stats(0, MB); 
-		stats.resize(fixedEnd - fixedStart);
-		memset(stats.data(), 0, stats.size() * sizeof(int*));
-
-		vector<std::thread> t;
-		size_t sz = stats.size() / optThreads + 1;
-		for (int i = 0; i < optThreads; i++)
-			t.push_back(thread(applyFixesThread, 
+		vector<thread> t(optThreads);
+		#ifdef __SSE2__
+			Stats stats(fixedEnd - fixedStart, _mm_setzero_si128());
+		#else
+			Stats stats(fixedEnd - fixedStart, array<uint16_t, 6>());
+		#endif
+		size_t maxSz = fixedEnd - fixedStart;
+		size_t sz = maxSz / optThreads + 1;
+		for (int i = 0; i < optThreads; i++) {
+			t[i] = thread(applyFixesThread, 
 				ref(editOperation), ref(stats), fixedStart, 
-				fixedStart + i * sz, min(sz, stats.size() - i * sz),
-				fixed
-			));
+				fixedStart + i * sz, min(sz, maxSz - i * sz)
+			);
+		}
 		for (int i = 0; i < optThreads; i++)
 			t[i].join();
 		ZAMAN_END(Compress_Sequence_Fixes_Calculate); 
@@ -244,22 +224,31 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 		// patch reference genome
 		size_t fixedPrev = 0;
 		ZAMAN_START(Compress_Sequence_Fixes_Apply);
-		fixes_loc.resize(0);
-		fixes_replace.resize(0);
-		for (size_t i = 0; i < fixedEnd - fixedStart; i++) if (stats.data()[i]) {
-			int max = -1, pos = -1;
-			for (int j = 1; j < 6; j++) {
-				if (stats.data()[i][j] > max)
-					max = stats.data()[i][pos = j];
-			}
-			if (fixed[i] != pos[".ACGTN"]) 
-			{
-				// +1 for 0 termninator avoid
-				addEncoded(fixedStart + i - fixedPrev + 1, fixes_loc);
+		fixesLoc.resize(0);
+		fixesReplace.resize(0);
+
+
+		__m128i invert = _mm_set_epi16(0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff);
+		for (size_t i = 0; i < fixedEnd - fixedStart; i++) {
+			#ifdef __SSE2__
+				#warning "using sse2"
+				if (_mm_movemask_epi8(_mm_cmpeq_epi8(stats[i], _mm_setzero_si128())) == 0xFFFF)
+					continue;
+				int pos = _mm_extract_epi16(_mm_minpos_epu16(_mm_sub_epi16(invert, stats[i])), 1);
+			#else
+				int max = -1, pos = -1;
+				for (int j = 1; j < 6; j++) {
+					if (stats[i][j] > max)
+						max = stats[i][pos = j];
+				}
+				if (max <= 0) continue;
+			#endif
+
+			if (fixed[i] != pos[".ACGTN"]) {
+				addEncoded(fixedStart + i - fixedPrev + 1, fixesLoc);  // +1 for 0 termninator avoid
 				fixedPrev = fixedStart + i;
-				fixes_replace.add(fixed[i] = pos[".ACGTN"]);
+				fixesReplace.add(fixed[i] = pos[".ACGTN"]);
 			}
-			delete[] stats.data()[i];
 		}
 		ZAMAN_END(Compress_Sequence_Fixes_Apply);
 	}
@@ -270,9 +259,10 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 	start_S = editOperation[0].start;
 	end_S = editOperation[bound-1].start;
 	end_E = editOperation[bound-1].end;
+
 	fS = fixedStart;
 	fE = fixedEnd;
-	editOperation.setFixed(fixed, fixedStart);
+	//editOperation.setFixed(fixed.data(), fixedStart);
 
 	ZAMAN_END(Compress_Sequence_Fixes);
 

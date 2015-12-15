@@ -4,9 +4,11 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <mutex>
 #include <stdio.h>
 #include <string.h>
 #include <zlib.h>
+#include <smmintrin.h>
 
 #include "../Common.h"
 #include "../Stats.h"
@@ -22,16 +24,16 @@ class SequenceCompressor: public Compressor {
 	friend class Stats;
 	
 	Reference reference;
+	CompressionStream
+		*fixesStream,
+		*fixesReplaceStream;
 	
-	CompressionStream *fixesStream;
-	CompressionStream *fixesReplaceStream;
-
-	Array<uint8_t> fixes_loc;
-	Array<uint8_t> fixes_replace;
-
+	Array<uint8_t> 
+		fixesLoc,
+		fixesReplace;
+	
 	std::string chromosome; // chromosome index
-
-	char *fixed;
+	std::string fixed;
 	size_t fixedStart, fixedEnd;
 	size_t maxEnd;
 
@@ -41,6 +43,7 @@ public:
 
 public:
 	void updateBoundary (size_t loc);
+	size_t getBoundary() const { return maxEnd; };
 	void outputRecords (Array<uint8_t> &output, size_t out_offset, size_t k);
 	void getIndexData (Array<uint8_t> &out) { out.resize(0); }
 	size_t compressedSize(void);
@@ -53,22 +56,29 @@ public:
 	void scanChromosome (const std::string &s);
 	size_t getChromosomeLength (void) const { return reference.getChromosomeLength(chromosome); }
 	void scanSAMComment (const string &comment) { reference.scanSAMComment(comment); } 
+	char operator[] (size_t pos) const;
+	Reference &getReference() { return reference; }
 
 private:
-	static void applyFixesThread(EditOperationCompressor &editOperation, Array<int*> &stats, size_t fixedStart, size_t offset, size_t size);
-	static void updateGenomeLoc (size_t loc, char ch, Array<int*> &stats);
+	#ifdef __SSE2__
+		typedef std::vector<__m128i> Stats;
+	#else
+		typedef std::vector<std::array<uint16_t, 6>> Stats;
+	#endif
+	static void applyFixesThread(EditOperationCompressor &editOperation, Stats &stats, 
+		size_t fixedStart, size_t offset, size_t size);
+	static void updateGenomeLoc (size_t loc, char ch, Stats &stats);
 };
 
 class SequenceDecompressor: public Decompressor {
 	Reference reference;
-	
 	DecompressionStream *fixesStream;
 	DecompressionStream *fixesReplaceStream;
 
-	char   *fixed;
-	size_t fixedStart, fixedEnd;
-	
+private:
 	std::string chromosome;
+	std::string fixed;
+	size_t fixedStart, fixedEnd;
 
 public:
 	SequenceDecompressor (const std::string &refFile, int bs);
@@ -80,10 +90,11 @@ public:
 	void setIndexData (uint8_t *, size_t) {}
 
 public:
-	void setFixed (EditOperationDecompressor &editOperation);
 	void scanChromosome (const std::string &s);
 	std::string getChromosome (void) const { return chromosome; }
 	void scanSAMComment (const string &comment) { reference.scanSAMComment(comment); } 
+	char operator[] (size_t pos) const;
+	const Reference &getReference() const { return reference; }
 };
 
 #endif

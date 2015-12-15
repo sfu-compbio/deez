@@ -19,7 +19,7 @@ class FileCompressor {
 	vector<Parser*> parsers;
 	vector<SequenceCompressor*> sequence;
 	vector<EditOperationCompressor*> editOp;
-	vector<Compressor*> readName;
+	vector<ReadNameCompressor*> readName;
 	vector<MappingFlagCompressor*> mapFlag;
 	vector<MappingQualityCompressor*> mapQual;
 	vector<QualityScoreCompressor*> quality;
@@ -49,7 +49,8 @@ private:
 	void outputRecords(void);
 	void outputBlock (Compressor *c, Array<uint8_t> &out, size_t count);
 
-	static void compressBlock (Compressor *c, Array<uint8_t> &out, Array<uint8_t> &idxOut, size_t count);
+	template<typename Compressor, typename... ExtraParams>
+	static void compressBlock (Array<uint8_t>& out, Array<uint8_t>& idxOut, size_t k, Compressor *c, ExtraParams... params);
 	void outputBlock (Array<uint8_t> &out, Array<uint8_t> &idxOut);
 
 public:

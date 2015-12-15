@@ -57,6 +57,8 @@ void StringCompressor<TStream>::outputRecords (Array<uint8_t> &out, size_t out_o
 		return;
 	}
 	assert(k <= this->records.size());
+
+	ZAMAN_START(Compress_Strings);
 	Array<uint8_t> buffer(totalSize);
 	
 	for (size_t i = 0; i < k; i++) {
@@ -66,6 +68,7 @@ void StringCompressor<TStream>::outputRecords (Array<uint8_t> &out, size_t out_o
 	
 	compressArray(this->stream, buffer, out, out_offset);
 	this->records.remove_first_n(k);
+	ZAMAN_END(Compress_Strings);
 }
 
 template<typename TStream>
@@ -88,7 +91,6 @@ void StringDecompressor<TStream>::importRecords (uint8_t *in, size_t in_size) {
 	
 	Array<uint8_t> out;
 	size_t s = decompressArray(this->stream, in, out);
-__debug_fwrite(out.data(), 1, out.size(), ____debug_file[__DC++]);
 	size_t start = 0;
 
 	this->records.resize(0);

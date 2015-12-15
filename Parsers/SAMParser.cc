@@ -5,15 +5,16 @@
 #include <assert.h>
 using namespace std;
 
-SAMParser::SAMParser (const string &filename) {
+SAMParser::SAMParser (const string &filename)
+{
 	Parser::fname = filename;
 
-	if (IsWebFile(filename)) {
-		File *fh = WebFile::Download(filename); // TODO fix leak
-		input = (FILE*) fh->handle();
-	}
-	else
+	if (File::IsWeb(filename)) {
+		webFile = WebFile::Download(filename);
+		input = (FILE*) webFile->handle();
+	} else {
 		input = fopen(filename.c_str(), "r");
+	}
 	if (input == NULL)	
 		throw DZException("Cannot open the file %s", filename.c_str());
 
@@ -22,11 +23,13 @@ SAMParser::SAMParser (const string &filename) {
 	fseek(input, 0L, SEEK_SET);
 }
 
-SAMParser::~SAMParser (void) {
+SAMParser::~SAMParser (void) 
+{
 	fclose(input);
 }
 
-string SAMParser::readComment (void)  {
+string SAMParser::readComment (void)  
+{
 	string s;
 	while (fgets(currentRecord.line, MAXLEN, input)) 
 		if (currentRecord.line[0] != '@') {
@@ -37,7 +40,8 @@ string SAMParser::readComment (void)  {
 	return s;
 }
 
-bool SAMParser::readNext (void)  {
+bool SAMParser::readNext (void)  
+{
 	if (fgets(currentRecord.line, MAXLEN, input)) {
 		assert(currentRecord.line[0] != '@');
 		parse();
@@ -46,20 +50,23 @@ bool SAMParser::readNext (void)  {
 	return false;
 }
 
-
-bool SAMParser::hasNext (void) {
+bool SAMParser::hasNext (void) 
+{
 	return !feof(input);
 }
 
-size_t SAMParser::fpos (void) {
+size_t SAMParser::fpos (void) 
+{
 	return ftell(input);
 }
 
-size_t SAMParser::fsize (void) {
+size_t SAMParser::fsize (void) 
+{
 	return file_size;
 }
 
-void SAMParser::parse (void) {
+void SAMParser::parse (void) 
+{
 	int l = strlen(currentRecord.line) - 1;
 	while (l && (currentRecord.line[l] == '\r' || currentRecord.line[l] == '\n'))
 		currentRecord.line[l--] = 0;
@@ -81,11 +88,13 @@ void SAMParser::parse (void) {
 		currentRecord.strFields[sfc++] = c;
 }
 
-const Record &SAMParser::next (void) {
+const Record &SAMParser::next (void) 
+{
 	return currentRecord;
 }
 
-string SAMParser::head (void) {
+string SAMParser::head (void) 
+{
 	return currentRecord.getChromosome();
 }
 

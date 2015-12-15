@@ -14,6 +14,7 @@
 class BAMParser: public Parser {
 	gzFile input;
 	FILE *fd;
+	shared_ptr<File> webFile;
 
 	Record currentRecord;
     size_t file_size;

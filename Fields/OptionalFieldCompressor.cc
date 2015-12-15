@@ -80,7 +80,7 @@ void OptionalFieldCompressor::parseMD(const string &rec, int &i, const string &e
 	for (; i < rec.size() && rec[i] != '\t'; i++)
 		MD += rec[i];
 	if (MD != eoMD) {
-		DEBUG("MD calculation failed: calculated %s, found %s", eoMD.c_str(), MD.c_str());
+		//LOG("MD calculation failed: calculated %s, found %s", eoMD.c_str(), MD.c_str());
 		failedMD++;
 		out.add((uint8_t*)MD.c_str(), MD.size());
 	}

@@ -6,30 +6,19 @@ using namespace std;
 #include <sys/time.h>
 #include <time.h>
 
-double _zaman_ (void) {
-	struct timeval t;
-	gettimeofday(&t, 0);
-	return (t.tv_sec * 1000000ll + t.tv_usec) / 1000000.0;
-}
-static const char *NAMES[8] = {
-	"SQ","EO","RN","MF",
-	"MQ","QQ","PE","OF" 
-};
-
 FileCompressor::FileCompressor (const string &outFile, const vector<string> &samFiles, const string &genomeFile, int bs): 
 	blockSize(bs) 
 {
 	for (int f = 0; f < samFiles.size(); f++) {
-		File *fi = OpenFile(samFiles[f].c_str(), "rb");
+		auto fi = File::Open(samFiles[f].c_str(), "rb");
 		char mc[2];
 		fi->read(mc, 2);
-		delete fi;
 		if (mc[0] == char(0x1f) && mc[1] == char(0x8b)) 
 			parsers.push_back(new BAMParser(samFiles[f]));
 		else
 			parsers.push_back(new SAMParser(samFiles[f]));
 		sequence.push_back(new SequenceCompressor(genomeFile, bs));
-		editOp.push_back(new EditOperationCompressor(bs));
+		editOp.push_back(new EditOperationCompressor(bs, (*sequence.back())));
 		if (optReadLossy)
 			readName.push_back(new ReadNameLossyCompressor(bs));
 		else 
@@ -49,12 +38,6 @@ FileCompressor::FileCompressor (const string &outFile, const vector<string> &sam
 	}
 
 	FILE *tmp = tmpfile();
-	
-	// char filePath[1024] = {0};
-	// char _x[200]; sprintf(_x,"/proc/self/fd/%d",fileno(tmp));
-	// readlink(_x, filePath, 1024);
-	// LOG("Index file %s", filePath);
-	
 	int tmpFile = dup(fileno(tmp));
 	indexTmp = fdopen(tmpFile, "rb");
 	indexFile = gzdopen(fileno(tmp), "wb6");
@@ -62,7 +45,8 @@ FileCompressor::FileCompressor (const string &outFile, const vector<string> &sam
 		throw DZException("Cannot open temporary file");
 }
 
-FileCompressor::~FileCompressor (void) {
+FileCompressor::~FileCompressor (void) 
+{
 	for (int f = 0; f < parsers.size(); f++) {
 		delete parsers[f];
 		delete sequence[f];
@@ -77,18 +61,21 @@ FileCompressor::~FileCompressor (void) {
 	fclose(outputFile);
 }
 
-void FileCompressor::compress (void) {
+void FileCompressor::compress (void) 
+{
+	ZAMAN_START(Compress);
 	outputMagic();
 	outputComment();
 	outputRecords();
+	ZAMAN_END(Compress);
 }
 
-void FileCompressor::outputMagic (void) {
+void FileCompressor::outputMagic (void) 
+{
 	uint32_t magic = MAGIC;
 	fwrite(&magic, 4, 1, outputFile);
 	fwrite(&optQuality, 1, 1, outputFile);
 
-// BEGIN_V2
 	uint16_t numFiles = parsers.size();
 	fwrite(&numFiles, 2, 1, outputFile);
 
@@ -104,10 +91,10 @@ void FileCompressor::outputMagic (void) {
 	arcsz = arc.size();
 	fwrite(&arcsz, sizeof(size_t), 1, outputFile);
 	fwrite(arc.data(), 1, arcsz, outputFile);
-// END_V2
 }
 
-void FileCompressor::outputComment (void) {
+void FileCompressor::outputComment (void) 
+{
 	for (int f = 0; f < parsers.size(); f++) {
 		string comment = parsers[f]->readComment();
 		sequence[f]->scanSAMComment(comment);
@@ -124,29 +111,30 @@ void FileCompressor::outputComment (void) {
 	}
 }
 
-void FileCompressor::compressBlock (Compressor *c, Array<uint8_t> &out, Array<uint8_t> &idxOut, size_t count) {
-	ZAMAN_START();
+template<typename Compressor, typename... ExtraParams>
+void FileCompressor::compressBlock (Array<uint8_t>& out, Array<uint8_t>& idxOut, size_t k, Compressor *c, ExtraParams... params) 
+{
 	out.resize(0);
-	c->outputRecords(out, 0, count);
+	c->outputRecords(out, 0, k, params...);
 	idxOut.resize(0);
 	c->getIndexData(idxOut);
-	ZAMAN_END(NAMES[int64_t(c->debugStream)]);
 }
 
-void FileCompressor::outputBlock (Array<uint8_t> &out, Array<uint8_t> &idxOut) {
+void FileCompressor::outputBlock (Array<uint8_t> &out, Array<uint8_t> &idxOut) 
+{
 	size_t out_sz = out.size();
 	fwrite(&out_sz, sizeof(size_t), 1, outputFile);
 	if (out_sz) 
 		fwrite(out.data(), 1, out_sz, outputFile);
 	
 	out_sz = idxOut.size();
-	//LOG("---%d", idxOut.size());
 	gzwrite(indexFile, &out_sz, sizeof(size_t));
 	if (out_sz) 
 		gzwrite(indexFile, idxOut.data(), out_sz);
 }
 
-void FileCompressor::outputRecords (void) {
+void FileCompressor::outputRecords (void) 
+{
 	vector<Stats> stats(parsers.size());
 	for (int16_t f = 0; f < parsers.size(); f++) 
 		stats[f].fileName = parsers[f]->fileName();
@@ -154,7 +142,6 @@ void FileCompressor::outputRecords (void) {
 	vector<size_t> lastStart(parsers.size(), 0);
 	vector<int64_t> bsc(parsers.size(), blockSize);
 	int64_t total = 0;
-	//int64_t bsc = blockSize;
 
 	int64_t blockCount = 0;
 	vector<int64_t> currentSize(parsers.size(), 0);
@@ -167,25 +154,32 @@ void FileCompressor::outputRecords (void) {
 
 	vector<size_t> prev_loc(parsers.size(), 0);
 
+	int totalMatchedMates = 0;
+
 	int fileAliveCount = parsers.size();
 	while (fileAliveCount) { 
-		//ZAMAN_START();
 		LOGN("\r");
 		for (int16_t f = 0; f < parsers.size(); f++) {
 			if (!parsers[f]->hasNext()) {
 				fileAliveCount--;
 				continue;
 			}
+
+			ZAMAN_START(Compress_SeekChromosome);
 			char op = 0;
 			string chr = parsers[f]->head();
 			while (sequence[f]->getChromosome() != parsers[f]->head()) 
 				sequence[f]->scanChromosome(parsers[f]->head()), op = 1, prev_loc[f] = 0;
-			//if (op)
-			//	stats[f].addChromosome(sequence[f]->getChromosome(), sequence[f]->getChromosomeLength());
+			ZAMAN_END(Compress_SeekChromosome);
 
+			unordered_map<string, int> readNames; 
+			int readInBlock = 0, matchedMates = 0;
+
+			ZAMAN_START(Compress_ParseBlock);
 			for (; currentSize[f] < bsc[f] && parsers[f]->hasNext() 
-					&& parsers[f]->head() == sequence[f]->getChromosome(); currentSize[f]++) 
+					&& parsers[f]->head() == sequence[f]->getChromosome(); currentSize[f]++, readInBlock++) 
 			{
+				ZAMAN_START(Compress_ParseBlock_Init);
 				const Record &rc = parsers[f]->next();
 				
 				size_t loc = rc.getLocation();
@@ -196,39 +190,103 @@ void FileCompressor::outputRecords (void) {
 				if (loc < prev_loc[f])
 					throw DZSortedException("%s is not sorted. Please sort it with 'dz --sort' before compressing it", parsers[f]->fileName().c_str());
 				prev_loc[f] = loc;
+				ZAMAN_END(Compress_ParseBlock_Init);
 
+				ZAMAN_START(Compress_ParseBlock_EO);
 				EditOperation eo(loc, rc.getSequence(), rc.getCigar());
 				sequence[f]->updateBoundary(eo.end);
 				editOp[f]->addRecord(eo);
-				if (optReadLossy)
-					((ReadNameLossyCompressor*)readName[f])->addRecord(rc.getReadName());
-				else
-					((ReadNameCompressor*)readName[f])->addRecord(rc.getReadName());
+				ZAMAN_END(Compress_ParseBlock_EO);
+				
+				PairedEndInfo pe(
+					rc.getPairChromosome(), p_loc, rc.getTemplateLenght(), 
+					eo.start, eo.end - eo.start, rc.getMappingFlag() & 0x10);
+				//bool addReadName = true;
+				ZAMAN_START(Compress_ParseBlock_CheckMate);
+				string rn = rc.getReadName();
+				auto it = readNames.find(rn);
+				if (it == readNames.end()) {
+					readNames[rc.getReadName()] = readInBlock;
+				} else {
+					// Check...
+					EditOperation &peo = (*editOp[f])[it->second];
+					PairedEndInfo &ppe = (*pairedEnd[f])[it->second];
+
+					if (rc.getTemplateLenght() == -ppe.tlen // TLEN can be calculated
+						&& loc == ppe.pos
+					 	&& p_loc == peo.start // POS can be calculated
+					 	&& (ppe.chr == "=" || chr == ppe.chr) // CHR can be calculated as well
+					 	&& ppe.tlen >= 0 
+					 	&& ppe.tlen == loc + (peo.end - peo.start) - peo.start
+					)
+					{
+						ppe.bit = PairedEndInfo::Bits::LOOK_AHEAD; 
+						pe.bit = PairedEndInfo::Bits::LOOK_BACK; // DO NOT ADD!
+						pe.tlen = readInBlock - it->second;
+						//addReadName = false;
+						matchedMates++;
+						rn = "";
+					} else { // Replace with current read
+						readNames[rc.getReadName()] = readInBlock;
+					}
+				}
+				ZAMAN_END(Compress_ParseBlock_CheckMate);
+
+				ZAMAN_START(Compress_ParseBlock_RN);
+				readName[f]->addRecord(rn.c_str());
+				ZAMAN_END(Compress_ParseBlock_RN);
+
+				ZAMAN_START(Compress_ParseBlock_MFMQPE);
 				mapFlag[f]->addRecord(rc.getMappingFlag());
 				mapQual[f]->addRecord(rc.getMappingQuality());
-				quality[f]->addRecord(rc.getQuality()/*, rc.getSequence()*/, rc.getMappingFlag());
-				pairedEnd[f]->addRecord(PairedEndInfo(rc.getPairChromosome(), p_loc, rc.getTemplateLenght(), 
-					eo.start, eo.end - eo.start, rc.getMappingFlag() & 0x10));
+				pairedEnd[f]->addRecord(pe);
+				ZAMAN_END(Compress_ParseBlock_MFMQPE);
+
+				ZAMAN_START(Compress_ParseBlock_Q);
+				quality[f]->addRecord(rc.getQuality());
+				ZAMAN_END(Compress_ParseBlock_Q);
+
+				ZAMAN_START(Compress_ParseBlock_OF);
 				optField[f]->addRecord(rc.getOptional());
+				ZAMAN_END(Compress_ParseBlock_OF);
 
+				ZAMAN_START(Compress_ParseBlock_STAT);
 				stats[f].addRecord(rc.getMappingFlag());
-
 				lastStart[f] = loc;
-				parsers[f]->readNext();		
+				ZAMAN_END(Compress_ParseBlock_STAT);
+
+				ZAMAN_START(Compress_ParseBlock_IO);
+				parsers[f]->readNext();	
+				ZAMAN_END(Compress_ParseBlock_IO);	
 			}
 			total += currentSize[f];
 			LOGN("  %5.1lf%% [%s,%zd]", (100.0 * parsers[f]->fpos()) / parsers[f]->fsize(), 
 				sequence[f]->getChromosome().c_str(), blockCount + 1);
+			ZAMAN_END(Compress_ParseBlock);
 
-			//LOGN("\n# ");
-			//ZAMAN_END("REQ");
+			ZAMAN_START(Compress_Calculate);
+			sequence[f]->getReference().loadIntoBuffer(sequence[f]->getBoundary());
+			size_t threadSz = currentSize[f] / optThreads + 1;
+			vector<thread> threads(optThreads);
+			for (int ti = 0; ti < threads.size(); ti++) {
+				threads[ti] = thread([&](size_t start, size_t end) {
+					for (int i = start; i < end; i++) {
+						(*editOp[f])[i].calculateTags(sequence[f]->getReference());
+						quality[f]->shrink(i, (*mapFlag[f])[i]);
+					}
+				}, threadSz * ti, min(size_t(currentSize[f]), (ti + 1) * threadSz));
+			}
+			for (auto &t: threads)
+				t.join();
+			ZAMAN_END(Compress_Calculate);
+
+			ZAMAN_START(Compress_FixGenome);
 			size_t currentBlockCount, 
 				currentBlockFirstLoc, 
 				currentBlockLastLoc, 
 				currentBlockLastEndLoc,
 				fixedStartPos, fixedEndPos;
 			size_t zpos;
-			//ZAMAN_START();
 			currentBlockCount = sequence[f]->applyFixes(
 			 	!parsers[f]->hasNext() || parsers[f]->head() != sequence[f]->getChromosome() || parsers[f]->head() == "*" 
 			 		? (size_t)-1 : lastStart[f] - 1, 
@@ -242,68 +300,49 @@ void FileCompressor::outputRecords (void) {
 				continue;
 			}
 			currentSize[f] -= currentBlockCount;
+			ZAMAN_END(Compress_FixGenome);
 
-			// ERROR("Block size %lld...", blockSize);
-			// write chromosome id
-			//LOG("> %lu",ftell(outputFile));
+			ZAMAN_START(Compress_WriteIndex);
 			zpos = ftell(outputFile);
 
 			fwrite(&op, sizeof(char), 1, outputFile);
 			if (op) 
 				fwrite(chr.c_str(), chr.size() + 1, 1, outputFile);
 
-// BEGIN V2
 			gzwrite(indexFile, &f, sizeof(int16_t));
-// END V2
 			gzwrite(indexFile, &zpos, sizeof(size_t));		
-			//	DEBUG("\n%s:%'lu-%'lu..%'lu\tfx %'lu-%'lu\t%'lu", sequence->getChromosome().c_str(), 
-			//		currentBlockFirstLoc+1, currentBlockLastLoc+1, currentBlockLastEndLoc, 
-			//		fixedStartPos, fixedEndPos, currentBlockCount);
-			// cnt
 			gzwrite(indexFile, &currentBlockCount, sizeof(size_t));
-			// chr		
 			gzwrite(indexFile, sequence[f]->getChromosome().c_str(), sequence[f]->getChromosome().size() + 1);
-			// start pos		
 			gzwrite(indexFile, &currentBlockFirstLoc, sizeof(size_t));
-			// end pos
 			gzwrite(indexFile, &currentBlockLastLoc, sizeof(size_t));
-			// end cover pos
-			// gzwrite(indexFile, &currentBlockLastEndLoc, sizeof(size_t));
-			// fixed start pos
 			gzwrite(indexFile, &fixedStartPos, sizeof(size_t));
-			// fixed end pos
 			gzwrite(indexFile, &fixedEndPos, sizeof(size_t));
-			//ZAMAN_END("FIX");
+			ZAMAN_END(Compress_WriteIndex);
 
-			//LOG("%d %d %s %d %d %d %d",zpos, currentBlockCount,sequence->getChromosome().c_str(),
-			//	currentBlockFirstLoc,currentBlockLastLoc,fixedStartPos,fixedEndPos);
-
-			//ZAMAN_START();
+			ZAMAN_START(Compress_CompressBlocks);
 			Compressor *ci[] = { sequence[f], editOp[f], readName[f], mapFlag[f], mapQual[f], quality[f], pairedEnd[f], optField[f] };
 			thread t[8];
-			for (size_t ti = 0; ti < 8; ti++) {
-				ci[ti]->debugStream = (FILE*)ti;
-				t[ti] = thread(compressBlock, ci[ti], ref(outputBuffer[ti]), ref(idxBuffer[ti]), currentBlockCount);
-			}
+			for (size_t ti = 0; ti < 7; ti++) 
+				t[ti] = thread(compressBlock<Compressor>, ref(outputBuffer[ti]), ref(idxBuffer[ti]), currentBlockCount, ci[ti]);
+			t[7] = thread(compressBlock<OptionalFieldCompressor, EditOperationCompressor*>, ref(outputBuffer[7]), ref(idxBuffer[7]), currentBlockCount, optField[f], editOp[f]);
 			for (int ti = 0; ti < 8; ti++)
 				t[ti].join();
-			//ZAMAN_END("CALC");
+			editOp[f]->records.remove_first_n(currentBlockCount);
+			ZAMAN_END(Compress_CompressBlocks);
 
-			//ZAMAN_START();
+			ZAMAN_START(Compress_OutputBlocks);
 			for (int ti = 0; ti < 8; ti++)
 				outputBlock(outputBuffer[ti], idxBuffer[ti]);
-			//LOG("ZP %'lu ", zpos);
-			//ZAMAN_END("IO");
+			ZAMAN_END(Compress_OutputBlocks);
 
-			//fflush(outputFile);
-			
-			//LOG("");
+			totalMatchedMates += matchedMates;
 			blockCount++;
 		}
 	}
 	LOGN("\nWritten %'zd lines\n", total);
 	fflush(outputFile);
 	
+	ZAMAN_START(Compress_WriteIndex);
 	size_t posStats = ftell(outputFile);
 	fwrite("DZSTATS", 1, 7, outputFile);
 	for (int i = 0; i < stats.size(); i++) {
@@ -313,24 +352,18 @@ void FileCompressor::outputRecords (void) {
 		fwrite(outputBuffer->data(), 1, outputBuffer->size(), outputFile);
 	}
 	
-	//gzclose(indexFile);
 	int gzst = gzclose(indexFile);
-	DEBUG("gzstatus %d", gzst);
-	//gzclose(indexFile);
 	fwrite("DZIDX", 1, 5, outputFile);
 	char *buffer = (char*)malloc(MB);
-
-	//indexTmp = fopen((xoutfile + ".dzi").c_str(), "rb");
-	//fseek(indexTmp, 0, SEEK_END);
-	//LOG("Index gz'd sz=%'lu", ftell(indexTmp));
 	fseek(indexTmp, 0, SEEK_SET);
 	while (size_t sz = fread(buffer, 1, MB, indexTmp))
 		fwrite(buffer, 1, sz, outputFile);
 	free(buffer);
 	fclose(indexTmp);
-	
 	fwrite(&posStats, sizeof(size_t), 1, outputFile);
+	ZAMAN_END(Compress_WriteIndex);
 	
+	LOG("Paired %'d out of %'d reads", totalMatchedMates, total);
 	#define VERBOSE(x) \
 		LOG("%-12s: %'20lu", #x, x->compressedSize()); x->printDetails();
 	for (int f = 0; f < parsers.size(); f++) {

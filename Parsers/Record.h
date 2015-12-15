@@ -8,31 +8,33 @@
 
 const int MAXLEN = 8 * MB;
 
-enum StringField {
-    RN,
-    CHR,
-    CIGAR,
-    P_CHR,
-    SEQ,
-    QUAL,
-    OPT
-};
-enum IntField {
-    MF,
-    LOC,
-    MQ,
-    P_LOC,
-    TLEN
-};
-
 class Record {
     char line[MAXLEN];
-    char *strFields[7];
-    int32_t intFields[5];
+    array<char*, 7> strFields;
+    array<int32_t, 5> intFields;
 
 private:
     friend class BAMParser;
     friend class SAMParser;
+
+public:
+    enum StringField {
+        RN,
+        CHR,
+        CIGAR,
+        P_CHR,
+        SEQ,
+        QUAL,
+        OPT
+    };
+    enum IntField {
+        MF,
+        LOC,
+        MQ,
+        P_LOC,
+        TLEN
+    };
+
 
 public:
     const char* getReadName() const { return strFields[RN]; }

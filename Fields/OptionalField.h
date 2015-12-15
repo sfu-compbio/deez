@@ -4,43 +4,70 @@
 #include "../Common.h"
 #include "../Streams/GzipStream.h"
 #include "../Engines/StringEngine.h"
+#include "EditOperation.h"
 #include <vector>
 #include <unordered_map>
+
+struct OptionalField {
+	string data;
+	int posNM, posMD, posXD;
+
+	OptionalField(): posXD(-1), posMD(-1), posNM(-1) {}
+};
 
 class OptionalFieldCompressor: 
 	public StringCompressor<GzipCompressionStream<6> >  
 {
 	CompressionStream *indexStream;
-	std::unordered_map<std::string, CompressionStream*> fieldStreams;
+	std::map<std::string, CompressionStream*> fieldStreams;
 	std::unordered_map<std::string, int> fields;
+
+	int totalXD, failedXD;
+	int totalNM, failedNM;
+	int totalMD, failedMD;
+
+	// std::unordered_map<std::string, int> _mins, _maxs;
 
 public:
 	OptionalFieldCompressor (int blockSize);
 	~OptionalFieldCompressor (void);
 
 public:
-	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
+	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k,
+		EditOperationCompressor *ec);
 	//void getIndexData (Array<uint8_t> &out);
 
 	size_t compressedSize(void);
 	void printDetails(void);
 
+public:
+	static std::string getXDfromMD(const std::string &eoMD);
+
 private:
-	int processFields(const string &rec, std::vector<Array<uint8_t>> &out, Array<uint8_t> &tags);
+	int processFields(const string &rec, std::vector<Array<uint8_t>> &out, Array<uint8_t> &tags,
+		const EditOperation &eo);
+
+	void parseMD(const string &rec, int &i, const string &eoMD, Array<uint8_t> &out);
+	void parseXD(const string &rec, int &i, const string &eoMD, Array<uint8_t> &out);
 };
 
 class OptionalFieldDecompressor: 
-	public StringDecompressor<GzipDecompressionStream> 
+	public GenericDecompressor<OptionalField, GzipDecompressionStream> 
 {
 	DecompressionStream *indexStream;
 	std::unordered_map<std::string, DecompressionStream*> fieldStreams;
+	std::unordered_map<int, std::string> fields;
 
 public:
 	OptionalFieldDecompressor (int blockSize);
 	virtual ~OptionalFieldDecompressor (void);
 	
 public:
+	const OptionalField &getRecord(const EditOperation &eo);
 	void importRecords (uint8_t *in, size_t in_size);
+
+private:
+	OptionalField parseFields(int size, uint8_t *&tags, uint8_t *&in, std::vector<Array<uint8_t>>& oa, std::vector<size_t> &out);
 };
 
 

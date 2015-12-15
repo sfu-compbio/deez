@@ -151,28 +151,34 @@ void QualityScoreCompressor::lossyTransform (string &qual)
 		qual[i] = lossy[qual[i]];
 }
 
-void QualityScoreCompressor::addRecord (string qual, int flag) 
+void QualityScoreCompressor::shrink(size_t i, int flag)
+{
+	assert(i < records.size());
+	if (!records[i].size())
+		return;
+
+	size_t sz = records[i].size();
+	if (flag & 0x10) for (size_t j = 0; j < sz / 2; j++)
+		swap(records[i][j], records[i][sz - j - 1]);
+	lossyTransform(records[i]);
+
+	if (sz >= 2) {
+		sz -= 2;
+		while (sz && records[i][sz] == records[i][records[i].size() - 1])
+			sz--;
+		sz += 2;
+	}
+	records[i] = records[i].substr(0, sz);
+	assert(records[i].size() > 0);
+}
+
+void QualityScoreCompressor::addRecord (const string &qual) 
 {
 	ZAMAN_START(Compress_QualityScore_Add);
 	if (qual == "*") {
 		StringCompressor<QualityCompressionStream>::addRecord(string());
-		ZAMAN_END(Compress_QualityScore_Add);
-		return;
+	} else {
+		StringCompressor<QualityCompressionStream>::addRecord(qual);
 	}
-
-	size_t sz = qual.size();
-	if (flag & 0x10) for (size_t j = 0; j < sz / 2; j++)
-		swap(qual[j], qual[sz - j - 1]);
-	lossyTransform(qual);
-
-	if (sz >= 2) {
-		sz -= 2;
-		while (sz && qual[sz] == qual[qual.size() - 1])
-			sz--;
-		sz += 2;
-	}
-	qual = qual.substr(0, sz);
-	assert(qual.size() > 0);
-	StringCompressor<QualityCompressionStream>::addRecord(qual);
 	ZAMAN_END(Compress_QualityScore_Add);
 }

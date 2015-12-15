@@ -43,6 +43,15 @@ public:
 
 private:
 	virtual void get_size ();
+
+public:
+	static shared_ptr<File> Open(const string &path, const char *mode);
+	static bool Exists (const string &path);
+	static string FullPath (const string &s);
+	static string RemoveExtension (const string &s);
+	static bool IsWeb (const string &path);
+	static bool IsS3 (const string &path);
+	static string GetURLforS3 (string url, CURL *ch, string method = "GET");
 };
 
 class WebFile: public File 
@@ -68,7 +77,8 @@ public:
 	bool eof ();
 	void *handle ();
 
-	static File *Download (const string &path, bool detectGZFiles = false);
+public:
+	static shared_ptr<File> Download (const string &path, bool detectGZFiles = false);
 
 private:
 	void get_size ();
@@ -110,9 +120,5 @@ public:
 private:
 	void get_size ();
 };
-
-File *OpenFile (const string &path, const char *mode);
-bool FileExists (const string &path);
-bool IsWebFile (const string &path);
 
 #endif // FileIO_H

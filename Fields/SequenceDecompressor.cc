@@ -5,8 +5,7 @@ using namespace std;
 
 SequenceDecompressor::SequenceDecompressor (const string &refFile, int bs):
 	reference(refFile), 
-	chromosome(""),
-	fixed(0), ref(0)
+	chromosome("")
 {
 	fixesStream = new GzipDecompressionStream();
 	fixesReplaceStream = new GzipDecompressionStream();
@@ -14,8 +13,6 @@ SequenceDecompressor::SequenceDecompressor (const string &refFile, int bs):
 
 SequenceDecompressor::~SequenceDecompressor (void)
 {
-	delete[] fixed;
-	delete[] ref;
 	delete fixesStream;
 	delete fixesReplaceStream;
 }
@@ -32,7 +29,6 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)
 
 	ZAMAN_START(Decompress_Sequence);
 
-
 	size_t newFixedStart = *(size_t*)in; in += sizeof(size_t);
 	size_t newFixedEnd   = *(size_t*)in; in += sizeof(size_t);
 	
@@ -41,36 +37,18 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)
 	Array<uint8_t> fixes_replace;
 	decompressArray(fixesReplaceStream, in, fixes_replace);
 
-	////////////
-	// NEED FROM READSSTART
-
 	ZAMAN_START(Decompress_Sequence_Load);
 
 	assert(fixedStart <= newFixedStart);	
-	char *newFixed = new char[newFixedEnd - newFixedStart];
-	char *newRef = new char[newFixedEnd - newFixedStart];
-	// copy old fixes!
-	if (fixed && newFixedStart < fixedEnd) {
-		memcpy(newFixed, fixed + (newFixedStart - fixedStart), 
-			fixedEnd - newFixedStart);
-		memcpy(newRef, ref + (newFixedStart - fixedStart), 
-			fixedEnd - newFixedStart);
-		reference.load(newFixed + (fixedEnd - newFixedStart), 
-			fixedEnd, newFixedEnd);
-		memcpy(newRef + (fixedEnd - newFixedStart), 
-			newFixed + (fixedEnd - newFixedStart), fixedEnd - newFixedStart);
+	if (newFixedStart < fixedEnd) { // Copy old fixes
+		fixed = fixed.substr(newFixedStart - fixedStart, fixedEnd - newFixedStart);
+		fixed += reference.copy(fixedEnd, newFixedEnd);
+		reference.trim(fixedEnd);
+	} else {
+		fixed = reference.copy(newFixedStart, newFixedEnd);
+		reference.trim(newFixedStart);
 	}
-	else {
-		reference.load(newFixed, newFixedStart, newFixedEnd);
-		memcpy(newRef, newFixed, newFixedEnd - newFixedStart);
-	}
-
-	fixedStart = newFixedStart;
-	fixedEnd = newFixedEnd;
-	delete[] fixed;
-	fixed = newFixed;
-	delete[] ref;
-	ref = newRef;
+	fixedStart = newFixedStart, fixedEnd = newFixedEnd;
 
 	ZAMAN_END(Decompress_Sequence_Load);
 	
@@ -86,9 +64,11 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)
 	ZAMAN_END(Decompress_Sequence);
 }
 
-void SequenceDecompressor::setFixed (EditOperationDecompressor &editOperation) 
+char SequenceDecompressor::operator[] (size_t pos) const
 {
-	editOperation.setFixed(fixed, ref, fixedStart);
+	assert(pos >= fixedStart);
+	assert(pos < fixedEnd);
+	return fixed[pos - fixedStart];
 }
 
 void SequenceDecompressor::scanChromosome (const string &s)
@@ -102,9 +82,6 @@ void SequenceDecompressor::scanChromosome (const string &s)
 	//	assert(editOperation.size() == 0);
 
 	// clean genomePager
-	delete[] fixed;
-	delete[] ref;
-	fixed = ref = 0;
 	fixedStart = fixedEnd = 0;
 	chromosome = reference.scanChromosome(s);
 
