@@ -9,8 +9,9 @@
 const int MAXLEN = 8 * MB;
 
 class Record {
-    char line[MAXLEN];
-    array<char*, 7> strFields;
+    char *line;
+    size_t lineLength;
+    array<int32_t, 7> strFields;
     array<int32_t, 5> intFields;
 
 private:
@@ -35,20 +36,61 @@ public:
         TLEN
     };
 
+public:
+    Record(): line(0), lineLength(0) 
+    {
+    }
+    ~Record (void)
+    {
+        if (line) {
+            free(line);
+            line = 0;
+        }
+    }
+    Record (const Record& a)
+    {
+        strFields = a.strFields;
+        intFields = a.intFields;
+        lineLength = a.lineLength;
+        line = (char*)malloc(a.lineLength);
+        std::copy(a.line, a.line + a.lineLength, line);
+    }
+
+    Record(Record&& a): Record()
+    {
+        swap(*this, a);
+    }
+
+    Record& operator= (Record a) 
+    {
+        swap(*this, a);
+        return *this;
+    }
+
+    friend void swap(Record& a, Record& b) // nothrow
+    {
+        using std::swap;
+
+        swap(a.strFields, b.strFields);
+        swap(a.intFields, b.intFields);
+        swap(a.lineLength, b.lineLength);
+        swap(a.line, b.line);
+    }
+
 
 public:
-    const char* getReadName() const { return strFields[RN]; }
+    const char* getReadName() const { return &line[0] + strFields[RN]; }
     const int getMappingFlag() const { return intFields[MF]; }
-    const char* getChromosome() const { return strFields[CHR]; }
+    const char* getChromosome() const { return &line[0] + strFields[CHR]; }
     const size_t getLocation() const { return intFields[LOC] - 1; }
     const char getMappingQuality() const { return intFields[MQ]; }
-    const char* getCigar() const { return strFields[CIGAR]; }
-    const char* getPairChromosome() const { return strFields[P_CHR]; }
+    const char* getCigar() const { return &line[0] + strFields[CIGAR]; }
+    const char* getPairChromosome() const { return &line[0] + strFields[P_CHR]; }
     const size_t getPairLocation() const { return intFields[P_LOC] - 1; }
     const int getTemplateLenght() const { return intFields[TLEN]; }
-    const char* getSequence() const { return strFields[SEQ]; }
-    const char* getQuality() const { return strFields[QUAL]; }
-    const char* getOptional() const { return strFields[OPT]; }
+    const char* getSequence() const { return &line[0] + strFields[SEQ]; }
+    const char* getQuality() const { return &line[0] + strFields[QUAL]; }
+    const char* getOptional() const { return &line[0] + strFields[OPT]; }
 
     std::string getFullRecord() const {
         return S(
@@ -85,6 +127,11 @@ public:
             getOptional()
         );
     }
+
+    size_t getLineLength() { return lineLength; };
 };
+template<>
+size_t sizeInMemory(Record t);
+
 
 #endif // RECORD_H

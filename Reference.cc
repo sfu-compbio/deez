@@ -262,7 +262,6 @@ void Reference::loadIntoBuffer(size_t end)
 
 	DEBUG("Loading to %'lu", end);
 
-	ZAMAN_START(Reference_Load);
 	buffer.reserve(buffer.size() + (end - bufferEnd + 1));
 	bufferEnd = end;
 
@@ -281,7 +280,6 @@ void Reference::loadIntoBuffer(size_t end)
 	}
 	while (currentPos < bufferEnd) 
 		buffer += 'N', currentPos++;
-	ZAMAN_END(Reference_Load);
 }
 
 // Assumes that everything is loaded

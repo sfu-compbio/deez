@@ -15,7 +15,7 @@ debug: $(SOURCES) $(EXECUTABLE)
 superdebug: CFLAGS += -g -O0 -fno-inline
 superdebug: $(SOURCES) $(EXECUTABLE)
 
-profile: CFLAGS += -g -pg -O3
+profile: CFLAGS += -g -pg 
 profile: LDFLAGS += -pg
 profile: $(SOURCES) $(EXECUTABLE)
 

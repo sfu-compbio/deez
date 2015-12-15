@@ -71,10 +71,26 @@ inline uint64_t zaman()
 	return (t.tv_sec * 1000000ll + t.tv_usec);
 }
 
-extern std::map<std::string, uint64_t> __ts__times__;
-#define ZAMAN_VAR(s) __ts__##s
-#define ZAMAN_START(s) int64_t ZAMAN_VAR(s) = zaman();
-#define ZAMAN_END(s) __ts__times__[ #s ] += (zaman() - ZAMAN_VAR(s));
+extern std::map<std::string, uint64_t> __zaman_times__;
+extern std::string __zaman_prefix__;
+extern std::mutex __zaman_mtx__;
+#define ZAMAN_VAR(s) \
+	__zaman_time_##s
+#define ZAMAN_START(s) \
+	int64_t ZAMAN_VAR(s) = zaman();
+#define ZAMAN_END(s) \
+	 //	__zaman_times__[__zaman_prefix__ + #s] += (zaman() - ZAMAN_VAR(s)); 
+	// { 	std::lock_guard<std::mutex> __l__(__zaman_mtx__); \
+	// }
+#define ZAMAN_START_P(s) \
+	int64_t ZAMAN_VAR(s) = zaman(); \
+	__zaman_prefix__ += std::string(#s) + "_"; 
+#define ZAMAN_END_P(s) \
+	{ 	std::lock_guard<std::mutex> __l__(__zaman_mtx__); \
+		__zaman_times__[__zaman_prefix__] += (zaman() - ZAMAN_VAR(s)); \
+		__zaman_prefix__ = __zaman_prefix__.substr(0, __zaman_prefix__.size() - 1 - strlen(#s)); \
+	}
+
 inline std::vector<std::string> split (std::string s, char delim) 
 {
 	std::stringstream ss(s);
@@ -88,7 +104,7 @@ inline void ZAMAN_REPORT()
 { 
 	using namespace std;
 	vector<string> p;
-	for (auto &tt: __ts__times__) { 
+	for (auto &tt: __zaman_times__) { 
 		string s = tt.first; 
 		auto f = split(s, '_');
 		s = "";
@@ -103,5 +119,37 @@ inline void ZAMAN_REPORT()
 	}
 }
 
+template<typename T>
+size_t sizeInMemory(T t) {
+	return sizeof(t);
+}
+template<typename T>
+size_t sizeInMemory(Array<T> t) {
+	size_t sz = 0;
+	for (int i = 0; i < t.capacity(); i++)
+		sz += sizeInMemory(t.data()[i]);
+	return sizeof(T) + sz;
+}
+template<typename T>
+size_t sizeInMemory(CircularArray<T> t) {
+	size_t sz = 0;
+	for (int i = 0; i < t.capacity(); i++)
+		sz += sizeInMemory(t.data()[i]);
+	return sizeof(T) + sz;
+}
+template<typename T>
+size_t sizeInMemory(std::vector<T> t) {
+	size_t sz = 0;
+	for (int i = 0; i < t.capacity(); i++)
+		sz += sizeInMemory(*(&t[0] + i));
+	return sizeof(T) + sz;
+}
+template<typename K, typename V>
+size_t sizeInMemory(std::map<K, V> t) {
+	return (sizeof(K) + sizeof(V) + sizeof(std::_Rb_tree_node_base) ) * t.size() + 
+	sizeof(std::_Rb_tree<K,V,K,std::less<K>, std::allocator<std::pair<const K, V>>>);
+}
+template<>
+size_t sizeInMemory(std::string t);
 
 #endif

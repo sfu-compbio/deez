@@ -33,9 +33,9 @@ public:
 	virtual ~QualityScoreCompressor (void);
 
 public:
-	void addRecord (const std::string &qual);
+	void addRecord (const std::string &qual, int flag);
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
-	void shrink(size_t i, int flag);
+	std::string shrink(const std::string &s, int flag);
 	
 private:
 	static double phredScore (char c, int offset);

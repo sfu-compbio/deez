@@ -16,17 +16,14 @@ struct OptionalField {
 };
 
 class OptionalFieldCompressor: 
-	public StringCompressor<GzipCompressionStream<6> >  
+	public StringCompressor<GzipCompressionStream<6>>  
 {
-	CompressionStream *indexStream;
-	std::map<std::string, CompressionStream*> fieldStreams;
+	std::map<std::string, shared_ptr<CompressionStream>> fieldStreams;
 	std::unordered_map<std::string, int> fields;
 
 	int totalXD, failedXD;
 	int totalNM, failedNM;
 	int totalMD, failedMD;
-
-	// std::unordered_map<std::string, int> _mins, _maxs;
 
 public:
 	OptionalFieldCompressor (int blockSize);
@@ -37,7 +34,6 @@ public:
 		EditOperationCompressor *ec);
 	//void getIndexData (Array<uint8_t> &out);
 
-	size_t compressedSize(void);
 	void printDetails(void);
 
 public:
@@ -54,8 +50,7 @@ private:
 class OptionalFieldDecompressor: 
 	public GenericDecompressor<OptionalField, GzipDecompressionStream> 
 {
-	DecompressionStream *indexStream;
-	std::unordered_map<std::string, DecompressionStream*> fieldStreams;
+	std::unordered_map<std::string, shared_ptr<DecompressionStream>> fieldStreams;
 	std::unordered_map<int, std::string> fields;
 
 public:

@@ -2,35 +2,22 @@
 using namespace std;
 
 OptionalFieldCompressor::OptionalFieldCompressor (int blockSize):
-	StringCompressor<GzipCompressionStream<6> >(blockSize),
+	StringCompressor<GzipCompressionStream<6>>(blockSize),
 	totalNM(0), totalMD(0), totalXD(0),
 	failedNM(0), failedMD(0), failedXD(0) 
 {
-	indexStream = new GzipCompressionStream<6>();
 }
 
 OptionalFieldCompressor::~OptionalFieldCompressor (void) 
 {
-	DEBUG("NM stats: %'d failed out of %'d", failedNM, totalNM);
-	DEBUG("MD stats: %'d failed out of %'d", failedMD, totalMD);
-	DEBUG("XD stats: %'d failed out of %'d", failedXD, totalXD);
-
-	delete indexStream;
-	for (auto &m: fieldStreams)
-		delete m.second;
-}
-
-size_t OptionalFieldCompressor::compressedSize(void) 
-{ 
-	int res = 0;
-	for (auto &m: fieldStreams)
-		res += m.second->getCount();
-	return indexStream->getCount() + res;
+	if (failedNM) LOG("NM stats: %'d failed out of %'d", failedNM, totalNM);
+	if (failedMD) LOG("MD stats: %'d failed out of %'d", failedMD, totalMD);
+	if (failedXD) LOG("XD stats: %'d failed out of %'d", failedXD, totalXD);
 }
 
 void OptionalFieldCompressor::printDetails(void) 
 {
-	LOG("  Index     : %'20lu", indexStream->getCount());
+	LOG("  Index     : %'20lu", streams[0]->getCount());
 	for (auto &m: fieldStreams) 
 		LOG("  %-10s: %'20lu", m.first.c_str(), m.second->getCount());
 }
@@ -43,7 +30,7 @@ void OptionalFieldCompressor::outputRecords (Array<uint8_t> &out, size_t out_off
 		return;
 	}
 	assert(k <= records.size());
-	ZAMAN_START(Compress_OptionalField);
+	ZAMAN_START(OptionalFieldOutput);
 
 	vector<Array<uint8_t>> oa;
 	Array<uint8_t> buffer(k * 10, MB);
@@ -55,26 +42,26 @@ void OptionalFieldCompressor::outputRecords (Array<uint8_t> &out, size_t out_off
 		this->totalSize -= this->records[i].size() + 1;
 	}
 
-	compressArray(indexStream, buffer, out, out_offset);
-	compressArray(indexStream, sizes, out, out_offset);
+	compressArray(streams[0], buffer, out, out_offset);
+	compressArray(streams[0], sizes, out, out_offset);
 
 	unordered_map<int, string> mm;
 	for (auto &f: fields) mm[f.second] = f.first;
 	for (int i = 0; i < oa.size(); i++) {
 		string key = mm[i];
 		if (fieldStreams.find(key) == fieldStreams.end())
-			fieldStreams[key] = new GzipCompressionStream<6>();
+			fieldStreams[key] = make_shared<GzipCompressionStream<6>>();
 		compressArray(fieldStreams[key], oa[i], out, out_offset);
 	}
 	
 	this->records.remove_first_n(k);
 	fields.clear();
-	ZAMAN_END(Compress_OptionalField);
+	ZAMAN_END(OptionalFieldOutput);
 }
 
 void OptionalFieldCompressor::parseMD(const string &rec, int &i, const string &eoMD, Array<uint8_t> &out)
 {
-	ZAMAN_START(Compress_OptionalField_ParseMD);
+	ZAMAN_START(ParseMD);
 	totalMD++;
 	string MD = "";
 	for (; i < rec.size() && rec[i] != '\t'; i++)
@@ -85,13 +72,11 @@ void OptionalFieldCompressor::parseMD(const string &rec, int &i, const string &e
 		out.add((uint8_t*)MD.c_str(), MD.size());
 	}
 	out.add(0);
-	ZAMAN_END(Compress_OptionalField_ParseMD);
+	ZAMAN_END(ParseMD);
 }
 
 string OptionalFieldCompressor::getXDfromMD(const string &eoMD)
 {
-	ZAMAN_START(OptionalField_ParseXD);
-	
 	string XD;
 	bool inDel= 0;
 	for (int j = 0; j < eoMD.size(); j++) {
@@ -100,14 +85,12 @@ string OptionalFieldCompressor::getXDfromMD(const string &eoMD)
 		if (eoMD[j] != '0' || (j && isdigit(eoMD[j - 1])) || (j != eoMD.size() - 1 && isdigit(eoMD[j + 1])))
 			XD += eoMD[j];
 	}
-
-	ZAMAN_END(OptionalField_ParseXD);
 	return XD;
 }
 
 void OptionalFieldCompressor::parseXD(const string &rec, int &i, const string &eoMD, Array<uint8_t> &out)
 {
-	ZAMAN_START(Compress_OptionalField_ParseXD);
+	ZAMAN_START(ParseXD);
 	totalXD++;
 
 	string eoXD = getXDfromMD(eoMD), XD;
@@ -119,13 +102,13 @@ void OptionalFieldCompressor::parseXD(const string &rec, int &i, const string &e
 		out.add((uint8_t*)XD.c_str(), XD.size());
 	}
 	out.add(0);
-	ZAMAN_END(Compress_OptionalField_ParseXD);
+	ZAMAN_END(ParseXD);
 }
 
 int OptionalFieldCompressor::processFields (const string &rec, vector<Array<uint8_t>> &out, 
 	Array<uint8_t> &tags, const EditOperation &eo) 
 {
-	ZAMAN_START(Compress_OptionalField_ParseFields);
+	ZAMAN_START(ParseFields);
 	Array<uint8_t> packedInt(8); 
 	int size = 0;
 	int prevKey = 0, tagStartIndex = tags.size();
@@ -198,6 +181,6 @@ int OptionalFieldCompressor::processFields (const string &rec, vector<Array<uint
 		packedInt.resize(0);
 		size++;
 	}
-	ZAMAN_END(Compress_OptionalField_ParseFields);
+	ZAMAN_END(ParseFields);
 	return size;
 }

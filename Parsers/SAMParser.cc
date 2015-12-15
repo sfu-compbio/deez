@@ -31,20 +31,33 @@ SAMParser::~SAMParser (void)
 string SAMParser::readComment (void)  
 {
 	string s;
-	while (fgets(currentRecord.line, MAXLEN, input)) 
+	while (getline(&currentRecord.line, &currentRecord.lineLength, input) != -1) {
 		if (currentRecord.line[0] != '@') {
-			parse();
+			parse(currentRecord);
 			break;
 		}
-		else s += currentRecord.line;
+		else s += &currentRecord.line[0];
+	}
 	return s;
 }
 
 bool SAMParser::readNext (void)  
 {
-	if (fgets(currentRecord.line, MAXLEN, input)) {
+	//if (fgets(&currentRecord.line[0], MAXLEN, input)) {
+	if (getline(&currentRecord.line, &currentRecord.lineLength, input) != -1) {
 		assert(currentRecord.line[0] != '@');
-		parse();
+		parse(currentRecord);
+		return true;
+	}
+	return false;
+}
+
+bool SAMParser::readNextTo (Record &record)  
+{
+	//if (fgets(&record.line[0], MAXLEN, input)) {
+	if (getline(&record.line, &record.lineLength, input) != -1) {
+		assert(record.line[0] != '@');
+		parse(record);
 		return true;
 	}
 	return false;
@@ -65,27 +78,29 @@ size_t SAMParser::fsize (void)
 	return file_size;
 }
 
-void SAMParser::parse (void) 
+void SAMParser::parse (Record &record) 
 {
-	int l = strlen(currentRecord.line) - 1;
-	while (l && (currentRecord.line[l] == '\r' || currentRecord.line[l] == '\n'))
-		currentRecord.line[l--] = 0;
-	char *c = currentRecord.strFields[0] = currentRecord.line;
+	char *line = &record.line[0];
+	int l = strlen(line) - 1;
+	while (l && (line[l] == '\r' || line[l] == '\n'))
+		line[l--] = 0;
+	record.strFields[0] = 0;
+	char *c = line;
 	int f = 1, sfc = 1, ifc = 0;
 	while (*c) {
 		if (*c == '\t') {
 			if (f == 1 || f == 3 || f == 4 || f == 7 || f == 8)
-				currentRecord.intFields[ifc++] = atoi(c + 1);
+				record.intFields[ifc++] = atoi(c + 1);
 			else
-				currentRecord.strFields[sfc++] = c + 1;
-		f++;
+				record.strFields[sfc++] = (c + 1) - line;
+			f++;
 			*c = 0;
 			if (f == 12) break;
 		}
 		c++;
 	}	
 	if (f == 11)
-		currentRecord.strFields[sfc++] = c;
+		record.strFields[sfc++] = c - line;
 }
 
 const Record &SAMParser::next (void) 
@@ -96,6 +111,11 @@ const Record &SAMParser::next (void)
 string SAMParser::head (void) 
 {
 	return currentRecord.getChromosome();
+}
+
+template<>
+size_t sizeInMemory(Record t) {
+    return sizeof(t) + t.getLineLength(); 
 }
 
 

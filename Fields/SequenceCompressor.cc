@@ -8,25 +8,19 @@ SequenceCompressor::SequenceCompressor (const string &refFile, int bs):
 	fixesLoc(MB, MB),
 	fixesReplace(MB, MB)
 {
-	fixesStream = new GzipCompressionStream<6>();
-	fixesReplaceStream = new GzipCompressionStream<6>();
+	streams.resize(Fields::ENUM_COUNT);
+	for (int i = 0; i < streams.size(); i++)
+		streams[i] = make_shared<GzipCompressionStream<6>>();
 }
 
 SequenceCompressor::~SequenceCompressor (void) 
 {
-	delete fixesStream;
-	delete fixesReplaceStream;
-}
-
-size_t SequenceCompressor::compressedSize(void) 
-{ 
-	return fixesStream->getCount() + fixesReplaceStream->getCount(); 
 }
 
 void SequenceCompressor::printDetails(void) 
 {
-	LOG("  Fixes     : %'20lu", fixesStream->getCount());
-	LOG("  Replace   : %'20lu", fixesReplaceStream->getCount());
+	LOG("  Fixes     : %'20lu", streams[Fields::FIXES]->getCount());
+	LOG("  Replace   : %'20lu", streams[Fields::REPLACE]->getCount());
 }
 
 void SequenceCompressor::updateBoundary (size_t loc) 
@@ -39,18 +33,18 @@ void SequenceCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, 
 	if (chromosome == "*") 
 		return;
 
-	ZAMAN_START(Compress_Sequence);
+	ZAMAN_START(SequenceImport);
 
 	out.add((uint8_t*)&fixedStart, sizeof(size_t));
 	out.add((uint8_t*)&fixedEnd,   sizeof(size_t));
 	out_offset += sizeof(size_t) * 2;
-	compressArray(fixesStream, fixesLoc, out, out_offset);
-	compressArray(fixesReplaceStream, fixesReplace, out, out_offset);
+	compressArray(streams[Fields::FIXES], fixesLoc, out, out_offset);
+	compressArray(streams[Fields::REPLACE], fixesReplace, out, out_offset);
 
 	fixesLoc.resize(0);
 	fixesReplace.resize(0);
 
-	ZAMAN_END(Compress_Sequence);
+	ZAMAN_END(SequenceImport);
 }
 
 char SequenceCompressor::operator[] (size_t pos) const
@@ -63,8 +57,6 @@ char SequenceCompressor::operator[] (size_t pos) const
 
 void SequenceCompressor::scanChromosome (const string &s) 
 {
-	ZAMAN_START(Compress_Sequence_ScanChromosome);
-
 	// by here, all should be fixed ...
 	assert(fixesLoc.size() == 0);
 	assert(fixesReplace.size() == 0);
@@ -74,8 +66,6 @@ void SequenceCompressor::scanChromosome (const string &s)
 	fixedStart = fixedEnd = maxEnd = 0;
 
 	chromosome = reference.scanChromosome(s);
-
-	ZAMAN_END(Compress_Sequence_ScanChromosome);
 }
 
 // called at the end of the block!
@@ -105,8 +95,6 @@ inline void SequenceCompressor::updateGenomeLoc (size_t loc, char ch, Stats &sta
 void SequenceCompressor::applyFixesThread(EditOperationCompressor &editOperation, Stats &stats,
 	size_t fixedStart, size_t offset, size_t size) 
 {
-	ZAMAN_START(Compress_Sequence_Fixes_CalculateThread);
-
 	for (size_t k = 0; k < editOperation.size(); k++) {
 		if (editOperation[k].op == "*" || editOperation[k].seq == "*") 
 			continue;
@@ -144,7 +132,6 @@ void SequenceCompressor::applyFixesThread(EditOperationCompressor &editOperation
 			}
 		}
 	}
-	ZAMAN_END(Compress_Sequence_Fixes_CalculateThread);
 }
 
 /*
@@ -157,8 +144,6 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 	if (editOperation.size() == 0) 
 		return 0;
 
-	ZAMAN_START(Compress_Sequence_Fixes);
-
 	if (chromosome != "*") {
 		// Previously, we fixed all locations
 		// from fixedStart to fixedEnd
@@ -168,7 +153,7 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 
 		// If we can fix anything
 		size_t fixingStart = fixedEnd;
-		ZAMAN_START(Compress_Sequence_Fixes_Initialize);
+		ZAMAN_START(Initialize);
 		// Do we have new region to fix?
 
 		if (maxEnd > fixedEnd) {
@@ -179,21 +164,21 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 
 			// Update fixing table
 			if (fixed.size() && newFixedStart < fixedEnd) { // Copy old fixes
-				ZAMAN_START(Compress_Sequence_Fixes_Initialize_Load);
+				ZAMAN_START(Load);
 				fixed = fixed.substr(newFixedStart - fixedStart, fixedEnd - newFixedStart);
 				fixed += reference.copy(fixedEnd, newFixedEnd);
 				reference.trim(fixedEnd);
-				ZAMAN_END(Compress_Sequence_Fixes_Initialize_Load);
+				ZAMAN_END(Load);
 			} else {
-				ZAMAN_START(Compress_Sequence_Fixes_Initialize_Load);
+				ZAMAN_START(Load);
 				fixed = reference.copy(newFixedStart, newFixedEnd);
 				reference.trim(newFixedStart);
-				ZAMAN_END(Compress_Sequence_Fixes_Initialize_Load);
+				ZAMAN_END(Load);
 			}
 
 			fixedStart = newFixedStart, fixedEnd = newFixedEnd;
 		}
-		ZAMAN_END(Compress_Sequence_Fixes_Initialize);
+		ZAMAN_END(Initialize);
 
 		//	SCREEN("Given boundary is %'lu\n", nextBlockBegin);
 		DEBUG("Fixing from %'lu to %'lu\n", fixedStart, fixedEnd);
@@ -201,7 +186,7 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 
 		// obtain statistics
 		
-		ZAMAN_START(Compress_Sequence_Fixes_Calculate);
+		ZAMAN_START(Calculate);
 		vector<thread> t(optThreads);
 		#ifdef __SSE2__
 			Stats stats(fixedEnd - fixedStart, _mm_setzero_si128());
@@ -210,20 +195,22 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 		#endif
 		size_t maxSz = fixedEnd - fixedStart;
 		size_t sz = maxSz / optThreads + 1;
+		ctpl::thread_pool threadPool(optThreads);
 		for (int i = 0; i < optThreads; i++) {
-			t[i] = thread(applyFixesThread, 
-				ref(editOperation), ref(stats), fixedStart, 
-				fixedStart + i * sz, min(sz, maxSz - i * sz)
-			);
+			threadPool.push([&](int ti) {
+				ZAMAN_START(Calculate_Thread);
+				applyFixesThread(editOperation, stats, fixedStart, fixedStart + i * sz, min(sz, maxSz - i * sz));
+				ZAMAN_END(Calculate_Thread);
+			//	LOG("Done with %d fixes", ti);
+			});
 		}
-		for (int i = 0; i < optThreads; i++)
-			t[i].join();
-		ZAMAN_END(Compress_Sequence_Fixes_Calculate); 
+		threadPool.stop(true);
+		ZAMAN_END(Calculate); 
 
 
 		// patch reference genome
 		size_t fixedPrev = 0;
-		ZAMAN_START(Compress_Sequence_Fixes_Apply);
+		ZAMAN_START(Apply);
 		fixesLoc.resize(0);
 		fixesReplace.resize(0);
 
@@ -231,7 +218,6 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 		__m128i invert = _mm_set_epi16(0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff);
 		for (size_t i = 0; i < fixedEnd - fixedStart; i++) {
 			#ifdef __SSE2__
-				#warning "using sse2"
 				if (_mm_movemask_epi8(_mm_cmpeq_epi8(stats[i], _mm_setzero_si128())) == 0xFFFF)
 					continue;
 				int pos = _mm_extract_epi16(_mm_minpos_epu16(_mm_sub_epi16(invert, stats[i])), 1);
@@ -250,7 +236,7 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 				fixesReplace.add(fixed[i] = pos[".ACGTN"]);
 			}
 		}
-		ZAMAN_END(Compress_Sequence_Fixes_Apply);
+		ZAMAN_END(Apply);
 	}
 
 	// generate new cigars
@@ -263,8 +249,6 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, EditOperationCompr
 	fS = fixedStart;
 	fE = fixedEnd;
 	//editOperation.setFixed(fixed.data(), fixedStart);
-
-	ZAMAN_END(Compress_Sequence_Fixes);
 
 	return bound;
 }

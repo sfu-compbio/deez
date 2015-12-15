@@ -7,14 +7,13 @@ SequenceDecompressor::SequenceDecompressor (const string &refFile, int bs):
 	reference(refFile), 
 	chromosome("")
 {
-	fixesStream = new GzipDecompressionStream();
-	fixesReplaceStream = new GzipDecompressionStream();
+	streams.resize(SequenceCompressor::Fields::ENUM_COUNT);
+	for (int i = 0; i < streams.size(); i++)
+		streams[i] = make_shared<GzipDecompressionStream>();
 }
 
 SequenceDecompressor::~SequenceDecompressor (void)
 {
-	delete fixesStream;
-	delete fixesReplaceStream;
 }
 
 bool SequenceDecompressor::hasRecord (void) 
@@ -27,17 +26,17 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)
 	if (chromosome == "*" || in_size == 0)
 		return;
 
-	ZAMAN_START(Decompress_Sequence);
+	ZAMAN_START(SequenceImport);
 
 	size_t newFixedStart = *(size_t*)in; in += sizeof(size_t);
 	size_t newFixedEnd   = *(size_t*)in; in += sizeof(size_t);
 	
 	Array<uint8_t> fixes_loc;
-	decompressArray(fixesStream, in, fixes_loc);
+	decompressArray(streams[SequenceCompressor::Fields::FIXES], in, fixes_loc);
 	Array<uint8_t> fixes_replace;
-	decompressArray(fixesReplaceStream, in, fixes_replace);
+	decompressArray(streams[SequenceCompressor::Fields::REPLACE], in, fixes_replace);
 
-	ZAMAN_START(Decompress_Sequence_Load);
+	ZAMAN_START(Load);
 
 	assert(fixedStart <= newFixedStart);	
 	if (newFixedStart < fixedEnd) { // Copy old fixes
@@ -50,7 +49,7 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)
 	}
 	fixedStart = newFixedStart, fixedEnd = newFixedEnd;
 
-	ZAMAN_END(Decompress_Sequence_Load);
+	ZAMAN_END(Load);
 	
 	size_t prevFix = 0;
 	uint8_t *len = fixes_loc.data();
@@ -61,7 +60,7 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)
 		fixed[prevFix - fixedStart] = fixes_replace.data()[i];
 	}
 
-	ZAMAN_END(Decompress_Sequence);
+	ZAMAN_END(SequenceImport);
 }
 
 char SequenceDecompressor::operator[] (size_t pos) const
@@ -73,8 +72,6 @@ char SequenceDecompressor::operator[] (size_t pos) const
 
 void SequenceDecompressor::scanChromosome (const string &s)
 {
-	ZAMAN_START(Decompress_Sequence_ScanChromosome);
-
 	// by here, all should be fixed ...
 	// 	TODO more checking
 	//	assert(fixes.size() == 0);
@@ -84,6 +81,4 @@ void SequenceDecompressor::scanChromosome (const string &s)
 	// clean genomePager
 	fixedStart = fixedEnd = 0;
 	chromosome = reference.scanChromosome(s);
-
-	ZAMAN_END(Decompress_Sequence_ScanChromosome);
 }

@@ -24,9 +24,6 @@ class SequenceCompressor: public Compressor {
 	friend class Stats;
 	
 	Reference reference;
-	CompressionStream
-		*fixesStream,
-		*fixesReplaceStream;
 	
 	Array<uint8_t> 
 		fixesLoc,
@@ -46,10 +43,18 @@ public:
 	size_t getBoundary() const { return maxEnd; };
 	void outputRecords (Array<uint8_t> &output, size_t out_offset, size_t k);
 	void getIndexData (Array<uint8_t> &out) { out.resize(0); }
-	size_t compressedSize(void);
 	void printDetails(void);
 
 	size_t applyFixes (size_t end, EditOperationCompressor &editOperation, size_t&, size_t&, size_t&, size_t&, size_t&);
+
+	size_t currentMemoryUsage() {
+		LOG("Reference uses %'lu", reference.currentMemoryUsage());
+		return 
+			sizeInMemory(fixesLoc) + sizeInMemory(fixesReplace) +
+			sizeInMemory(chromosome) + sizeInMemory(fixed) + sizeInMemory(streams) +
+			sizeof(size_t) * 3 + reference.currentMemoryUsage();
+	}
+
 	
 public:
 	std::string getChromosome (void) const { return chromosome; }
@@ -63,17 +68,23 @@ private:
 	#ifdef __SSE2__
 		typedef std::vector<__m128i> Stats;
 	#else
+		#warning "Not using SSE2 optimizations -- performance might be suboptimal"
 		typedef std::vector<std::array<uint16_t, 6>> Stats;
 	#endif
 	static void applyFixesThread(EditOperationCompressor &editOperation, Stats &stats, 
 		size_t fixedStart, size_t offset, size_t size);
 	static void updateGenomeLoc (size_t loc, char ch, Stats &stats);
+
+public:
+	enum Fields {
+		FIXES,
+		REPLACE,
+		ENUM_COUNT
+	};
 };
 
 class SequenceDecompressor: public Decompressor {
 	Reference reference;
-	DecompressionStream *fixesStream;
-	DecompressionStream *fixesReplaceStream;
 
 private:
 	std::string chromosome;

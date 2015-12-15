@@ -24,7 +24,6 @@ const int MAX_TOKEN = 20;
 class ReadNameCompressor: 
 	public StringCompressor<GzipCompressionStream<6> >  
 {
-	CompressionStream *indexStream;
 	std::string prevTokens[MAX_TOKEN];
 	char prevCharTokens[MAX_TOKEN];
 
@@ -35,18 +34,22 @@ public:
 public:
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
 	void getIndexData (Array<uint8_t> &out);
-	size_t compressedSize(void);
 	void printDetails(void);
 
 private:
 	void addTokenizedName (const std::string &rn, Array<uint8_t> &content, Array<uint8_t> &index);
+
+public:
+	enum Fields {
+		CONTENT,
+		INDEX,
+		ENUM_COUNT
+	};
 };
 
 class ReadNameDecompressor: 
 	public StringDecompressor<GzipDecompressionStream>  
 {
-	DecompressionStream *indexStream;
-
 public:
 	ReadNameDecompressor(int blockSize);
 	virtual ~ReadNameDecompressor(void);

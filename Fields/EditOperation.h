@@ -30,15 +30,12 @@ struct EditOperation
 
 	void calculateTags(Reference &reference);
 };
+template<>
+size_t sizeInMemory(EditOperation t);
 
 class EditOperationCompressor: 
 	public GenericCompressor<EditOperation, GzipCompressionStream<6> >
 {
-	std::vector<CompressionStream*> streams;
-
-	CompressionStream *stitchStream;
-	CompressionStream *locationStream;
-
 	const SequenceCompressor &sequence;
 
 public:
@@ -48,7 +45,6 @@ public:
 public:
 	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
 	void getIndexData (Array<uint8_t> &out);
-	size_t compressedSize(void);
 	void printDetails(void);
 
 private:	
@@ -58,6 +54,8 @@ private:
 public:
 	friend class FileCompressor;
 	enum Fields {
+		LOCATION,
+		STITCH,
 		OPCODES,
 		SEQPOS,
 		SEQEND,
@@ -74,10 +72,6 @@ public:
 class EditOperationDecompressor: 
 	public GenericDecompressor<EditOperation, GzipDecompressionStream>  
 {
-	std::vector<DecompressionStream*> streams;
-	DecompressionStream *stitchStream;
-	DecompressionStream *locationStream;
-
 	const SequenceDecompressor &sequence;
 
 public:

@@ -57,13 +57,12 @@ public:
 		// thus, just resize dest
 		dest.resize(dest_offset + sizeof(size_t));
 		memcpy(dest.data() + dest_offset, &source_sz, sizeof(size_t));
-		TEncoder *ac = new TEncoder();
+		auto ac = make_shared<TEncoder>();
 		ac->initEncode(&dest);
 		for (size_t i = 0; i < source_sz; i++)
-			encode(source[i], ac);
+			encode(source[i], ac.get());
 		ac->flush();
 		this->compressedCount += dest.size() - dest_offset;
-		delete ac;
 		return dest.size() - dest_offset;
 		//return 
 	}
@@ -95,11 +94,11 @@ public:
 		phteven[phteven.size()-1]++;*/
 
 		size_t num = *((size_t*)source);
-		TEncoder *ac = new TEncoder();
+		auto ac = make_shared<TEncoder>();
 		ac->initDecode(source + sizeof(size_t), source_sz);
 		dest.resize(dest_offset + num);
 		for (size_t i = 0; i < num; i++) {
-			*(dest.data() + dest_offset + i) = decode(ac);
+			*(dest.data() + dest_offset + i) = decode(ac.get());
 		}
 		return num;
 	}

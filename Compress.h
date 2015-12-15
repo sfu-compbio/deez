@@ -16,15 +16,15 @@
 #include "Fields/OptionalField.h"
 
 class FileCompressor {
-	vector<Parser*> parsers;
-	vector<SequenceCompressor*> sequence;
-	vector<EditOperationCompressor*> editOp;
-	vector<ReadNameCompressor*> readName;
-	vector<MappingFlagCompressor*> mapFlag;
-	vector<MappingQualityCompressor*> mapQual;
-	vector<QualityScoreCompressor*> quality;
-	vector<PairedEndCompressor*> pairedEnd;
-	vector<OptionalFieldCompressor*> optField;
+	vector<shared_ptr<Parser>> parsers;
+	vector<shared_ptr<SequenceCompressor>> sequence;
+	vector<shared_ptr<EditOperationCompressor>> editOp;
+	vector<shared_ptr<ReadNameCompressor>> readName;
+	vector<shared_ptr<MappingFlagCompressor>> mapFlag;
+	vector<shared_ptr<MappingQualityCompressor>> mapQual;
+	vector<shared_ptr<QualityScoreCompressor>> quality;
+	vector<shared_ptr<PairedEndCompressor>> pairedEnd;
+	vector<shared_ptr<OptionalFieldCompressor>> optField;
 
 	FILE *outputFile;
 	FILE *indexTmp;
@@ -55,6 +55,16 @@ private:
 
 public:
 	void compress (void);
+
+private:
+	void parser(size_t f, size_t, size_t);
+
+	std::condition_variable recordsAvailable;
+	std::mutex queueMutex;
+	std::vector<Record> recordsQueue;
+	std::vector<size_t> queuePosition;
+	bool canAccept;
+	size_t currentMemUsage(size_t f);
 };
 
 #endif // Compress_H

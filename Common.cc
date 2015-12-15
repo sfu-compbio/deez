@@ -4,7 +4,9 @@
 #include <mutex>
 using namespace std;
 
-std::map<std::string, uint64_t> __ts__times__;
+std::map<std::string, uint64_t> __zaman_times__;
+std::string __zaman_prefix__;
+std::mutex __zaman_mtx__;
 
 string int2str (int64_t k) 
 {
@@ -125,5 +127,13 @@ string S (const char* fmt, ...)
     string s = ptr;
     free(ptr);
     return s;
+}
+
+template<>
+size_t sizeInMemory(std::string t) {
+	size_t sz = 0;
+	for (int i = 0; i < t.capacity(); i++)
+		sz += sizeInMemory(*(&t[0] + i));
+	return sizeof(t) + t.capacity();
 }
 

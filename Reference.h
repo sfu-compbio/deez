@@ -61,8 +61,17 @@ public:
 	std::string copy(size_t start, size_t end);
 	void trim(size_t from);
 
+	size_t currentMemoryUsage() {
+		size_t sz = 
+			sizeInMemory(directory) + sizeInMemory(filename) + sizeInMemory(currentWebFile) +
+			sizeInMemory(currentChr) + sizeof(size_t) * 3 + sizeInMemory(buffer);
+		return sz; // Ignore chromosome size
+	}
+
+
 private:
 	void loadFromFASTA (const std::string &fn);
+
 };
 
 #endif

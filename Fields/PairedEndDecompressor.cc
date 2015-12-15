@@ -5,20 +5,19 @@ using namespace std;
 PairedEndDecompressor::PairedEndDecompressor (int blockSize):
 	GenericDecompressor<PairedEndInfo, GzipDecompressionStream>(blockSize)
 {
-	for (int i = 0; i < PairedEndCompressor::Fields::ENUM_COUNT; i++)
-		streams.push_back(new GzipDecompressionStream());
+	streams.resize(PairedEndCompressor::Fields::ENUM_COUNT);
+	for (int i = 0; i < streams.size(); i++)
+		streams[i] = make_shared<GzipDecompressionStream>();
 }
 
 PairedEndDecompressor::~PairedEndDecompressor (void) 
 {	
-	for (int i = 0; i < streams.size(); i++)
-		delete streams[i];
 }
 
 const PairedEndInfo &PairedEndDecompressor::getRecord (size_t opos, size_t ospan, bool reverse) 
 {
 	assert(hasRecord());
-	ZAMAN_START(Decompress_PairedEnd_Get);
+	ZAMAN_START(PairedEndGet);
 
 	PairedEndInfo &pe = records.data()[recordCount++];
 	if (pe.bit >= PairedEndInfo::Bits::OK) { // otherwise fixed by Decompress main loop
@@ -32,7 +31,7 @@ const PairedEndInfo &PairedEndDecompressor::getRecord (size_t opos, size_t ospan
 		}	
 	}
 
-	ZAMAN_END(Decompress_PairedEnd_Get);
+	ZAMAN_END(PairedEndGet);
 	return pe;
 }
 
@@ -42,7 +41,7 @@ void PairedEndDecompressor::importRecords (uint8_t *in, size_t in_size)
 		return;
 	assert(in_size >= sizeof(size_t));
 
-	ZAMAN_START(Decompress_PairedEnd);
+	ZAMAN_START(PairedEndImport);
 	
 	Array<uint8_t> buffer, chromosomes, tlens, tlenBits, pointers;
 	size_t s = decompressArray(streams[PairedEndCompressor::Fields::TLENBIT], in, tlenBits);
@@ -91,6 +90,6 @@ void PairedEndDecompressor::importRecords (uint8_t *in, size_t in_size)
 	}
 	
 	recordCount = 0;
-	ZAMAN_END(Decompress_PairedEnd);
+	ZAMAN_END(PairedEndImport);
 }
 

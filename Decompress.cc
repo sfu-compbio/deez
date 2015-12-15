@@ -255,12 +255,12 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 		if (chromosome != "" && chr != chromosome)
 			return 0;
 	}
-	ZAMAN_START(Decompress_ScanChromosome);
+	ZAMAN_START(ScanChromosome);
 	while (chr != sequence[f]->getChromosome())
 		sequence[f]->scanChromosome(chr);
-	ZAMAN_END(Decompress_ScanChromosome);
+	ZAMAN_END(ScanChromosome);
 
-	ZAMAN_START(Decompress_DecompressBlocks);
+	ZAMAN_START(DecompressBlocks);
 	Array<uint8_t> in[8];
 	readBlock(sequence[f], in[7]);
 	//sequence[f]->setFixed(*(editOp[f]));
@@ -275,11 +275,11 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 	}
 	for (int ti = 0; ti < 7; ti++)
 		t[ti].join();
-	ZAMAN_END(Decompress_DecompressBlocks);
+	ZAMAN_END(DecompressBlocks);
 
 
 // TODO: stop early if slice/random access
-	ZAMAN_START(Decompress_CheckMate);
+	ZAMAN_START(CheckMate);
 	for (int i = 0; i < editOp[f]->size(); i++) {
 		PairedEndInfo &pe = (*pairedEnd[f])[i];
 		if (pe.bit == PairedEndInfo::Bits::LOOK_BACK) {
@@ -298,11 +298,11 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 			//LOG("%d %d %d %d %d %d %d", peo.start,peo.end,ppe.tlen,ppe.pos,eo.start,pe.tlen,pe.pos);
 		}
 	}
-	ZAMAN_END(Decompress_CheckMate);
+	ZAMAN_END(CheckMate);
 
 	size_t count = 0;
 		
-	ZAMAN_START(Decompress_ParseBlock);
+	ZAMAN_START(ParseBlock);
 	while (editOp[f]->hasRecord()) {	
 		int flag = mapFlag[f]->getRecord();
 		if (filterFlag) {
@@ -321,7 +321,7 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 			continue;
 		if (eo.start > end) {
 			finishedRange = true;
-			ZAMAN_END(Decompress_ParseBlock);
+			ZAMAN_END(ParseBlock);
 			return count;
 		}
 
@@ -337,13 +337,13 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 			LOGN("\r   Chr %-6s %5.2lf%%", chr.c_str(), (100.0 * inFile->tell()) / inFileSz);
 		count++;
 	}
-	ZAMAN_END(Decompress_ParseBlock);
+	ZAMAN_END(ParseBlock);
 	return count;
 }
 
 void FileDecompressor::loadIndex () 
 {
-	ZAMAN_START(Decompress_LoadIndex);
+	ZAMAN_START(LoadIndex);
 	fileBlockCount.clear();
 	bool firstRead = 1;
 	indices.resize(fileNames.size());
@@ -383,7 +383,7 @@ void FileDecompressor::loadIndex ()
 		//if (inMemory)
 		indices[f][chr][idx.startPos] = idx;
 	}
-	ZAMAN_END(Decompress_LoadIndex);
+	ZAMAN_END(LoadIndex);
 }
 
 vector<range_t> FileDecompressor::getRanges (string range)

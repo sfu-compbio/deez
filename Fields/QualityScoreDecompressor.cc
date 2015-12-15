@@ -9,8 +9,7 @@ QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
 		case 0:
 			break;
 		case 1:
-			delete this->stream;
-			this->stream = new SAMCompStream<AC, QualRange>();
+			streams[0] = make_shared<SAMCompStream<AC, QualRange>>();
 			sought = 1;
 			break;
 		case 2:
@@ -29,20 +28,20 @@ QualityScoreDecompressor::~QualityScoreDecompressor (void)
 
 void QualityScoreDecompressor::setIndexData (uint8_t *in, size_t in_size) 
 {
-	stream->setCurrentState(in, in_size);
+	streams[0]->setCurrentState(in, in_size);
 	if (sought) 
 		sought = 2;
 }
 
 string QualityScoreDecompressor::getRecord (size_t seq_len, int flag) 
 {
-	ZAMAN_START(Decompress_QualityScore_Get);
+	ZAMAN_START(QualityScoreGet);
 
 	if (sought == 2) {
 		string s = "";
 		for (int i = 0; i < seq_len; i++)
 			s += (char)64;
-		ZAMAN_END(Decompress_QualityScore_Get);
+		ZAMAN_END(QualityScoreGet);
 		return s;
 	}
 
@@ -50,7 +49,7 @@ string QualityScoreDecompressor::getRecord (size_t seq_len, int flag)
 	
 	string s = string(StringDecompressor<QualityDecompressionStream>::getRecord());
 	if (s == "") {
-		ZAMAN_END(Decompress_QualityScore_Get);
+		ZAMAN_END(QualityScoreGet);
 		return "*";
 	}
 
@@ -62,7 +61,7 @@ string QualityScoreDecompressor::getRecord (size_t seq_len, int flag)
     if (flag & 0x10) for (size_t i = 0; i < seq_len / 2; i++)
 		swap(s[i], s[seq_len - i - 1]);
 
-	ZAMAN_END(Decompress_QualityScore_Get);
+	ZAMAN_END(QualityScoreGet);
     return s;
 }
 
@@ -73,9 +72,9 @@ void QualityScoreDecompressor::importRecords (uint8_t *in, size_t in_size)
 	if (sought == 2)
 		return;
 	
-	ZAMAN_START(Decompress_QualityScore);
+	ZAMAN_START(QualityScoreImport);
 	offset = *in++;
 	StringDecompressor<QualityDecompressionStream>::importRecords(in, in_size - 1);
-	ZAMAN_END(Decompress_QualityScore);
+	ZAMAN_END(QualityScoreImport);
 }
 

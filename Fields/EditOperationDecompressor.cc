@@ -6,30 +6,26 @@ EditOperationDecompressor::EditOperationDecompressor (int blockSize, const Seque
 	GenericDecompressor<EditOperation, GzipDecompressionStream>(blockSize),
 	sequence(seq)
 {
-	for (int i = 0; i < EditOperationCompressor::Fields::ENUM_COUNT; i++)
-		streams.push_back(new GzipDecompressionStream());
-	locationStream = new AC0DecompressionStream<AC, 256>();
-	stitchStream   = new GzipDecompressionStream();
+	streams.resize(EditOperationCompressor::Fields::ENUM_COUNT);
+	for (int i = 0; i < streams.size(); i++)
+		streams[i] = make_shared<GzipDecompressionStream>();
+	streams[EditOperationCompressor::Fields::LOCATION] = make_shared<AC0DecompressionStream<AC, 256>>();
 }
 
 EditOperationDecompressor::~EditOperationDecompressor (void) 
 {
-	for (int i = 0; i < streams.size(); i++)
-		delete streams[i];
-	delete locationStream;
-	delete stitchStream;
 }
 
 void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size) 
 {
 	if (in_size == 0) return;
 
-	ZAMAN_START(Decompress_EditOperation);
+	ZAMAN_START(EditOperation);
 
 	Array<uint8_t> stitches;
-	decompressArray(stitchStream, in, stitches);
+	decompressArray(streams[EditOperationCompressor::Fields::STITCH], in, stitches);
 	Array<uint8_t> locations;
-	size_t sz = decompressArray(locationStream, in, locations);
+	size_t sz = decompressArray(streams[EditOperationCompressor::Fields::LOCATION], in, locations);
 
 	ACTGStream nucleotides;
 	decompressArray(streams[EditOperationCompressor::Fields::ACGT], in, nucleotides.seqvec);
@@ -37,10 +33,10 @@ void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size)
 	nucleotides.initDecode();
 
 	vector<Array<uint8_t>> oa(EditOperationCompressor::Fields::ACGT);
-	vector<uint8_t*> fields;
-	for (int i = 0; i < oa.size(); i++)  {
+	vector<uint8_t*> fields(oa.size(), 0);
+	for (int i = 2; i < oa.size(); i++)  {
 		decompressArray(streams[i], in, oa[i]);
-		fields.push_back(oa[i].data());
+		fields[i] = oa[i].data();
 	}
 
 	records.resize(0);
@@ -55,14 +51,14 @@ void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size)
 		records.add(getEditOperation(lastLoc, nucleotides, fields));
 	}
 
-	ZAMAN_END(Decompress_EditOperation);
+	ZAMAN_END(EditOperation);
 
 	recordCount = 0;
 }
 
 EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStream &nucleotides, vector<uint8_t*> &fields) 
 {
-	ZAMAN_START(Decompress_EditOperation_GetEO);
+	ZAMAN_START(GetEO);
 
 	EditOperation eo;
 	eo.start = eo.end = loc;
@@ -213,12 +209,12 @@ end:
 	if (eo.seq == "" || eo.seq[0] == '*')
 		eo.seq = "*";
 
-	ZAMAN_END(Decompress_EditOperation_GetEO);
+	ZAMAN_END(GetEO);
 	return eo;
 }
 
 void EditOperationDecompressor::setIndexData (uint8_t *in, size_t in_size) 
 {
-	locationStream->setCurrentState(in, in_size);
+	streams[EditOperationCompressor::Fields::LOCATION]->setCurrentState(in, in_size);
 }
 

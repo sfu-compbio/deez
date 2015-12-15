@@ -51,7 +51,7 @@ string BAMParser::readComment (void)
 	gzread(input, &len, sizeof(int32_t));
 	char *c = (char*)calloc(len + 1, 1);
 	gzread(input, c, len);
-	strncpy(currentRecord.line, c, len + 1);
+	strncpy(&currentRecord.line[0], c, len + 1);
 	string s = c;
 	free(c);
 
@@ -79,7 +79,8 @@ void BAMParser::readChromosomeInformation (void)
 bool BAMParser::readNext (void) 
 {
 	int32_t bsize, cc;
-	char *buf = currentRecord.line;
+	char *buf = &currentRecord.line[0];
+	char *line = buf;
 	if (gzread(input, &bsize, 4) != 4) 
 		return false;
 
@@ -97,7 +98,7 @@ bool BAMParser::readNext (void)
 
 	// rn
 	strncpy(buf, data + 8 * 4, l_read_name);
-	currentRecord.strFields[Record::RN] = buf;
+	currentRecord.strFields[Record::RN] = buf - line;
 	buf += l_read_name;
 
 	// flag
@@ -106,7 +107,7 @@ bool BAMParser::readNext (void)
  	// chr
  	string chr = chromosomes[di[0]];
 	strncpy(buf, chr.c_str(), chr.size() + 1);
-	currentRecord.strFields[Record::CHR] = buf;
+	currentRecord.strFields[Record::CHR] = buf - line;
 	buf += chr.size() + 1;	 	
 
  	// loc
@@ -124,7 +125,7 @@ bool BAMParser::readNext (void)
 		buf[cc++] = '*';
 	n_cigar_op *= 4;
 	buf[cc++] = 0;
- 	currentRecord.strFields[Record::CIGAR] = buf;
+ 	currentRecord.strFields[Record::CIGAR] = buf - line;
 	buf += cc;
 
  	// p_chr
@@ -132,7 +133,7 @@ bool BAMParser::readNext (void)
  	if (pe_chr != "*" && pe_chr == chr)
  		pe_chr = "=";
  	strncpy(buf, pe_chr.c_str(), pe_chr.size() + 1);
-	currentRecord.strFields[Record::P_CHR] = buf;
+	currentRecord.strFields[Record::P_CHR] = buf - line;
 	buf += pe_chr.size() + 1;
 
 	// p_loc
@@ -149,7 +150,7 @@ bool BAMParser::readNext (void)
  	if (l_seq == 0)
  		buf[cc++] = '*';
  	buf[cc++] = 0;
- 	currentRecord.strFields[Record::SEQ] = buf;
+ 	currentRecord.strFields[Record::SEQ] = buf - line;
 	buf += cc;
  	
  	// qual
@@ -160,15 +161,15 @@ bool BAMParser::readNext (void)
  	if (l_seq == 0)
  		buf[cc++] = '*';
  	buf[cc++] = 0;
- 	currentRecord.strFields[Record::QUAL] = buf;
+ 	currentRecord.strFields[Record::QUAL] = buf - line;
 	buf += cc;
 
-	currentRecord.strFields[Record::OPT] = buf;
+	currentRecord.strFields[Record::OPT] = buf - line;
 
  	// optional data ...
  	int pos = 8 * 4 + l_read_name + n_cigar_op + (l_seq + 1) / 2 + l_seq;
  	if (pos >= bsize)
- 		currentRecord.strFields[Record::OPT][0] = 0;
+ 		buf[0] = 0;
  	else 
  		currentRecord.strFields[Record::OPT]++; // avoid \t
 	while (pos < bsize) {

@@ -12,8 +12,7 @@ QualityScoreCompressor::QualityScoreCompressor (int blockSize):
 		case 0:
 			break;
 		case 1:
-			delete stream;
-			stream = new SAMCompStream<AC, QualRange>();
+			streams[0] = make_shared<SAMCompStream<AC, QualRange>>();
 			break;
 		default:
 			throw DZException("Invalid stream specified");
@@ -29,8 +28,8 @@ QualityScoreCompressor::~QualityScoreCompressor (void)
 
 void QualityScoreCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) 
 {
-	ZAMAN_START(Compress_QualityScore);
-
+	ZAMAN_START(QualityScoreOutput);
+	ZAMAN_START(Subtract);
 	if (!offset) {
 		offset = calculateOffset();
 	}
@@ -53,11 +52,12 @@ void QualityScoreCompressor::outputRecords (Array<uint8_t> &out, size_t out_offs
 				throw DZException("Quality scores out of range with R offset %d [%c]", offset, c + offset - 1);
 		}
 	}
+	ZAMAN_END(Subtract);
 	StringCompressor<QualityCompressionStream>::outputRecords(out, out_offset, k);
 	memset(stat, 0, 128 * sizeof(int));
 	offset = 0;
 
-	ZAMAN_END(Compress_QualityScore);
+	ZAMAN_END(QualityScoreOutput);
 }
 
 double QualityScoreCompressor::phredScore (char c, int offset) 
@@ -151,34 +151,36 @@ void QualityScoreCompressor::lossyTransform (string &qual)
 		qual[i] = lossy[qual[i]];
 }
 
-void QualityScoreCompressor::shrink(size_t i, int flag)
+std::string QualityScoreCompressor::shrink(const std::string &s, int flag)
 {
-	assert(i < records.size());
-	if (!records[i].size())
-		return;
+	//assert(i < records.size());
+	if (!s.size() || s == "*")
+		return "";
 
-	size_t sz = records[i].size();
+	string q = s;
+	size_t sz = q.size();
 	if (flag & 0x10) for (size_t j = 0; j < sz / 2; j++)
-		swap(records[i][j], records[i][sz - j - 1]);
-	lossyTransform(records[i]);
+		swap(q[j], q[sz - j - 1]);
+	lossyTransform(q);
 
 	if (sz >= 2) {
 		sz -= 2;
-		while (sz && records[i][sz] == records[i][records[i].size() - 1])
+		while (sz && q[sz] == q[q.size() - 1])
 			sz--;
 		sz += 2;
 	}
-	records[i] = records[i].substr(0, sz);
-	assert(records[i].size() > 0);
+	q = q.substr(0, sz);
+	assert(q.size() > 0);
+	return q;
 }
 
-void QualityScoreCompressor::addRecord (const string &qual) 
+void QualityScoreCompressor::addRecord (const string &qual, int flag) 
 {
-	ZAMAN_START(Compress_QualityScore_Add);
+	ZAMAN_START(Add);
 	if (qual == "*") {
 		StringCompressor<QualityCompressionStream>::addRecord(string());
 	} else {
-		StringCompressor<QualityCompressionStream>::addRecord(qual);
+		StringCompressor<QualityCompressionStream>::addRecord(shrink(qual, flag));
 	}
-	ZAMAN_END(Compress_QualityScore_Add);
+	ZAMAN_END(Add);
 }

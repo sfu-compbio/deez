@@ -4,24 +4,25 @@ using namespace std;
 ReadNameDecompressor::ReadNameDecompressor (int blockSize):
 	StringDecompressor<GzipDecompressionStream> (blockSize)
 {
-	indexStream = new GzipDecompressionStream();
+	streams.resize(ReadNameCompressor::Fields::ENUM_COUNT);
+	for (int i = 0; i < streams.size(); i++)
+		streams[i] = make_shared<GzipDecompressionStream>();
 }
 
 ReadNameDecompressor::~ReadNameDecompressor (void) 
 {
-	delete indexStream;
 }
 
 void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size) 
 {
 	if (in_size == 0) return;
 
-	ZAMAN_START(Decompress_ReadName);
+	ZAMAN_START(ReadNameImport);
 
 	Array<uint8_t> index;
-	size_t s1 = decompressArray(indexStream, in, index);
+	size_t s1 = decompressArray(streams[ReadNameCompressor::Fields::INDEX], in, index);
 	Array<uint8_t> content;
-	decompressArray(stream, in, content);
+	decompressArray(streams[ReadNameCompressor::Fields::CONTENT], in, content);
 
 	string tokens[MAX_TOKEN];
 	size_t ic = 0, cc = 0;
@@ -96,10 +97,10 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size)
 
 	recordCount = 0;
 
-	ZAMAN_END(Decompress_ReadName);
+	ZAMAN_END(ReadNameImport);
 }
 
 void ReadNameDecompressor::setIndexData (uint8_t *in, size_t in_size) 
 {
-	stream->setCurrentState(in, in_size);
+	streams[ReadNameCompressor::Fields::CONTENT]->setCurrentState(in, in_size);
 }

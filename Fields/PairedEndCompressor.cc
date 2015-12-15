@@ -2,25 +2,37 @@
 #include <unordered_map>
 using namespace std;
 
-PairedEndCompressor::PairedEndCompressor (int blockSize):
-	GenericCompressor<PairedEndInfo, GzipCompressionStream<6> >(blockSize)
+PairedEndInfo::PairedEndInfo (const std::string &c, size_t pos, int32_t t, size_t opos, size_t ospan, bool reverse):
+	chr(c), tlen(t), bit(-1), pos(pos)
 {
-	for (int i = 0; i < Fields::ENUM_COUNT; i++)
-		streams.push_back(new GzipCompressionStream<6>());
+	if ((tlen < 0) == reverse) {
+		bit = OK;
+	} else {
+		bit = GREATER_THAN_0 + (tlen < 0);
+	}
+	if (tlen > 0) { // replace opos with size
+		diff = opos + tlen - ospan - pos;
+	} else {
+		diff = opos + tlen + ospan - pos;
+	} 
+	//LOG("%d %d %d %d %s %d %d", tlen, pos, diff, bit, chr.c_str(), opos, ospan);
+}
+
+template<>
+size_t sizeInMemory(PairedEndInfo t) {
+	return sizeof(t) + sizeInMemory(t.chr) - sizeof(string); 
+}
+
+PairedEndCompressor::PairedEndCompressor (int blockSize):
+	GenericCompressor<PairedEndInfo, GzipCompressionStream<6>>(blockSize)
+{
+	streams.resize(Fields::ENUM_COUNT);
+	for (int i = 0; i < streams.size(); i++)
+		streams[i] = make_shared<GzipCompressionStream<6>>();
 }
 
 PairedEndCompressor::~PairedEndCompressor (void) 
 {
-	for (int i = 0; i < streams.size(); i++)
-		delete streams[i];
-}
-
-size_t PairedEndCompressor::compressedSize(void) 
-{ 
-	int res = 0;
-	for (int i = 0; i < streams.size(); i++) 
-		res += streams[i]->getCount();
-	return res;
 }
 
 void PairedEndCompressor::printDetails(void) 
@@ -38,7 +50,7 @@ void PairedEndCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset,
 	}
 	assert(k <= records.size());
 
-	ZAMAN_START(Compress_PairedEnd);
+	ZAMAN_START(PairedEndOutput);
 
 	Array<int32_t> buffer(k, MB);
 	Array<uint8_t> tlens(k * 4, MB);
@@ -97,5 +109,5 @@ void PairedEndCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset,
 	compressArray(streams[Fields::POINTER], ptrs, out, out_offset);
 	this->records.remove_first_n(k);
 	
-	ZAMAN_END(Compress_PairedEnd);
+	ZAMAN_END(PairedEndOutput);
 }

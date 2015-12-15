@@ -4,20 +4,16 @@ using namespace std;
 OptionalFieldDecompressor::OptionalFieldDecompressor (int blockSize):
 	GenericDecompressor<OptionalField, GzipDecompressionStream>(blockSize)
 {
-	indexStream = new GzipDecompressionStream();
 }
 
 OptionalFieldDecompressor::~OptionalFieldDecompressor (void) 
 {
-	delete indexStream;
-	for (auto &m: fieldStreams)
-		delete m.second;
 }
 
 OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, uint8_t *&in, 
 	vector<Array<uint8_t>>& oa, vector<size_t> &out)
 {
-	ZAMAN_START(Decompress_OptionalField_ParseFields);
+	ZAMAN_START(ParseFields);
 
 	OptionalField of;
 	string &result = of.data;
@@ -31,7 +27,7 @@ OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, u
 			assert(oa.size() == keyIndex);
 			assert(out.size() == keyIndex);
 			if (fieldStreams.find(key) == fieldStreams.end())
-				fieldStreams[key] = new GzipDecompressionStream();
+				fieldStreams[key] = make_shared<GzipDecompressionStream>();
 			oa.push_back(Array<uint8_t>());
 			decompressArray(fieldStreams[key], in, oa[keyIndex]);
 			out.push_back(0);
@@ -78,14 +74,14 @@ OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, u
 		}
 	}
 
-	ZAMAN_END(Decompress_OptionalField_ParseFields);
+	ZAMAN_END(ParseFields);
 	return of;
 }
 
 const OptionalField &OptionalFieldDecompressor::getRecord(const EditOperation &eo) 
 {
 	assert(hasRecord());
-	ZAMAN_START(Decompress_OptionalField_Get);
+	ZAMAN_START(GetOptionalField);
 	OptionalField &of = records.data()[recordCount++];
 
 	if (of.posMD != -1) {
@@ -102,7 +98,7 @@ const OptionalField &OptionalFieldDecompressor::getRecord(const EditOperation &e
 		//LOG("%d %d %s %d", of.posNM, eo.NM, of.data.c_str(), of.data.size());
 		of.data = of.data.substr(0, of.posNM) + inttostr(eo.NM) + of.data.substr(of.posNM);
 	}
-	ZAMAN_END(Decompress_OptionalField_Get);
+	ZAMAN_END(GetOptionalField);
 	return of;
 }
 
@@ -110,11 +106,11 @@ void OptionalFieldDecompressor::importRecords (uint8_t *in, size_t in_size)
 {
 	if (in_size == 0) return;
 
-	ZAMAN_START(Decompress_OptionalField);
+	ZAMAN_START(ImportOptionalField);
 
 	Array<uint8_t> index, sizes;
-	size_t s = decompressArray(indexStream, in, index);
-	decompressArray(indexStream, in, sizes);
+	size_t s = decompressArray(streams[0], in, index);
+	decompressArray(streams[0], in, sizes);
 	uint8_t *tags = index.data();
 	uint8_t *szs = sizes.data();
 
@@ -129,5 +125,5 @@ void OptionalFieldDecompressor::importRecords (uint8_t *in, size_t in_size)
 
 	recordCount = 0;
 	fields.clear();
-	ZAMAN_END(Decompress_OptionalField);
+	ZAMAN_END(ImportOptionalField);
 }

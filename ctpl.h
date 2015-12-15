@@ -80,6 +80,8 @@ namespace ctpl {
             this->stop(true);
         }
 
+        void reset(int nThreads){ this->init(); this->resize(nThreads);  }
+
         // get the number of running threads in the pool
         int size() { return static_cast<int>(this->threads.size()); }
 

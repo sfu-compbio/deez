@@ -4,24 +4,20 @@ using namespace std;
 ReadNameCompressor::ReadNameCompressor (int blockSize):
 	StringCompressor<GzipCompressionStream<6> >(blockSize)
 {
-	indexStream = new GzipCompressionStream<6>();
+	streams.resize(Fields::ENUM_COUNT);
+	for (int i = 0; i < streams.size(); i++)
+		streams[i] = make_shared<GzipCompressionStream<6>>();
 	memset(prevCharTokens, 0, MAX_TOKEN);
 }
 
 ReadNameCompressor::~ReadNameCompressor (void) 
 {
-	delete indexStream;
-}
-
-size_t ReadNameCompressor::compressedSize(void)
-{ 
-	return stream->getCount() + indexStream->getCount(); 
 }
 
 void ReadNameCompressor::printDetails(void)
 {
-	LOG("  Index     : %'20lu", indexStream->getCount());
-	LOG("  Content   : %'20lu", stream->getCount());
+	LOG("  Index     : %'20lu", streams[Fields::INDEX]->getCount());
+	LOG("  Content   : %'20lu", streams[Fields::CONTENT]->getCount());
 }
 
 void ReadNameCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) 
@@ -32,7 +28,7 @@ void ReadNameCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, 
 	}
 	assert(k <= records.size());
 
-	ZAMAN_START(Compress_ReadName);
+	ZAMAN_START(ReadNameOutput);
 
 	Array<uint8_t> buffer(this->totalSize, MB);
 	Array<uint8_t> indices(k * 10);	
@@ -42,21 +38,21 @@ void ReadNameCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, 
 		this->totalSize -= this->records[i].size() + 1;
 	}
 
-	compressArray(indexStream, indices, out, out_offset);
-	compressArray(stream, buffer, out, out_offset);
+	compressArray(streams[Fields::INDEX], indices, out, out_offset);
+	compressArray(streams[Fields::CONTENT], buffer, out, out_offset);
 	for (int i = 0; i < MAX_TOKEN; i++) {
 		prevTokens[i] = "";
 		prevCharTokens[i] = 0;
 	}
 	this->records.remove_first_n(k);
 
-	ZAMAN_END(Compress_ReadName);
+	ZAMAN_END(ReadNameOutput);
 }
 
 void ReadNameCompressor::getIndexData (Array<uint8_t> &out) 
 {
 	out.resize(0);
-	stream->getCurrentState(out);
+	streams[Fields::CONTENT]->getCurrentState(out);
 }
 
 void ReadNameCompressor::addTokenizedName (const string &rn, Array<uint8_t> &content, Array<uint8_t> &index) 
@@ -66,7 +62,7 @@ void ReadNameCompressor::addTokenizedName (const string &rn, Array<uint8_t> &con
 		return;
 	}
 	
-	ZAMAN_START(Compress_ReadName_Tokenize);
+	ZAMAN_START(Tokenize);
 
 	int tokens[MAX_TOKEN], tc = 0;
 	char charTokens[MAX_TOKEN] = { 0 };
@@ -110,5 +106,5 @@ void ReadNameCompressor::addTokenizedName (const string &rn, Array<uint8_t> &con
 	}
 	index.add(6 * MAX_TOKEN + tc); // how many tokens
 	
-	ZAMAN_END(Compress_ReadName_Tokenize);
+	ZAMAN_END(Tokenize);
 }

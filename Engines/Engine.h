@@ -7,27 +7,29 @@
 
 class Compressor {
 protected:
-	CompressionStream *stream;
+	std::vector<std::shared_ptr<CompressionStream>> streams;
 
 public:
-	FILE *debugStream;
-
-public:
-	Compressor () { debugStream = 0; }
-	virtual ~Compressor (void) {/* if (debugStream) fclose(debugStream); */}
+	virtual ~Compressor (void) {};
 
 public:
 	// Resets out
 	// set out size to compressed size block
 	virtual void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) = 0;
 	virtual void getIndexData (Array<uint8_t> &out) = 0;
-	virtual size_t compressedSize(void) { return stream->getCount(); }
+	virtual size_t compressedSize(void) { 
+		int res = 0;
+		for (int i = 0; i < streams.size(); i++) 
+			res += streams[i]->getCount();
+		return res;
+ 	}
 	virtual void printDetails(void) {}
 };
 
 
 template<typename T>
-void compressArray (CompressionStream *c, Array<T> &in, Array<uint8_t> &out, size_t &outOffset) {
+void compressArray (shared_ptr<CompressionStream> c, Array<T> &in, Array<uint8_t> &out, size_t &outOffset) 
+{
 	size_t s = 0;
 	out.resize(outOffset + 2 * sizeof(size_t));
 	if (in.size()) s = c->compress((uint8_t*)in.data(), 
@@ -40,10 +42,10 @@ void compressArray (CompressionStream *c, Array<T> &in, Array<uint8_t> &out, siz
 
 class Decompressor {
 protected:
-	DecompressionStream *stream;
+	std::vector<std::shared_ptr<DecompressionStream>> streams;
 
 public:
-	virtual ~Decompressor (void) {}
+	virtual ~Decompressor (void) {};
 
 public:
 	virtual bool hasRecord (void) = 0;
@@ -51,6 +53,6 @@ public:
 	virtual void setIndexData (uint8_t *, size_t) = 0;
 };
 
-size_t decompressArray (DecompressionStream *d, uint8_t* &in, Array<uint8_t> &out);
+size_t decompressArray (shared_ptr<DecompressionStream> d, uint8_t* &in, Array<uint8_t> &out);
 
 #endif
