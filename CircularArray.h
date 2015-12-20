@@ -16,6 +16,11 @@ class CircularArray {
 	size_t _capacity;
 
 public:
+	CircularArray():
+		_records(0), _size(0), _start(0), _capacity(0), _extend(0)
+	{
+	}
+
 	CircularArray (size_t cap):
 		_size(0), _start(0), _capacity(cap)
 	{
@@ -85,7 +90,6 @@ public:
 		while (sz > _capacity)
 			realloc(sz);
 		_size = sz;
-		//fprintf(stderr,"Resized %d\n",_size);
 	}
 
 	// add element, realloc if needed
@@ -95,8 +99,14 @@ public:
 			realloc(_capacity);
 		_records[(_start + _size) % _capacity] = t;
 		_size++;
-		//fprintf(stderr,"Resized %d\n",_size);
+	}
 
+	// Add defualt element or use allocated
+	void add () 
+	{
+		if (_size == _capacity)
+			realloc(_capacity);
+		_size++;
 	}
 
 	// add array, realloc if needed
@@ -108,6 +118,12 @@ public:
 	}
 
 	T &operator[] (size_t i) 
+	{
+		assert(i < _size);
+		return _records[(_start + i) % _capacity];
+	}
+
+	const T &operator[] (size_t i) const 
 	{
 		assert(i < _size);
 		return _records[(_start + i) % _capacity];

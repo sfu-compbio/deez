@@ -6,7 +6,8 @@ out=`realpath out`
 log=`realpath log`
 deez=`realpath deez`
 
-find '*dztest*' -delete
+find *dztest* -delete
+find *dztemp* -delete
 rm -rf ${out}/*
 rm -rf ${log}/*
 

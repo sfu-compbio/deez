@@ -42,7 +42,7 @@ public:
 
 public:
 	void parse (void);
-	const Record &next (void);
+	Record next (void);
 	std::string head (void);
 };
 

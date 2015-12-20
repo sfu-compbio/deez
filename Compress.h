@@ -7,16 +7,17 @@
 #include "Parsers/SAMParser.h"
 #include "Fields/Sequence.h"
 #include "Fields/ReadName.h"
-#include "Fields/ReadNameLossy.h"
 #include "Fields/MappingFlag.h"
 #include "Fields/EditOperation.h"
 #include "Fields/MappingQuality.h"
 #include "Fields/QualityScore.h"
 #include "Fields/PairedEnd.h"
 #include "Fields/OptionalField.h"
+#include "Fields/SAMComment.h"
 
 class FileCompressor {
 	vector<shared_ptr<Parser>> parsers;
+	vector<SAMComment> samComment;
 	vector<shared_ptr<SequenceCompressor>> sequence;
 	vector<shared_ptr<EditOperationCompressor>> editOp;
 	vector<shared_ptr<ReadNameCompressor>> readName;
@@ -50,7 +51,7 @@ private:
 	void outputBlock (Compressor *c, Array<uint8_t> &out, size_t count);
 
 	template<typename Compressor, typename... ExtraParams>
-	static void compressBlock (Array<uint8_t>& out, Array<uint8_t>& idxOut, size_t k, Compressor *c, ExtraParams... params);
+	void compressBlock (int f, Array<uint8_t>& out, Array<uint8_t>& idxOut, size_t k, shared_ptr<Compressor> c, ExtraParams&... params);
 	void outputBlock (Array<uint8_t> &out, Array<uint8_t> &idxOut);
 
 public:
@@ -58,12 +59,12 @@ public:
 
 private:
 	void parser(size_t f, size_t, size_t);
+	
+	vector<CircularArray<Record>> records;
+	vector<CircularArray<EditOperation>> editOps;
+	vector<CircularArray<PairedEndInfo>> pairedEndInfos;
 
-	std::condition_variable recordsAvailable;
 	std::mutex queueMutex;
-	std::vector<Record> recordsQueue;
-	std::vector<size_t> queuePosition;
-	bool canAccept;
 	size_t currentMemUsage(size_t f);
 };
 

@@ -10,6 +10,7 @@
 
 #include "Common.h"
 #include "FileIO.h"
+#include "Fields/SAMComment.h"
 
 class Stats;
 
@@ -29,11 +30,8 @@ private:
 	shared_ptr<File> input;
 	std::string directory, filename;
 	std::string currentChr;
-
 	std::unordered_map<std::string, Chromosome> 
 		chromosomes;
-	std::unordered_map<std::string, std::unordered_map<std::string, std::string>>
-		samCommentData;
 	std::string currentWebFile;
 
 private:
@@ -47,10 +45,9 @@ public:
 
 public:
 	std::string getChromosomeName(void) const;
-	std::string scanChromosome(const std::string &s);
+	std::string scanChromosome(const std::string &s, const SAMComment &samComment);
 	//void load(char *arr, size_t s, size_t e);
 	size_t getChromosomeLength(const std::string &s) const;
-	void scanSAMComment (const std::string &comment);
 
 	Chromosome getChromosomeInfo (const std::string &chr) {
 		return chromosomes[chr];

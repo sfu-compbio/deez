@@ -19,6 +19,7 @@
 #include "../Fields/EditOperation.h"
 #include "../Streams/GzipStream.h"
 #include "EditOperation.h"
+#include "SAMComment.h"
 
 class SequenceCompressor: public Compressor {
 	friend class Stats;
@@ -35,17 +36,16 @@ class SequenceCompressor: public Compressor {
 	size_t maxEnd;
 
 public:
-	SequenceCompressor (const std::string &refFile, int bs);
-	~SequenceCompressor (void);
+	SequenceCompressor (const std::string &refFile);
 
 public:
 	void updateBoundary (size_t loc);
 	size_t getBoundary() const { return maxEnd; };
-	void outputRecords (Array<uint8_t> &output, size_t out_offset, size_t k);
+	void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &output, size_t out_offset, size_t k);
 	void getIndexData (Array<uint8_t> &out) { out.resize(0); }
 	void printDetails(void);
 
-	size_t applyFixes (size_t end, EditOperationCompressor &editOperation, size_t&, size_t&, size_t&, size_t&, size_t&);
+	size_t applyFixes (size_t end, const CircularArray<Record> &records, const CircularArray<EditOperation> &editOps, size_t&, size_t&, size_t&, size_t&, size_t&);
 
 	size_t currentMemoryUsage() {
 		LOG("Reference uses %'lu", reference.currentMemoryUsage());
@@ -58,9 +58,8 @@ public:
 	
 public:
 	std::string getChromosome (void) const { return chromosome; }
-	void scanChromosome (const std::string &s);
+	void scanChromosome (const std::string &s, const SAMComment &samComment);
 	size_t getChromosomeLength (void) const { return reference.getChromosomeLength(chromosome); }
-	void scanSAMComment (const string &comment) { reference.scanSAMComment(comment); } 
 	char operator[] (size_t pos) const;
 	Reference &getReference() { return reference; }
 
@@ -71,7 +70,7 @@ private:
 		#warning "Not using SSE2 optimizations -- performance might be suboptimal"
 		typedef std::vector<std::array<uint16_t, 6>> Stats;
 	#endif
-	static void applyFixesThread(EditOperationCompressor &editOperation, Stats &stats, 
+	static void applyFixesThread(const CircularArray<Record> &records, const CircularArray<EditOperation> &editOps, Stats &stats, 
 		size_t fixedStart, size_t offset, size_t size);
 	static void updateGenomeLoc (size_t loc, char ch, Stats &stats);
 
@@ -101,9 +100,8 @@ public:
 	void setIndexData (uint8_t *, size_t) {}
 
 public:
-	void scanChromosome (const std::string &s);
+	void scanChromosome (const std::string &s, const SAMComment &samComment);
 	std::string getChromosome (void) const { return chromosome; }
-	void scanSAMComment (const string &comment) { reference.scanSAMComment(comment); } 
 	char operator[] (size_t pos) const;
 	const Reference &getReference() const { return reference; }
 };

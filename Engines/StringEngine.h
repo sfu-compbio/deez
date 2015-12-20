@@ -13,12 +13,9 @@ protected:
 	size_t totalSize;
 
 public:
-	StringCompressor (int blockSize);
-	virtual ~StringCompressor (void);
+	StringCompressor (void);
 
 public:
-	virtual void addRecord (const std::string &rec);
-	virtual void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
 	virtual void increaseTotalSize(size_t sz) { totalSize += sz; }
 };
  
@@ -35,43 +32,10 @@ public:
 };
 
 template<typename TStream>
-StringCompressor<TStream>::StringCompressor (int blockSize):
-	GenericCompressor<std::string, TStream>(blockSize),
+StringCompressor<TStream>::StringCompressor(void):
+	GenericCompressor<std::string, TStream>(),
 	totalSize(0)
 {
-}
-
-template<typename TStream>
-StringCompressor<TStream>::~StringCompressor (void) 
-{
-}
-
-template<typename TStream>
-void StringCompressor<TStream>::addRecord (const std::string &rec) 
-{
-	GenericCompressor<std::string, TStream>::addRecord(rec);
-	totalSize += rec.size() + 1;
-}
-
-template<typename TStream>
-void StringCompressor<TStream>::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) 
-{
-	if (!this->records.size()) { 
-		out.resize(0);
-		return;
-	}
-	assert(k <= this->records.size());
-
-	ZAMAN_START(OutputStrings);
-	Array<uint8_t> buffer(totalSize, MB);
-	for (size_t i = 0; i < k; i++) {
-		buffer.add((uint8_t*)this->records[i].c_str(), this->records[i].size() + 1);
-		totalSize -= this->records[i].size() + 1;
-	}
-	
-	compressArray(this->streams.front(), buffer, out, out_offset);
-	this->records.remove_first_n(k);
-	ZAMAN_END(OutputStrings);
 }
 
 template<typename TStream>

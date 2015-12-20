@@ -6,27 +6,12 @@
 
 template<typename T, typename TStream>
 class GenericCompressor: public Compressor {
-protected:
-	CircularArray<T> records;
+public:
+	GenericCompressor(void);
 
 public:
-	GenericCompressor (int blockSize);
-	virtual ~GenericCompressor (void);
-
-public:
-	virtual void addRecord (const T &rec);
-	virtual void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
+	virtual void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) {};
 	virtual void getIndexData (Array<uint8_t> &out);
-	virtual T& operator[] (int idx);
-
-public:
-	virtual size_t size (void) const { return records.size(); }
-	virtual void resize(size_t sz) {
-		records.resize(sz);
-	}
-	virtual size_t currentMemoryUsage() {
-		return sizeInMemory(records) + sizeof(*this) - sizeof(records);
-	}
 };
  
 template<typename T, typename TStream>
@@ -50,47 +35,9 @@ public:
 };
 
 template<typename T, typename TStream>
-GenericCompressor<T, TStream>::GenericCompressor (int blockSize):
-	records(blockSize)
+GenericCompressor<T, TStream>::GenericCompressor (void)
 {
 	streams.push_back(make_shared<TStream>());
-	//records.resize(blockSize);
-}
-
-template<typename T, typename TStream>
-GenericCompressor<T, TStream>::~GenericCompressor (void) 
-{
-}
-
-template<typename T, typename TStream>
-void GenericCompressor<T, TStream>::addRecord (const T &rec) 
-{
-	records.add(rec);
-}
-
-template<typename T, typename TStream>
-T& GenericCompressor<T, TStream>::operator[] (int idx) 
-{
-	assert(idx < records.size());
-	return records[idx];
-}
-
-template<typename T, typename TStream>
-void GenericCompressor<T, TStream>::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) 
-{
-	if (!records.size()) { 
-		out.resize(0);
-		return;
-	}
-	assert(k <= records.size());
-
-	ZAMAN_START(Generic);
-	Array<uint8_t> buffer(k * sizeof(T));
-	for (size_t i = 0; i < k; i++)
-		buffer.add((uint8_t*)&records[i], sizeof(T));
-	compressArray(streams.front(), buffer, out, out_offset);
-	records.remove_first_n(k);
-	ZAMAN_END(Generic);
 }
 
 template<typename T, typename TStream>

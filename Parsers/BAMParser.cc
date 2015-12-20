@@ -84,7 +84,7 @@ bool BAMParser::readNext (void)
 	if (gzread(input, &bsize, 4) != 4) 
 		return false;
 
-	assert(bsize < MAXLEN);
+	//assert(bsize < MAXLEN);
 	if (bsize > dataSize)
 		data = (char*)realloc(data, dataSize = bsize + KB);
 	gzread(input, data, bsize);
@@ -236,7 +236,7 @@ size_t BAMParser::fsize (void)
 	return file_size;
 }
 
-const Record &BAMParser::next (void) 
+ Record BAMParser::next (void) 
 {
 	return currentRecord;
 }

@@ -3,6 +3,7 @@
 
 #include <vector>
 #include "../Common.h"
+#include "../Parsers/Record.h"
 #include "../Streams/Stream.h"
 
 class Compressor {
@@ -15,10 +16,10 @@ public:
 public:
 	// Resets out
 	// set out size to compressed size block
-	virtual void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) = 0;
+	virtual void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) = 0;
 	virtual void getIndexData (Array<uint8_t> &out) = 0;
 	virtual size_t compressedSize(void) { 
-		int res = 0;
+		size_t res = 0;
 		for (int i = 0; i < streams.size(); i++) 
 			res += streams[i]->getCount();
 		return res;

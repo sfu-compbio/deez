@@ -36,6 +36,7 @@ struct index_t {
 typedef pair<pair<int, string>, pair<size_t, size_t>> range_t;
 
 class FileDecompressor {
+	vector<SAMComment> samComment;
 	vector<SequenceDecompressor*> sequence;
 	vector<EditOperationDecompressor*> editOp;
 	vector<ReadNameDecompressor*> readName;

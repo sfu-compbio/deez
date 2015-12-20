@@ -1,17 +1,13 @@
 #include "ReadName.h"
 using namespace std;
 
-ReadNameCompressor::ReadNameCompressor (int blockSize):
-	StringCompressor<GzipCompressionStream<6> >(blockSize)
+ReadNameCompressor::ReadNameCompressor(void):
+	StringCompressor<GzipCompressionStream<6>>()
 {
 	streams.resize(Fields::ENUM_COUNT);
 	for (int i = 0; i < streams.size(); i++)
 		streams[i] = make_shared<GzipCompressionStream<6>>();
 	memset(prevCharTokens, 0, MAX_TOKEN);
-}
-
-ReadNameCompressor::~ReadNameCompressor (void) 
-{
 }
 
 void ReadNameCompressor::printDetails(void)
@@ -20,7 +16,7 @@ void ReadNameCompressor::printDetails(void)
 	LOG("  Content   : %'20lu", streams[Fields::CONTENT]->getCount());
 }
 
-void ReadNameCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) 
+void ReadNameCompressor::outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) 
 {
 	if (!records.size()) { 
 		out.resize(0);
@@ -34,8 +30,9 @@ void ReadNameCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, 
 	Array<uint8_t> indices(k * 10);	
 
 	for (size_t i = 0; i < k; i++) {
-		addTokenizedName(this->records[i], buffer, indices);
-		this->totalSize -= this->records[i].size() + 1;
+		string rn = records[i].getReadName();
+		addTokenizedName(rn, buffer, indices);
+		this->totalSize -= rn.size() + 1;
 	}
 
 	compressArray(streams[Fields::INDEX], indices, out, out_offset);
@@ -44,7 +41,6 @@ void ReadNameCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, 
 		prevTokens[i] = "";
 		prevCharTokens[i] = 0;
 	}
-	this->records.remove_first_n(k);
 
 	ZAMAN_END(ReadNameOutput);
 }

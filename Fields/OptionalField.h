@@ -5,6 +5,7 @@
 #include "../Streams/GzipStream.h"
 #include "../Engines/StringEngine.h"
 #include "EditOperation.h"
+#include "SAMComment.h"
 #include <vector>
 #include <unordered_map>
 
@@ -20,28 +21,28 @@ class OptionalFieldCompressor:
 {
 	std::map<std::string, shared_ptr<CompressionStream>> fieldStreams;
 	std::unordered_map<std::string, int> fields;
+	std::unordered_map<std::string, int> PG, RG;
 
 	int totalXD, failedXD;
 	int totalNM, failedNM;
 	int totalMD, failedMD;
 
 public:
-	OptionalFieldCompressor (int blockSize);
+	OptionalFieldCompressor (void);
 	~OptionalFieldCompressor (void);
-
+	
 public:
-	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k,
-		EditOperationCompressor *ec);
+	void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const CircularArray<EditOperation> &editOps);
 	//void getIndexData (Array<uint8_t> &out);
 
 	void printDetails(void);
+	size_t compressedSize(void);
 
 public:
 	static std::string getXDfromMD(const std::string &eoMD);
 
 private:
-	int processFields(const string &rec, std::vector<Array<uint8_t>> &out, Array<uint8_t> &tags,
-		const EditOperation &eo);
+	int processFields(const string &rec, std::vector<Array<uint8_t>> &out, Array<uint8_t> &tags, const EditOperation &eo);
 
 	void parseMD(const string &rec, int &i, const string &eoMD, Array<uint8_t> &out);
 	void parseXD(const string &rec, int &i, const string &eoMD, Array<uint8_t> &out);
@@ -52,6 +53,7 @@ class OptionalFieldDecompressor:
 {
 	std::unordered_map<std::string, shared_ptr<DecompressionStream>> fieldStreams;
 	std::unordered_map<int, std::string> fields;
+	std::unordered_map<int, std::string> PG, RG;
 
 public:
 	OptionalFieldDecompressor (int blockSize);

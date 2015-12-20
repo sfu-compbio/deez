@@ -17,21 +17,18 @@ FileCompressor::FileCompressor (const string &outFile, const vector<string> &sam
 			parsers.push_back(make_shared<BAMParser>(samFiles[f]));
 		else
 			parsers.push_back(make_shared<SAMParser>(samFiles[f]));
-		sequence.push_back(make_shared<SequenceCompressor>(genomeFile, bs));
-		editOp.push_back(make_shared<EditOperationCompressor>(bs, (*sequence.back())));
-		if (optReadLossy)
-			readName.push_back(make_shared<ReadNameLossyCompressor>(bs));
-		else 
-			readName.push_back(make_shared<ReadNameCompressor>(bs));
-		mapFlag.push_back(make_shared<MappingFlagCompressor>(bs));
-		mapQual.push_back(make_shared<MappingQualityCompressor>(bs));
-		quality.push_back(make_shared<QualityScoreCompressor>(bs));
-		pairedEnd.push_back(make_shared<PairedEndCompressor>(bs));
-		optField.push_back(make_shared<OptionalFieldCompressor>(bs));
+		sequence.push_back(make_shared<SequenceCompressor>(genomeFile));
+		editOp.push_back(make_shared<EditOperationCompressor>(*sequence.back()));
+		readName.push_back(make_shared<ReadNameCompressor>());
+		mapFlag.push_back(make_shared<MappingFlagCompressor>());
+		mapQual.push_back(make_shared<MappingQualityCompressor>());
+		quality.push_back(make_shared<QualityScoreCompressor>());
+		pairedEnd.push_back(make_shared<PairedEndCompressor>());
+		optField.push_back(make_shared<OptionalFieldCompressor>());
 	}
-	if (outFile == "")
+	if (outFile == "") {
 		outputFile = stdout;
-	else {
+	} else {
 		outputFile = fopen(outFile.c_str(), "wb");
 		if (outputFile == NULL)
 			throw DZException("Cannot open the file %s", outFile.c_str());
@@ -86,7 +83,7 @@ void FileCompressor::outputComment (void)
 {
 	for (int f = 0; f < parsers.size(); f++) {
 		string comment = parsers[f]->readComment();
-		sequence[f]->scanSAMComment(comment);
+		samComment.push_back(SAMComment(comment));
 		size_t arcsz = comment.size();
 		fwrite(&arcsz, sizeof(size_t), 1, outputFile);
 		if (arcsz) {
@@ -101,10 +98,10 @@ void FileCompressor::outputComment (void)
 }
 
 template<typename Compressor, typename... ExtraParams>
-void FileCompressor::compressBlock (Array<uint8_t>& out, Array<uint8_t>& idxOut, size_t k, Compressor *c, ExtraParams... params) 
+void FileCompressor::compressBlock (int f, Array<uint8_t>& out, Array<uint8_t>& idxOut, size_t k, shared_ptr<Compressor> c, ExtraParams&... params) 
 {
 	out.resize(0);
-	c->outputRecords(out, 0, k, params...);
+	c->outputRecords(records[f], out, 0, k, params...);
 	idxOut.resize(0);
 	c->getIndexData(idxOut);
 }
@@ -126,46 +123,27 @@ void FileCompressor::parser(size_t f, size_t start, size_t end)
 {
 	array<size_t, 3> stringEstimates { 0, 0, 0 };
 	size_t maxEnd = 0;
-	//auto t=zaman();
 	for (size_t i= start; i < end; i++) {
-		const Record &rc = recordsQueue[i];
+		const Record &rc = records[f][i];
 		size_t loc = rc.getLocation();
 		if (loc == (size_t)-1) loc = 0; 
 		size_t p_loc = rc.getPairLocation();
 		if (p_loc == (size_t)-1) p_loc = 0;
 
-		ZAMAN_START(EO);
-		EditOperation eo(loc, rc.getSequence(), rc.getCigar());
+		editOps[f][i] = EditOperation(loc, rc.getSequence(), rc.getCigar());
+
+		auto &eo = editOps[f][i];
+		assert(eo.ops.size());
 		maxEnd = max(maxEnd, eo.end);
-		(*editOp[f])[i] = eo;
-		ZAMAN_END(EO);
-
-		ZAMAN_START(RN);
-		(*readName[f])[i] = rc.getReadName();
-		stringEstimates[0] += (*readName[f])[i].size() + 1;
-		ZAMAN_END(RN);
-
-		ZAMAN_START(MFMQPE);
-		(*mapFlag[f])[i] = rc.getMappingFlag();
-		(*mapQual[f])[i] = rc.getMappingQuality();
-
-		PairedEndInfo pe(
+		pairedEndInfos[f][i] = PairedEndInfo(
 			rc.getPairChromosome(), p_loc, rc.getTemplateLenght(), 
 			eo.start, eo.end - eo.start, rc.getMappingFlag() & 0x10);
-		(*pairedEnd[f])[i] = pe;
-		ZAMAN_END(MFMQPE);
 
-		ZAMAN_START(Q);
-		(*quality[f])[i] = quality[f]->shrink(rc.getQuality(), rc.getMappingFlag());
-		stringEstimates[1] += (*quality[f])[i].size() + 1;
-		ZAMAN_END(Q);
-
-		ZAMAN_START(OF);
-		(*optField[f])[i] = rc.getOptional();
-		stringEstimates[2] += (*optField[f])[i].size() + 1;
-		ZAMAN_END(OF);
+		size_t est = quality[f]->shrink((char*)rc.getQuality(), strlen(rc.getQuality()), rc.getMappingFlag());
+		stringEstimates[0] += rc.getReadNameSize() + 1;
+		stringEstimates[1] += est + 1;
+		stringEstimates[2] += rc.getOptionalSize() + 1;
 	}
-	//LOG("done %'lu-%'lu in %.2lf %.2lf",start,end,(zaman()-t)/1000000.0, eox/1000000.0);
 	std::unique_lock<std::mutex> lock(queueMutex);
 	readName[f]->increaseTotalSize(stringEstimates[0]);
 	quality[f]->increaseTotalSize(stringEstimates[1]);
@@ -173,196 +151,195 @@ void FileCompressor::parser(size_t f, size_t start, size_t end)
 	sequence[f]->updateBoundary(maxEnd);
 }
 
-size_t FileCompressor::currentMemUsage(size_t f){
-	return 0; 
-		sizeInMemory(recordsQueue)+
-		readName[f]->currentMemoryUsage()+
-		quality[f]->currentMemoryUsage()+
-		mapFlag[f]->currentMemoryUsage()+
-		mapQual[f]->currentMemoryUsage()+
-		editOp[f]->currentMemoryUsage()+
-		sequence[f]->currentMemoryUsage()+
-		pairedEnd[f]->currentMemoryUsage();
+size_t FileCompressor::currentMemUsage(size_t f)
+{
+	return 0; //sizeInMemory(records) + sizeInMemory(editOps) + sizeInMemory(pairedEndInfos); 
 }
 
 void FileCompressor::outputRecords (void) 
 {
 	vector<Stats> stats(parsers.size());
-	for (int16_t f = 0; f < parsers.size(); f++) 
-		stats[f].fileName = parsers[f]->fileName();
-
 	vector<size_t> lastStart(parsers.size(), 0);
-	vector<int64_t> bsc(parsers.size(), blockSize);
-	int64_t total = 0;
-
-	int64_t blockCount = 0;
+	vector<int64_t> currentBlockSize(parsers.size(), blockSize);
+	vector<size_t> prevLoc(parsers.size(), 0);
 	vector<int64_t> currentSize(parsers.size(), 0);
+	for (int16_t f = 0; f < parsers.size(); f++) {
+		stats[f].fileName = parsers[f]->fileName();
+		records.push_back(CircularArray<Record>(blockSize));
+		editOps.push_back(CircularArray<EditOperation>(blockSize));
+		pairedEndInfos.push_back(CircularArray<PairedEndInfo>(blockSize));
+	}
+	int64_t total = 0;
+	int64_t blockCount = 0;
+	int totalMatchedMates = 0;
+
 	Array<uint8_t> outputBuffer[8];
 	Array<uint8_t> idxBuffer[8];
 	for (int i = 0; i < 8; i++) {
 		outputBuffer[i].set_extend(MB);
 		idxBuffer[i].set_extend(MB);
 	}
-
-	vector<size_t> prevLoc(parsers.size(), 0);
 	vector<thread> threads(optThreads);
-	
-	int totalMatchedMates = 0;
 
-	int fileAliveCount = parsers.size();
-	while (fileAliveCount) { 
+	for (int fileAliveCount = 0; fileAliveCount < parsers.size();) { 
 		LOGN("\r");
 		for (int16_t f = 0; f < parsers.size(); f++) {
 			if (!parsers[f]->hasNext()) {
-				fileAliveCount--;
+				fileAliveCount++;
 				continue;
 			}
 
-			ZAMAN_START_P(SeekChromosome);
+		ZAMAN_START_P(Seek);
 			char op = 0;
 			string chr = parsers[f]->head();
 			while (sequence[f]->getChromosome() != parsers[f]->head()) 
-				sequence[f]->scanChromosome(parsers[f]->head()), op = 1, prevLoc[f] = 0;
-			ZAMAN_END_P(SeekChromosome);
+				sequence[f]->scanChromosome(parsers[f]->head(), samComment[f]), op = 1, prevLoc[f] = 0;
+		ZAMAN_END_P(Seek);
 
-			int readInBlock = 0, matchedMates = 0;
-
-		ZAMAN_START_P(ParseBlock);
-			ZAMAN_START_P(InitThreads);
-			readName[f]->resize(bsc[f]);
-			editOp[f]->resize(bsc[f]);
-			mapQual[f]->resize(bsc[f]);
-			mapFlag[f]->resize(bsc[f]);
-			optField[f]->resize(bsc[f]);
-			quality[f]->resize(bsc[f]);
-			pairedEnd[f]->resize(bsc[f]);
-			recordsQueue.resize(bsc[f]+1);
-			canAccept = true;
-			ZAMAN_END_P(InitThreads);
-
-			ZAMAN_START_P(ReadIO);
-			if (!blockCount)
-				recordsQueue[0] = parsers[f]->next(); // TODO Check Bounds
-			for (; currentSize[f] < bsc[f] && parsers[f]->hasNext() 
-					&& parsers[f]->head() == sequence[f]->getChromosome(); currentSize[f]++, readInBlock++) 
-			{
-				Record &rc = recordsQueue[readInBlock];
+		ZAMAN_START_P(Parse);
+			ZAMAN_START_P(GetReads);
+			size_t blockOffset = currentSize[f];
+			for (; currentSize[f] < currentBlockSize[f] && parsers[f]->hasNext() && parsers[f]->head() == sequence[f]->getChromosome(); currentSize[f]++) {
+				records[f].add();
+				pairedEndInfos[f].add();
+				editOps[f].add();
+				records[f][records[f].size() - 1] = parsers[f]->next();
+				const Record &rc = records[f][records[f].size() - 1];
 				
 				size_t loc = rc.getLocation();
 				if (loc == (size_t)-1) 
-					loc = 0; 
-				if (loc < prevLoc[f])
+					loc = 0;
+				if (loc < prevLoc[f]) {
 					throw DZSortedException("%s is not sorted. Please sort it with 'dz --sort' before compressing it", parsers[f]->fileName().c_str());
+				}
 				prevLoc[f] = loc;
 				lastStart[f] = loc;
 				ZAMAN_START_P(Stats);
 				stats[f].addRecord(rc.getMappingFlag());
 				ZAMAN_END_P(Stats);
-				((SAMParser*)parsers[f].get())->readNextTo(recordsQueue[readInBlock + 1]);		
+
+				parsers[f]->readNext();
+				//LOG("%s %s %d %d %d", parsers[f]->head().c_str(), sequence[f]->getChromosome().c_str(), parsers[f]->hasNext(),
+				//	currentBlockSize[f], currentSize[f]);
 			}
-			ZAMAN_END_P(ReadIO);	
-			LOG("Memory after reading: %'lu", currentMemUsage(f));
+			ZAMAN_END_P(GetReads);	
+			//LOG("Memory after reading: %'lu", currentMemUsage(f));
 	
-			// WAIT FOR THREADS
 			ZAMAN_START_P(ParseRecords);
-			//qp = 0; qend = readInBlock;
-			readInBlock++;
-			size_t threadSz = readInBlock / optThreads + 1;
+			assert(records[f].size() == currentSize[f]);
+			size_t threadSz = (currentSize[f] - blockOffset) / optThreads + 1;
 			for (int i = 0; i < optThreads; i++)
 				threads[i] = thread([=](int ti, size_t start, size_t end) {
-					ZAMAN_START(Thread);
-					this->parser(f, start, end);
-					ZAMAN_END(Thread);
-				}, i, threadSz * i, min(size_t(readInBlock), (i + 1) * threadSz));
+						ZAMAN_START(Thread);
+						this->parser(f, start, end);
+						ZAMAN_END(Thread);
+						ZAMAN_THREAD_JOIN();
+					}, 
+					i, 
+					blockOffset + threadSz * i, 
+					blockOffset + min(size_t(currentSize[f] - blockOffset), (i + 1) * threadSz)
+				);
 			for (int i = 0; i < optThreads; i++)
 				threads[i].join();
-			recordsQueue[0] = recordsQueue[readInBlock];
 			ZAMAN_END_P(ParseRecords);
-			LOG("Memory after parsing: %'lu", currentMemUsage(f));
+			
+			ZAMAN_START_P(ParseQualities);
+			quality[f]->calculateOffset(records[f]);
+			quality[f]->offsetRecords(records[f]);
+			ZAMAN_END_P(ParseQualities);
 
-			total += currentSize[f];
+			ZAMAN_START_P(Load);
+			sequence[f]->getReference().loadIntoBuffer(sequence[f]->getBoundary());
+			ZAMAN_END_P(Load);
+
+			ZAMAN_START_P(ParseMDandNM);
+			threadSz = (currentSize[f] - blockOffset) / optThreads + 1;
+			for (int i = 0; i < optThreads; i++) 
+				threads[i] = thread([&](int ti, size_t start, size_t end) {
+						ZAMAN_START(Thread);
+						for (int i = start; i < end; i++) 
+							editOps[f][i].calculateTags(sequence[f]->getReference());
+						ZAMAN_END(Thread);
+						ZAMAN_THREAD_JOIN();
+					}, 
+					i, 
+					blockOffset + threadSz * i, 
+					blockOffset + min(size_t(currentSize[f] - blockOffset), (i + 1) * threadSz)
+				);
+			for (int i = 0; i < optThreads; i++)
+				threads[i].join();
+			//LOG("Memory after calculating: %'lu", currentMemUsage(f));
+			ZAMAN_END_P(ParseMDandNM);
+
+			total += currentSize[f] - blockOffset;
 			LOGN("  %5.1lf%% [%s,%zd]", (100.0 * parsers[f]->fpos()) / parsers[f]->fsize(), 
 				sequence[f]->getChromosome().c_str(), blockCount + 1);
-		
-		ZAMAN_END_P(ParseBlock);
+		ZAMAN_END_P(Parse);
+
+		ZAMAN_START_P(Fix);
+			size_t 
+				currentBlockCount, 
+				currentBlockFirstLoc, 
+				currentBlockLastLoc, 
+				currentBlockLastEndLoc,
+				fixedStartPos, 
+				fixedEndPos,
+				zpos;
+
+			size_t fixingEnd = lastStart[f] - 1;
+			if (!parsers[f]->hasNext() 
+				|| parsers[f]->head() != sequence[f]->getChromosome() 
+				|| parsers[f]->head() == "*") 
+			{
+				fixingEnd = (size_t)-1;
+			}
+
+			currentBlockCount = sequence[f]->applyFixes(
+				fixingEnd, records[f], editOps[f],
+				currentBlockFirstLoc, currentBlockLastLoc, currentBlockLastEndLoc, fixedStartPos, fixedEndPos
+			);
+			if (currentBlockCount == 0) {
+				currentBlockSize[f] += blockSize;
+				LOG("Retrying...");
+				ZAMAN_END_P(Fix);
+				continue;
+			}
+			currentSize[f] -= currentBlockCount;
+		ZAMAN_END_P(Fix);
+			//LOG("Memory after fixing: %'lu", currentMemUsage(f));
 
 		ZAMAN_START_P(CheckMate);
+			int matchedMates = 0;
 			unordered_map<string, int> readNames; 
-			for (size_t i = 0; i < readInBlock; i++) {
-				auto &rn = (*readName[f])[i];
+			for (size_t i = 0; i < currentBlockCount; i++) {
+				string rn = records[f][i].getReadName();
 				auto it = readNames.find(rn);
 				if (it == readNames.end()) {
 					readNames[rn] = i;
-				} else {
-					// Check...
-					EditOperation &eo = (*editOp[f])[i];
-					PairedEndInfo &pe = (*pairedEnd[f])[i];
-					EditOperation &peo = (*editOp[f])[it->second];
-					PairedEndInfo &ppe = (*pairedEnd[f])[it->second];
+				} else { // Check can we calculate back the necessary values
+					EditOperation &eo = editOps[f][i];
+					PairedEndInfo &pe = pairedEndInfos[f][i];
+					EditOperation &peo = editOps[f][it->second];
+					PairedEndInfo &ppe = pairedEndInfos[f][it->second];
 					if (pe.tlen == -ppe.tlen // TLEN can be calculated
 						&& eo.start == ppe.pos
 						&& pe.pos == peo.start // POS can be calculated
 						&& (ppe.chr == "=" || chr == ppe.chr) // CHR can be calculated as well
 						&& ppe.tlen >= 0 
-						&& ppe.tlen == eo.start + (peo.end - peo.start) - peo.start
-					)
+						&& ppe.tlen == eo.start + (peo.end - peo.start) - peo.start)
 					{
 						ppe.bit = PairedEndInfo::Bits::LOOK_AHEAD; 
 						pe.bit = PairedEndInfo::Bits::LOOK_BACK; // DO NOT ADD!
 						pe.tlen = i - it->second;
-						//addReadName = false;
-						matchedMates++;
+						*(char*)(records[f][i].getReadName()) = 0;
 						rn = "";
 					} else { // Replace with current read
 						readNames[rn] = i;
 					}
 				}
 			}
+			totalMatchedMates += matchedMates;
 		ZAMAN_END_P(CheckMate);
-
-		ZAMAN_START_P(CalculateMD);
-			ZAMAN_START_P(Load);
-			sequence[f]->getReference().loadIntoBuffer(sequence[f]->getBoundary());
-			ZAMAN_END_P(Load);
-			threadSz = currentSize[f] / optThreads + 1;
-			for (int i = 0; i < optThreads; i++) {
-				threads[i] = thread([&](int ti, size_t start, size_t end) {
-					ZAMAN_START(Thread);
-					for (int i = start; i < end; i++) 
-						(*editOp[f])[i].calculateTags(sequence[f]->getReference());
-					ZAMAN_END(Thread);
-				}, i, threadSz * i, min(size_t(currentSize[f]), (i + 1) * threadSz));
-			}
-			for (int i = 0; i < optThreads; i++)
-				threads[i].join();
-		ZAMAN_END_P(CalculateMD);
-			//LOG("Memory after calculating: %'lu", currentMemUsage(f));
-			//LOG("Completed, processed %d", queuePosition[f]);
-
-		ZAMAN_START_P(FixGenome);
-			size_t currentBlockCount, 
-				currentBlockFirstLoc, 
-				currentBlockLastLoc, 
-				currentBlockLastEndLoc,
-				fixedStartPos, fixedEndPos;
-			size_t zpos;
-			editOp[f]->resize(currentSize[f]); // HACK
-			currentBlockCount = sequence[f]->applyFixes(
-				!parsers[f]->hasNext() || parsers[f]->head() != sequence[f]->getChromosome() || parsers[f]->head() == "*" 
-					? (size_t)-1 : lastStart[f] - 1, 
-				*(editOp[f]),
-				currentBlockFirstLoc, currentBlockLastLoc, currentBlockLastEndLoc,
-				fixedStartPos, fixedEndPos
-			);
-			if (currentBlockCount == 0) {
-				bsc[f] += blockSize;
-				LOG("Retrying...");
-				ZAMAN_END_P(FixGenome);
-				continue;
-			}
-			currentSize[f] -= currentBlockCount;
-		ZAMAN_END_P(FixGenome);
-			//LOG("Memory after fixing: %'lu", currentMemUsage(f));
 
 		ZAMAN_START_P(WriteIndex);
 			zpos = ftell(outputFile);
@@ -381,33 +358,60 @@ void FileCompressor::outputRecords (void)
 			gzwrite(indexFile, &fixedEndPos, sizeof(size_t));
 		ZAMAN_END_P(WriteIndex);
 
-		ZAMAN_START_P(CompressBlocks);
-			Compressor *ci[] = { sequence[f].get(), editOp[f].get(), readName[f].get(), mapFlag[f].get(), mapQual[f].get(), quality[f].get(), pairedEnd[f].get(), optField[f].get() };
+		ZAMAN_START_P(Compress);
 			ctpl::thread_pool threadPool(optThreads);
-			for (size_t ti = 0; ti < 7; ti++) 
-				threadPool.push([&](int t, int ti) {
-					ZAMAN_START(Thread);
-					compressBlock(outputBuffer[ti], idxBuffer[ti], currentBlockCount, ci[ti]);
-					ZAMAN_END(Thread);
-				//	LOG("Compressor %d done", ti);
-				}, ti);
-			threadPool.push([&](int t) {
-				ZAMAN_START(Thread);
-				compressBlock(outputBuffer[7], idxBuffer[7], currentBlockCount, optField[f].get(), editOp[f].get());
-				ZAMAN_END(Thread);
-			//	LOG("Compressor %d done", 7);
-			});
+			threadPool.push([&](int t, int ti) {
+				compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, sequence[f]);
+				ZAMAN_THREAD_JOIN();
+			//	LOG("seq done");
+			}, 0);
+			threadPool.push([&](int t, int ti) {
+			 	compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, editOp[f], editOps[f]);
+			 	ZAMAN_THREAD_JOIN();
+			// 	LOG("eo done");
+			}, 1);
+			threadPool.push([&](int t, int ti) {
+				compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, readName[f]);
+				ZAMAN_THREAD_JOIN();
+			//	LOG("rn done");
+			}, 2);
+			threadPool.push([&](int t, int ti) {
+				compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, mapFlag[f]);
+				ZAMAN_THREAD_JOIN();
+			//	LOG("mf done");
+			}, 3);
+			threadPool.push([&](int t, int ti) {
+				compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, mapQual[f]);
+				ZAMAN_THREAD_JOIN();
+			//	LOG("mq done");
+			}, 4);
+			threadPool.push([&](int t, int ti) {
+				compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, quality[f]);
+				ZAMAN_THREAD_JOIN();
+			//	LOG("qual done");
+			}, 5);
+			threadPool.push([&](int t, int ti) {
+				compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, pairedEnd[f], pairedEndInfos[f]);
+				ZAMAN_THREAD_JOIN();
+			//	LOG("pe done");
+			}, 6);
+			threadPool.push([&](int t, int ti) {
+				compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, optField[f], editOps[f]);
+				ZAMAN_THREAD_JOIN();
+			//	LOG("of done");
+			}, 7);
 			threadPool.stop(true);
-			editOp[f]->records.remove_first_n(currentBlockCount);
-		ZAMAN_END_P(CompressBlocks);
-			//LOG("Memory after compressing: %'lu", currentMemUsage(f));
+			records[f].remove_first_n(currentBlockCount);
+			editOps[f].remove_first_n(currentBlockCount);
+			pairedEndInfos[f].remove_first_n(currentBlockCount);
+			// LOG("Memory after compressing: %'lu", currentMemUsage(f));
+		ZAMAN_END_P(Compress);
 
-		ZAMAN_START_P(OutputBlocks);
+		ZAMAN_START_P(Output);
 			for (int ti = 0; ti < 8; ti++)
 				outputBlock(outputBuffer[ti], idxBuffer[ti]);
-		ZAMAN_END_P(OutputBlocks);
+		ZAMAN_END_P(Output);
 
-			totalMatchedMates += matchedMates;
 			blockCount++;
 		}
 	}
@@ -436,17 +440,17 @@ void FileCompressor::outputRecords (void)
 	ZAMAN_END_P(WriteIndex);
 	
 	LOG("Paired %'d out of %'d reads", totalMatchedMates, total);
-	#define VERBOSE(x) \
-		LOG("%-12s: %'20lu", #x, x->compressedSize()); x->printDetails();
+	#define VERBOSE(y,x) \
+		LOG("%-12s  %'20lu", y, x->compressedSize()); x->printDetails();
 	for (int f = 0; f < parsers.size(); f++) {
-		VERBOSE(sequence[f]);
-		VERBOSE(editOp[f]);
-		VERBOSE(readName[f]);
-		VERBOSE(mapFlag[f]);
-		VERBOSE(mapQual[f]);
-		VERBOSE(quality[f]);
-		VERBOSE(pairedEnd[f]);
-		VERBOSE(optField[f]);
+		VERBOSE("Reference", sequence[f]);
+		VERBOSE("Sequences", editOp[f]);
+		VERBOSE("Read Names", readName[f]);
+		VERBOSE("Flags", mapFlag[f]);
+		VERBOSE("Map. Quals", mapQual[f]);
+		VERBOSE("Qualities", quality[f]);
+		VERBOSE("Paired End", pairedEnd[f]);
+		VERBOSE("Optionals", optField[f]);
 	}
 }
 

@@ -6,8 +6,6 @@
 #include <cstdlib>
 #include "../Common.h"
 
-const int MAXLEN = 8 * MB;
-
 class Record {
     char *line;
     size_t lineLength;
@@ -52,8 +50,9 @@ public:
         strFields = a.strFields;
         intFields = a.intFields;
         lineLength = a.lineLength;
-        line = (char*)malloc(a.lineLength);
+        line = (char*)malloc(a.lineLength + 1);
         std::copy(a.line, a.line + a.lineLength, line);
+        line[lineLength] = 0;
     }
 
     Record(Record&& a): Record()
@@ -82,15 +81,20 @@ public:
     const char* getReadName() const { return &line[0] + strFields[RN]; }
     const int getMappingFlag() const { return intFields[MF]; }
     const char* getChromosome() const { return &line[0] + strFields[CHR]; }
-    const size_t getLocation() const { return intFields[LOC] - 1; }
+    const size_t getLocation() const { return intFields[LOC]; }
     const char getMappingQuality() const { return intFields[MQ]; }
     const char* getCigar() const { return &line[0] + strFields[CIGAR]; }
     const char* getPairChromosome() const { return &line[0] + strFields[P_CHR]; }
-    const size_t getPairLocation() const { return intFields[P_LOC] - 1; }
+    const size_t getPairLocation() const { return intFields[P_LOC]; }
     const int getTemplateLenght() const { return intFields[TLEN]; }
     const char* getSequence() const { return &line[0] + strFields[SEQ]; }
     const char* getQuality() const { return &line[0] + strFields[QUAL]; }
     const char* getOptional() const { return &line[0] + strFields[OPT]; }
+
+    size_t getReadNameSize() const { return strlen(getReadName()); }
+    size_t getSequenceSize() const { return strFields[QUAL] - strFields[SEQ] - 1; }
+    size_t getOptionalSize() const { return strlen(getOptional()); }
+
 
     std::string getFullRecord() const {
         return S(

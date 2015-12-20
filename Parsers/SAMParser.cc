@@ -35,29 +35,18 @@ string SAMParser::readComment (void)
 		if (currentRecord.line[0] != '@') {
 			parse(currentRecord);
 			break;
+		} else {
+			s += currentRecord.line;
 		}
-		else s += &currentRecord.line[0];
 	}
 	return s;
 }
 
-bool SAMParser::readNext (void)  
+bool SAMParser::readNext ()  
 {
-	//if (fgets(&currentRecord.line[0], MAXLEN, input)) {
 	if (getline(&currentRecord.line, &currentRecord.lineLength, input) != -1) {
 		assert(currentRecord.line[0] != '@');
 		parse(currentRecord);
-		return true;
-	}
-	return false;
-}
-
-bool SAMParser::readNextTo (Record &record)  
-{
-	//if (fgets(&record.line[0], MAXLEN, input)) {
-	if (getline(&record.line, &record.lineLength, input) != -1) {
-		assert(record.line[0] != '@');
-		parse(record);
 		return true;
 	}
 	return false;
@@ -101,9 +90,16 @@ void SAMParser::parse (Record &record)
 	}	
 	if (f == 11)
 		record.strFields[sfc++] = c - line;
+	/*while (*c) {
+		if (*c == '\t') *c = 0;
+		c++;
+	}*/
+	
+	record.intFields[Record::IntField::LOC]--;
+	record.intFields[Record::IntField::P_LOC]--;
 }
 
-const Record &SAMParser::next (void) 
+Record SAMParser::next (void) 
 {
 	return currentRecord;
 }

@@ -82,6 +82,7 @@ void EditOperation::calculateTags(Reference &reference)
 		MD = "0" + MD;
 
 	ZAMAN_END(CalculateMDNM);
+	assert(ops.size());
 }
 
 template<>
@@ -94,18 +95,14 @@ size_t sizeInMemory(EditOperation t) {
 		3 * sizeof(std::string) - sizeof(t.ops); 
 }
 
-EditOperationCompressor::EditOperationCompressor (int blockSize, const SequenceCompressor &seq):
-	GenericCompressor<EditOperation, GzipCompressionStream<6>>(blockSize),
+EditOperationCompressor::EditOperationCompressor (const SequenceCompressor &seq):
+	GenericCompressor<EditOperation, GzipCompressionStream<6>>(),
 	sequence(seq)
 {
 	streams.resize(Fields::ENUM_COUNT);
 	for (int i = 0; i < streams.size(); i++)
 		streams[i] = make_shared<GzipCompressionStream<6>>();
 	streams[Fields::LOCATION] = make_shared<AC0CompressionStream<AC, 256>>();
-}
-
-EditOperationCompressor::~EditOperationCompressor (void) 
-{
 }
 
 void EditOperationCompressor::printDetails(void) 
@@ -115,7 +112,7 @@ void EditOperationCompressor::printDetails(void)
 		LOG("  %-10s: %'20lu ", s[i], streams[i]->getCount());
 }
 
-void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) 
+void EditOperationCompressor::outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const CircularArray<EditOperation> &editOps) 
 {
 	if (!records.size()) { 
 		out.resize(0);
@@ -131,18 +128,21 @@ void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_off
 	Array<uint8_t> locations(k);
 	Array<uint32_t> stitches(k);	
 
-	ACTGStream nucleotides(k * records[0].seq.size(), MB);
+	ACTGStream nucleotides(k * records[0].getSequenceSize(), MB);
 	nucleotides.initEncode();
 
 	uint32_t lastLoc = 0;
 	for (size_t i = 0; i < k; i++) {
-		if (records[i].start - lastLoc >= 254)
-			locations.add(255), stitches.add(records[i].start);
+		int loc = records[i].getLocation();
+		if (loc == (size_t)-1) 
+			loc = 0;
+		if (loc - lastLoc >= 254)
+			locations.add(255), stitches.add(loc);
 		else
-			locations.add(records[i].start - lastLoc);
-		lastLoc = records[i].start;
+			locations.add(loc - lastLoc);
+		lastLoc = loc;
 
-		addEditOperation(records[i], nucleotides, oa);
+		addEditOperation(records[i], editOps[i], nucleotides, oa);
 	}
 	
 	compressArray(streams[Fields::STITCH], stitches, out, out_offset);
@@ -160,14 +160,17 @@ void EditOperationCompressor::outputRecords (Array<uint8_t> &out, size_t out_off
 	ZAMAN_END(EditOperationOutput);
 }
 
-void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStream &nucleotides, vector<Array<uint8_t>> &out) 
+void EditOperationCompressor::addEditOperation(const Record &record, const EditOperation &eo, ACTGStream &nucleotides, vector<Array<uint8_t>> &out) 
 {
 	ZAMAN_START(AddEditOperation);
+
+	const char *seq = record.getSequence();
+	size_t seqSize = record.getSequenceSize();
 	
 	if (eo.ops[0].first == '*') {
-		if (eo.seq != "*") {
-			nucleotides.add(eo.seq.c_str(), eo.seq.size());
-			addEncoded(eo.seq.size() + 1, out[Fields::SEQEND]);
+		if (seq[0] != '*') {
+			nucleotides.add(seq, seqSize);
+			addEncoded(seqSize + 1, out[Fields::SEQEND]);
 		} else {
 			addEncoded(1, out[Fields::SEQEND]);
 		}
@@ -179,13 +182,13 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStre
 	}
 
 	size_t size   = 0;
-	size_t genPos = eo.start;
+	size_t genPos = record.getLocation();
 	size_t seqPos = 0, prevSeqPos = 0;
 
 	char lastOP = 0;
 	int  lastOPSize = 0;
 
-	bool checkSequence = eo.seq[0] != '*';
+	bool checkSequence = seq[0] != '*';
 	int opcodeOffset = out[Fields::OPCODES].size();
 	for (auto &op: eo.ops) {
 		lastOP = lastOPSize = 0;
@@ -197,7 +200,7 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStre
 				lastOP = 'X', lastOPSize = 0;
 			}
 			for (size_t i = 0; i < op.second; i++) {
-				if (checkSequence && eo.seq[seqPos] == sequence[genPos]) {
+				if (checkSequence && seq[seqPos] == sequence[genPos]) {
 					if (lastOP == '=')
 						lastOPSize++;
 					else {
@@ -207,12 +210,12 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStre
 						lastOP = '=', lastOPSize = 1;
 					}
 				} else if (checkSequence && lastOP == 'X') {
-					nucleotides.add(eo.seq.c_str() + seqPos, 1), lastOPSize++;
+					nucleotides.add(seq + seqPos, 1), lastOPSize++;
 				} else {
 					if (lastOP && lastOP != '=') {
 						addOperation(lastOP, seqPos - prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
 					}
-					if (checkSequence) nucleotides.add(eo.seq.c_str() + seqPos, 1);
+					if (checkSequence) nucleotides.add(seq + seqPos, 1);
 					lastOP = 'X', lastOPSize = 1;
 				}
 				genPos++;
@@ -223,7 +226,7 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStre
 			break;
 		case 'I':
 		case 'S':
-			if (checkSequence) nucleotides.add(eo.seq.c_str() + seqPos, op.second);	
+			if (checkSequence) nucleotides.add(seq + seqPos, op.second);	
 			seqPos += op.second;
 			addOperation(op.first, seqPos - prevSeqPos, op.second, out), prevSeqPos = seqPos;
 			break;
@@ -241,7 +244,7 @@ void EditOperationCompressor::addEditOperation(const EditOperation &eo, ACTGStre
 		}
 	}
 	addEncoded(out[Fields::OPCODES].size() - opcodeOffset + 1, out[Fields::OPLEN]);
-	addEncoded((checkSequence ? eo.seq.size() : 0) + 1, out[Fields::SEQEND]);
+	addEncoded((checkSequence ? seqSize : 0) + 1, out[Fields::SEQEND]);
 
 	ZAMAN_END(AddEditOperation);
 }

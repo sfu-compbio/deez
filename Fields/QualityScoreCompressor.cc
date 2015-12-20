@@ -1,8 +1,8 @@
 #include "QualityScore.h"
 using namespace std;
 
-QualityScoreCompressor::QualityScoreCompressor (int blockSize):
-	StringCompressor<QualityCompressionStream>(blockSize),
+QualityScoreCompressor::QualityScoreCompressor(void):
+	StringCompressor<QualityCompressionStream>(),
 	statMode(true),
 	offset(0)
 {
@@ -22,38 +22,109 @@ QualityScoreCompressor::QualityScoreCompressor (int blockSize):
 	LOG("Using quality mode %s", qualities[optQuality]);
 }
 
-QualityScoreCompressor::~QualityScoreCompressor (void) 
+size_t QualityScoreCompressor::shrink(char *qual, size_t len, int flag)
 {
+	if (!len || (len == 1 && qual[0] == '*')) {
+		*qual = 0;
+		return 0;
+	}
+
+	if (flag & 0x10) for (size_t j = 0; j < len / 2; j++)
+		swap(qual[j], qual[len - j - 1]);
+
+	ssize_t sz = len;
+	if (sz >= 2) {
+		sz -= 2;
+		while (sz && qual[sz] == qual[len - 1])
+			sz--;
+		sz += 2;
+	}
+	qual[sz] = 0;
+	assert(sz > 0);
+	return sz;
 }
 
-void QualityScoreCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k) 
+void QualityScoreCompressor::calculateOffset (CircularArray<Record> &records)
 {
-	ZAMAN_START(QualityScoreOutput);
-	ZAMAN_START(Subtract);
-	if (!offset) {
-		offset = calculateOffset();
+	if (offset) 
+		return;
+	
+	vector<thread> threads(optThreads);
+	mutex m;
+	size_t threadSz = records.size() / optThreads + 1;
+	for (int ti = 0; ti < optThreads; ti++)
+		threads[ti] = thread([&](int ti, size_t start, size_t end) {
+			int st[128] = {0};
+			for (size_t i = start; i < end; i++) {
+				const char *q = records[i].getQuality();
+				while (*q) st[*q]++, q++;
+			}
+			{
+				lock_guard<mutex> l(m);
+				for (int i = 0; i < 128; i++)
+					stat[i] += st[i];
+			}
+		}, ti, threadSz * ti, min(records.size(), (ti + 1) * threadSz));
+	for (int i = 0; i < optThreads; i++)
+		threads[i].join();
+
+	offset = 64;
+	for (int i = 33; i < 64; i++) {
+		if (i < 59 && stat[i]) {
+			offset = 33;
+			break;
+		}
+		if (stat[i]) {
+			offset = 59;
+			break;
+		}
 	}
+	
 	if (optLossy && statMode) {
 		calculateLossyTable(optLossy);
 		statMode = false;	
-		for (size_t i = 0; i < k; i++) 
-			for (int j = 0; j < this->records[i].size(); j++)
-				this->records[i][j] = lossy[this->records[i][j]];
 	} 
+}
 
+void QualityScoreCompressor::offsetRecords (CircularArray<Record> &records)
+{
+	assert(offset);
+	size_t threadSz = records.size() / optThreads + 1;
+	vector<thread> threads(optThreads);
+	for (int ti = 0; ti < optThreads; ti++)
+		threads[ti] = thread([&](int ti, size_t start, size_t end) {
+			for (size_t i = start; i < end; i++) {
+				char *qual = (char*)records[i].getQuality();
+				lossyTransform(qual, strlen(qual));
+				while (*qual) {
+					if (*qual < offset)
+						throw DZException("Quality scores out of range with L offset %d [%c]", offset, *qual);
+					*qual = (*qual - offset) + 1;
+					if (*qual >= QualRange)
+						throw DZException("Quality scores out of range with R offset %d [%c]", offset, *qual + offset - 1);
+					qual++;
+				}
+			}
+		}, ti, threadSz * ti, min(records.size(), (ti + 1) * threadSz));
+	for (int i = 0; i < optThreads; i++)
+		threads[i].join();
+}
+
+void QualityScoreCompressor::outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) 
+{
+	ZAMAN_START(QualityScoreOutput);
+	
 	out.add(offset); out_offset++;
-	for (int i = 0; i < k; i++) {
-		for (int j = 0; j < this->records[i].size(); j++) {
-			char &c = this->records[i][j];
-			if (c < offset)
-				throw DZException("Quality scores out of range with L offset %d [%c]", offset, c);
-			c = (c - offset) + 1;
-			if (c >= QualRange)
-				throw DZException("Quality scores out of range with R offset %d [%c]", offset, c + offset - 1);
-		}
+
+	Array<uint8_t> buffer(totalSize, MB);
+	for (size_t i = 0; i < k; i++) {
+		const char *q = records[i].getQuality();
+		while (*q)
+			buffer.add(*q), q++;
+		buffer.add(0);
+		totalSize -= (q - records[i].getQuality()) + 1;
 	}
-	ZAMAN_END(Subtract);
-	StringCompressor<QualityCompressionStream>::outputRecords(out, out_offset, k);
+	compressArray(streams.front(), buffer, out, out_offset);
 	memset(stat, 0, 128 * sizeof(int));
 	offset = 0;
 
@@ -68,17 +139,6 @@ double QualityScoreCompressor::phredScore (char c, int offset)
 bool statSort (const pair<char, int> &a, const pair<char, int> &b) 
 {
 	return (a.second > b.second || (a.second == b.second && a.first < b.first));
-}
-
-char QualityScoreCompressor::calculateOffset (void) 
-{
-	for (int i = 33; i < 64; i++) {
-		if (i < 59 && stat[i]) 
-			return 33;
-		if (stat[i]) 
-			return 59;
-	}
-	return 64;
 }
 
 void QualityScoreCompressor::calculateLossyTable (int percentage) 
@@ -141,46 +201,10 @@ void QualityScoreCompressor::calculateLossyTable (int percentage)
 	}
 }
 
-void QualityScoreCompressor::lossyTransform (string &qual) 
+void QualityScoreCompressor::lossyTransform (char *qual, size_t len) 
 {
-	for (size_t i = 0; i < qual.size(); i++)
-		stat[qual[i]]++;
 	if (!optLossy) 
 		return;
-	if (!statMode) for (size_t i = 0; i < qual.size(); i++)
+	if (!statMode) for (size_t i = 0; i < len; i++)
 		qual[i] = lossy[qual[i]];
-}
-
-std::string QualityScoreCompressor::shrink(const std::string &s, int flag)
-{
-	//assert(i < records.size());
-	if (!s.size() || s == "*")
-		return "";
-
-	string q = s;
-	size_t sz = q.size();
-	if (flag & 0x10) for (size_t j = 0; j < sz / 2; j++)
-		swap(q[j], q[sz - j - 1]);
-	lossyTransform(q);
-
-	if (sz >= 2) {
-		sz -= 2;
-		while (sz && q[sz] == q[q.size() - 1])
-			sz--;
-		sz += 2;
-	}
-	q = q.substr(0, sz);
-	assert(q.size() > 0);
-	return q;
-}
-
-void QualityScoreCompressor::addRecord (const string &qual, int flag) 
-{
-	ZAMAN_START(Add);
-	if (qual == "*") {
-		StringCompressor<QualityCompressionStream>::addRecord(string());
-	} else {
-		StringCompressor<QualityCompressionStream>::addRecord(shrink(qual, flag));
-	}
-	ZAMAN_END(Add);
 }

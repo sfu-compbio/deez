@@ -39,17 +39,16 @@ class EditOperationCompressor:
 	const SequenceCompressor &sequence;
 
 public:
-	EditOperationCompressor(int blockSize, const SequenceCompressor &seq);
-	virtual ~EditOperationCompressor(void);
+	EditOperationCompressor(const SequenceCompressor &seq);
 
 public:
-	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
+	void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const CircularArray<EditOperation> &editOps);
 	void getIndexData (Array<uint8_t> &out);
 	void printDetails(void);
 
 private:	
 	void addOperation(char op, int seqPos, int size, vector<Array<uint8_t>> &out);
-	void addEditOperation(const EditOperation &eo, ACTGStream &nucleotides, vector<Array<uint8_t>> &out);
+	void addEditOperation(const Record &record, const EditOperation &eo, ACTGStream &nucleotides, vector<Array<uint8_t>> &out);
 
 public:
 	friend class FileCompressor;

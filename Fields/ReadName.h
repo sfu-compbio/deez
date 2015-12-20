@@ -22,18 +22,17 @@
 const int MAX_TOKEN = 20;
 
 class ReadNameCompressor: 
-	public StringCompressor<GzipCompressionStream<6> >  
+	public StringCompressor<GzipCompressionStream<6>>  
 {
 	std::string prevTokens[MAX_TOKEN];
 	char prevCharTokens[MAX_TOKEN];
 
 public:
-	ReadNameCompressor(int blockSize);
-	virtual ~ReadNameCompressor(void);
-
+	ReadNameCompressor(void);
+	
 public:
-	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
-	void getIndexData (Array<uint8_t> &out);
+	void outputRecords(const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k);
+	void getIndexData(Array<uint8_t> &out);
 	void printDetails(void);
 
 private:

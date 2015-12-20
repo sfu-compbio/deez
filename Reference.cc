@@ -128,36 +128,7 @@ size_t Reference::getChromosomeLength(const std::string &s) const
 	}
 }
 
-void Reference::scanSAMComment (const string &comment) 
-{	
-	size_t pos;
-	istringstream ss(comment);
-	string l, lo;
-	while (getline(ss, l)) {
-		if (l.size() <= 4 || l.substr(0, 4) != "@SQ\t") continue;
-		lo = l, l = l.substr(4);
-		
-		unordered_map<string, string> val;
-		while (l.size() > 3 && (pos = l.find('\t')) != string::npos) {
-			val[l.substr(0, 2)] = l.substr(3, pos - 3);
-			l = l.substr(pos + 1);
-		}
-		if (l.size() > 3 && isalpha(l[0]))
-			val[l.substr(0, 2)] = l.substr(3, pos - 3);
-		//val["fullLine"] = lo;
-		if (val.find("SN") != val.end()) 
-			samCommentData[val["SN"]] = val;
-	}
-
-	for (auto &c: samCommentData) {
-		DEBUGN("%s: ", c.first.c_str());
-		for (auto &e: c.second)
-			DEBUGN("%s->%s ", e.first.c_str(), e.second.c_str());
-		DEBUG("");
-	}
-}
-
-std::string Reference::scanChromosome (const string &s) 
+std::string Reference::scanChromosome (const string &s, const SAMComment &samComment) 
 {
 	buffer = "";
 	bufferStart = bufferEnd = currentPos = 0;
@@ -187,11 +158,15 @@ std::string Reference::scanChromosome (const string &s)
 	} catch (DZException &e) {
 		// Try Doing Sth Else
 		try {
-			auto it = samCommentData[s].find("UR");
-			if (it != samCommentData[s].end() && File::IsWeb(it->second) && currentWebFile != it->second) {
-				LOG("Loaded reference file %s for chromosome %s via @SQ:UR field", it->second.c_str(), s.c_str());
-				input = WebFile::Download(currentWebFile = it->second, true);
-				filename = File::FullPath(it->second);
+			auto it = samComment.SQ.find(s);
+			if (it == samComment.SQ.end()) 
+				throw DZException("Cannot find reference in @SQ:UR");
+	
+			auto jt = it->second.find("UR");
+			if (jt != it->second.end() && File::IsWeb(jt->second) && currentWebFile != jt->second) {
+				LOG("Loaded reference file %s for chromosome %s via @SQ:UR field", jt->second.c_str(), s.c_str());
+				input = WebFile::Download(currentWebFile = jt->second, true);
+				filename = File::FullPath(jt->second);
 			} else {
 				throw DZException("Cannot find reference in @SQ:UR");
 			}

@@ -33,11 +33,10 @@ class PairedEndCompressor:
 	public GenericCompressor<PairedEndInfo, GzipCompressionStream<6>> 
 {
 public:
-	PairedEndCompressor (int blockSize);
-	virtual ~PairedEndCompressor (void);
-
+	PairedEndCompressor (void);
+	
 public:
-	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
+	void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const CircularArray<PairedEndInfo> &pairedEndInfos);
 	void printDetails(void);
 
 public:

@@ -1,8 +1,8 @@
 #include "OptionalField.h"
 using namespace std;
 
-OptionalFieldCompressor::OptionalFieldCompressor (int blockSize):
-	StringCompressor<GzipCompressionStream<6>>(blockSize),
+OptionalFieldCompressor::OptionalFieldCompressor(void):
+	StringCompressor<GzipCompressionStream<6>>(),
 	totalNM(0), totalMD(0), totalXD(0),
 	failedNM(0), failedMD(0), failedXD(0) 
 {
@@ -15,6 +15,16 @@ OptionalFieldCompressor::~OptionalFieldCompressor (void)
 	if (failedXD) LOG("XD stats: %'d failed out of %'d", failedXD, totalXD);
 }
 
+size_t OptionalFieldCompressor::compressedSize(void) 
+{ 
+	size_t res = 0;
+	for (int i = 0; i < streams.size(); i++) 
+		res += streams[i]->getCount();
+	for (auto &m: fieldStreams) 
+		res += m.second->getCount();
+	return res;
+}
+
 void OptionalFieldCompressor::printDetails(void) 
 {
 	LOG("  Index     : %'20lu", streams[0]->getCount());
@@ -22,8 +32,7 @@ void OptionalFieldCompressor::printDetails(void)
 		LOG("  %-10s: %'20lu", m.first.c_str(), m.second->getCount());
 }
 
-void OptionalFieldCompressor::outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k,
-	EditOperationCompressor *ec) 
+void OptionalFieldCompressor::outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const CircularArray<EditOperation> &editOps) 
 {
 	if (!records.size()) { 
 		out.resize(0);
@@ -37,24 +46,32 @@ void OptionalFieldCompressor::outputRecords (Array<uint8_t> &out, size_t out_off
 	Array<uint8_t> sizes(k, MB);
 
 	for (size_t i = 0; i < k; i++) {
-		int size = processFields(this->records[i], oa, buffer, (*ec)[i]);
+		string of = records[i].getOptional();
+		int size = processFields(of, oa, buffer, editOps[i]);
 		addEncoded(size + 1, sizes);
-		this->totalSize -= this->records[i].size() + 1;
+		totalSize -= of.size() + 1;
 	}
 
+	ZAMAN_START(Index);
 	compressArray(streams[0], buffer, out, out_offset);
 	compressArray(streams[0], sizes, out, out_offset);
+	ZAMAN_END(Index);
 
+	ZAMAN_START(Keys);
 	unordered_map<int, string> mm;
 	for (auto &f: fields) mm[f.second] = f.first;
 	for (int i = 0; i < oa.size(); i++) {
+		ZAMAN_START(C);
 		string key = mm[i];
+		__zaman_prefix__ = __zaman_prefix__.substr(0, __zaman_prefix__.size() - 2) + key;
 		if (fieldStreams.find(key) == fieldStreams.end())
 			fieldStreams[key] = make_shared<GzipCompressionStream<6>>();
 		compressArray(fieldStreams[key], oa[i], out, out_offset);
+		ZAMAN_END(C);
+		__zaman_prefix__ = __zaman_prefix__.substr(0, __zaman_prefix__.size() - key.size() + 2);
 	}
+	ZAMAN_END(Keys);
 	
-	this->records.remove_first_n(k);
 	fields.clear();
 	ZAMAN_END(OptionalFieldOutput);
 }
@@ -67,7 +84,7 @@ void OptionalFieldCompressor::parseMD(const string &rec, int &i, const string &e
 	for (; i < rec.size() && rec[i] != '\t'; i++)
 		MD += rec[i];
 	if (MD != eoMD) {
-		//LOG("MD calculation failed: calculated %s, found %s", eoMD.c_str(), MD.c_str());
+	//	LOG("MD calculation failed: calculated %s, found %s", eoMD.c_str(), MD.c_str());
 		failedMD++;
 		out.add((uint8_t*)MD.c_str(), MD.size());
 	}
@@ -117,21 +134,50 @@ int OptionalFieldCompressor::processFields (const string &rec, vector<Array<uint
 			throw DZException("Invalid SAM tag %s", rec.substr(i).c_str());
 
 		string key = rec.substr(i, 2) + rec[i + 3];
+		i += 5;
+
 		uint64_t num;
+		bool isNum = false;
 		switch (key[2]) { // check exact type!
 		case 'c': case 'C': 
-			num = (uint8_t)atoi(rec.c_str() + i + 5);
+			num = (uint8_t)atoi(rec.c_str() + i);
 		case 's': case 'S': 
-			num = (uint16_t)atoi(rec.c_str() + i + 5);
+			num = (uint16_t)atoi(rec.c_str() + i);
 		case 'i': case 'I':
-			num = (uint32_t)atoi(rec.c_str() + i + 5);
-			int ret = packInteger(num, packedInt);
-			key += char('0' + ret);
+			num = (uint32_t)atoi(rec.c_str() + i);
+			isNum = true;
 			break;
 		}
 
 		if (eo.NM != -1 && key.substr(0, 2) == "NM" && eo.NM == num) {
 			key = "NMi"; // this is unstored NM
+		} else if (key == "PGZ") {
+			int k = 0; for (; rec[i + k] != '\t' && i + k < rec.size(); k++);
+			auto it = PG.find(rec.substr(i, k));
+			if (it != PG.end()) {
+				key = "PGi";
+				isNum = true;
+				num = it->second;
+			} else {
+				int pos = PG.size();
+				PG[rec.substr(i, k)] = pos;
+			}
+		} else if (key == "RGZ") {
+			int k = 0; for (; rec[i + k] != '\t' && i + k < rec.size(); k++);
+			auto it = RG.find(rec.substr(i, k));
+			if (it != RG.end()) {
+				key = "RGi";
+				isNum = true;
+				num = it->second;
+			} else {
+				int pos = RG.size();
+				RG[rec.substr(i, k)] = pos;
+			}
+		}
+
+		if (isNum) {
+			int ret = packInteger(num, packedInt);
+			key += char('0' + ret);
 		}
 		
 		int keyIndex;
@@ -150,7 +196,6 @@ int OptionalFieldCompressor::processFields (const string &rec, vector<Array<uint
 			addEncoded(prevKey = keyIndex + 1, tags);
 		}
 
-		i += 5;
 		if (key == "MDZ") {
 			parseMD(rec, i, eo.MD, out[keyIndex]);
 		} else if (key == "XDZ") {

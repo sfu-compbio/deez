@@ -4,8 +4,10 @@
 #include <mutex>
 using namespace std;
 
-std::map<std::string, uint64_t> __zaman_times__;
-std::string __zaman_prefix__;
+thread_local std::map<std::string, uint64_t> __zaman_times__;
+std::map<std::string, uint64_t> __zaman_times_global__;
+thread_local std::string __zaman_prefix__;
+std::string __zaman_prefix_global__;
 std::mutex __zaman_mtx__;
 
 string int2str (int64_t k) 

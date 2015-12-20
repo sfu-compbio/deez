@@ -70,7 +70,7 @@ char SequenceDecompressor::operator[] (size_t pos) const
 	return fixed[pos - fixedStart];
 }
 
-void SequenceDecompressor::scanChromosome (const string &s)
+void SequenceDecompressor::scanChromosome (const string &s, const SAMComment &samComment)
 {
 	// by here, all should be fixed ...
 	// 	TODO more checking
@@ -80,5 +80,5 @@ void SequenceDecompressor::scanChromosome (const string &s)
 
 	// clean genomePager
 	fixedStart = fixedEnd = 0;
-	chromosome = reference.scanChromosome(s);
+	chromosome = reference.scanChromosome(s, samComment);
 }

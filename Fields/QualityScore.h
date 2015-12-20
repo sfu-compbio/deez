@@ -6,6 +6,7 @@
 #include "../Streams/Order2Stream.h"
 #include "../Streams/SAMCompStream.h"
 #include "../Engines/StringEngine.h"
+#include "../Streams/rANSOrder0Stream.h"
 
 extern char optQuality;
 extern char optLossy;
@@ -14,10 +15,12 @@ extern bool optNoQual;
 const int QualRange = 96;
 
 typedef 
-	AC2CompressionStream<AC, QualRange>
+	//AC0CompressionStream<AC, QualRange>
+	rANSOrder0CompressionStream<QualRange>
 	QualityCompressionStream;
 typedef 
-	AC2DecompressionStream<AC, QualRange>
+	rANSOrder0DecompressionStream<QualRange>
+	//AC0DecompressionStream<AC, QualRange>
 	QualityDecompressionStream;
 
 class QualityScoreCompressor: 
@@ -29,19 +32,21 @@ class QualityScoreCompressor:
 	bool statMode;
 
 public:
-	QualityScoreCompressor (int blockSize);
-	virtual ~QualityScoreCompressor (void);
+	QualityScoreCompressor(void);
 
 public:
 	void addRecord (const std::string &qual, int flag);
-	void outputRecords (Array<uint8_t> &out, size_t out_offset, size_t k);
-	std::string shrink(const std::string &s, int flag);
+	void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k);
+	size_t shrink(char *qual, size_t len, int flag);
+
+	void calculateOffset (CircularArray<Record> &records);
+	void offsetRecords (CircularArray<Record> &records);
+
 	
 private:
 	static double phredScore (char c, int offset);
-	char calculateOffset (void);
 	void calculateLossyTable (int percentage);
-	void lossyTransform (string &qual);
+	void lossyTransform (char *qual, size_t len);
 };
 
 class QualityScoreDecompressor: 

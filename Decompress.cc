@@ -203,20 +203,21 @@ void FileDecompressor::getComment (void)
 	comments.resize(fileNames.size());
 	for (int f = 0; f < fileNames.size(); f++) {
 		size_t arcsz = inFile->readU64();
+		string comment = "";
 		if (arcsz) {
 			Array<uint8_t> arc;
 			arc.resize(arcsz);
 			arcsz = inFile->readU64();
-			Array<uint8_t> comment;
-			comment.resize(arcsz);
-			inFile->read(comment.data(), arcsz);
+			Array<uint8_t> commentArr;
+			commentArr.resize(arcsz);
+			inFile->read(commentArr.data(), arcsz);
 			
 			GzipDecompressionStream gzc;
-			gzc.decompress(comment.data(), comment.size(), arc, 0);
-
-			comments[f] = string((char*)arc.data(), arc.size());
-			sequence[f]->scanSAMComment(comments[f]);
+			gzc.decompress(commentArr.data(), commentArr.size(), arc, 0);
+			comment = string((char*)arc.data(), arc.size());
 		}
+		comments[f] = comment;
+		samComment.push_back(SAMComment(comments[f]));
 	}
 }
 
@@ -257,7 +258,7 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 	}
 	ZAMAN_START(ScanChromosome);
 	while (chr != sequence[f]->getChromosome())
-		sequence[f]->scanChromosome(chr);
+		sequence[f]->scanChromosome(chr, samComment[f]);
 	ZAMAN_END(ScanChromosome);
 
 	ZAMAN_START(DecompressBlocks);
@@ -273,7 +274,7 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 		if (sz) inFile->read(in[ti].data(), sz); 
 		t[ti] = thread(readBlockThread, di[ti], ref(in[ti]));
 	}
-	for (int ti = 0; ti < 7; ti++)
+	for (int ti = 0; ti < 7; ti++) 
 		t[ti].join();
 	ZAMAN_END(DecompressBlocks);
 
@@ -479,7 +480,7 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 				char chflag = inFile->readU8();
 				while (chflag) chflag = inFile->readU8();
 				while (chr != sequence[f]->getChromosome())
-					sequence[f]->scanChromosome(chr);
+					sequence[f]->scanChromosome(chr, samComment[f]);
 
 				Array<uint8_t> in;
 				readBlock(sequence[f], in);

@@ -38,7 +38,17 @@ OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, u
 		if (result != "") result += "\t";
 		result += S("%c%c:%c:", key[0], key[1], key[2]);
 
-		if (key == "MDZ" && !oa[keyIndex][out[keyIndex]]) {
+		if (key[0] == 'P' && key[1] == 'G' && key[2] != 'Z') {
+			int64_t num = unpackInteger(key[3] - '0', oa[keyIndex], out[keyIndex]);
+			result[result.size() - 2] = 'Z';
+			assert(PG.find(num) != PG.end());
+			result += PG[num];	
+		} else if (key[0] == 'R' && key[1] == 'G' && key[2] != 'Z') {
+			int64_t num = unpackInteger(key[3] - '0', oa[keyIndex], out[keyIndex]);
+			result[result.size() - 2] = 'Z';
+			assert(RG.find(num) != RG.end());
+			result += RG[num];	
+		} else if (key == "MDZ" && !oa[keyIndex][out[keyIndex]]) {
 			of.posMD = result.size();
 			out[keyIndex]++;
 		} else if (key == "XDZ" && !oa[keyIndex][out[keyIndex]]) {
@@ -66,8 +76,18 @@ OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, u
 				result += (char)(oa[keyIndex].data()[out[keyIndex]++]);
 				break;
 			default: {
+				int p = 0;
 				while (oa[keyIndex].data()[out[keyIndex]])
-					result += oa[keyIndex].data()[out[keyIndex]++];
+					result += oa[keyIndex].data()[out[keyIndex]++], p++;
+				if (key == "PGZ") {
+					int pos = PG.size();
+					PG[pos] = result.substr(result.size() - p);
+				}
+				if (key == "RGZ") {
+					int pos = RG.size();
+					RG[pos] = result.substr(result.size() - p);
+				}
+
 				out[keyIndex]++;
 				break;
 			}
