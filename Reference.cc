@@ -43,7 +43,6 @@ Reference::~Reference (void)
 
 void Reference::loadFromFASTA (const string &fn)
 {
-	ZAMAN_START(Reference_LoadFASTA);
 	input = File::Open(fn, "rb");
 	LOG("Loaded reference file %s", fn.c_str());
 
@@ -110,7 +109,6 @@ void Reference::loadFromFASTA (const string &fn)
 	}
 
 	filename = File::FullPath(fn);
-	ZAMAN_END(Reference_LoadFASTA);
 }
 
 string Reference::getChromosomeName (void) const 

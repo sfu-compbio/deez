@@ -3,7 +3,6 @@
 
 #include "../Common.h"
 #include "../Streams/GzipStream.h"
-#include "../Streams/Order0Stream.h"
 #include "../Engines/GenericEngine.h"
 
 class MappingQualityCompressor: 

@@ -9,7 +9,7 @@ EditOperationDecompressor::EditOperationDecompressor (int blockSize, const Seque
 	streams.resize(EditOperationCompressor::Fields::ENUM_COUNT);
 	for (int i = 0; i < streams.size(); i++)
 		streams[i] = make_shared<GzipDecompressionStream>();
-	streams[EditOperationCompressor::Fields::LOCATION] = make_shared<AC0DecompressionStream<AC, 256>>();
+	streams[EditOperationCompressor::Fields::LOCATION] = make_shared<ArithmeticOrder0DecompressionStream<256>>();
 }
 
 EditOperationDecompressor::~EditOperationDecompressor (void) 

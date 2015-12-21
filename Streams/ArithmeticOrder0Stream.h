@@ -1,20 +1,19 @@
-#ifndef AC0Stream_H
-#define AC0Stream_H
+#ifndef ArithmeticOrder0CompressionStream_H
+#define ArithmeticOrder0CompressionStream_H
 
 #include <vector>
 #include <algorithm>
 #include <functional>
 #include "../Common.h"
 #include "Stream.h"	
-#include "ArithmeticStream.h"	
-#include "rANSStream.h"	
+#include "ArithmeticCoder.h"	
 using namespace std;
 
-template<typename TEncoder, int AS>
-class AC2CompressionStream;
+template<int AS>
+class ArithmeticOrder2CompressionStream;
 
-template<typename TEncoder, int AS> 
-class AC0CompressionStream: public CompressionStream, public DecompressionStream 
+template<int AS> 
+class ArithmeticOrder0CompressionStream: public CompressionStream, public DecompressionStream 
 {
 	static const int RescaleFactor = 32;
 	static const int64_t SUM_LIMIT = 1ll << 15;
@@ -36,7 +35,7 @@ public:
 	size_t encoded;
 	
 public:
-	AC0CompressionStream (void) 
+	ArithmeticOrder0CompressionStream (void) 
 	{
 		for (int i = 0; i < AS; i++)
 			stats[i].sym = i, stats[i].freq = 1;
@@ -57,7 +56,7 @@ protected:
 	}
 
 public:
-	void encode (uint8_t c, AC *ac) 
+	void encode (uint8_t c, ArithmeticCoder *ac) 
 	{
 		assert(c < AS);
 		uint32_t l = 0, i;
@@ -79,7 +78,7 @@ public:
 			rescale();
 	}
 
-	uint8_t decode (AC *ac) 
+	uint8_t decode (ArithmeticCoder *ac) 
 	{
 		uint64_t cnt = ac->getFreq(sum);
 
@@ -111,16 +110,14 @@ public:
 	size_t compress (uint8_t *source, size_t source_sz, 
 			Array<uint8_t> &dest, size_t dest_offset) 
 	{
-		// ac keeps appending to the array.
-		// thus, just resize dest
 		if (source_sz == 0) return 0;
 		dest.resize(dest_offset + sizeof(size_t));
 		memcpy(dest.data() + dest_offset, &source_sz, sizeof(size_t));
-		auto ac = make_shared<TEncoder>();
-		ac->initEncode(&dest);
+		ArithmeticCoder ac;
+		ac.initEncode(&dest);
 		for (size_t i = 0; i < source_sz; i++)
-			encode(source[i], ac.get());
-		ac->flush();
+			encode(source[i], &ac);
+		ac.flush();
 		this->compressedCount += dest.size() - dest_offset;
 		return dest.size() - dest_offset;
 	}
@@ -130,11 +127,11 @@ public:
 	{
 		size_t num = *((size_t*)source);
 		if (!num) return 0;
-		auto ac = make_shared<TEncoder>();
-		ac->initDecode(source + sizeof(size_t), source_sz);
+		ArithmeticCoder ac;
+		ac.initDecode(source + sizeof(size_t), source_sz);
 		dest.resize(dest_offset + num);
 		for (size_t i = 0; i < num; i++) 
-			*(dest.data() + dest_offset + i) = decode(ac.get());
+			*(dest.data() + dest_offset + i) = decode(&ac);
 		return num;
 	}
 
@@ -158,6 +155,6 @@ public:
 	}
 };
 
-#define AC0DecompressionStream AC0CompressionStream
+#define ArithmeticOrder0DecompressionStream ArithmeticOrder0CompressionStream
 
-#endif // AC0Stream_H
+#endif // ArithmeticOrder0CompressionStream_H

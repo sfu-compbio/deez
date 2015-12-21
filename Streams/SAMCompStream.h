@@ -3,13 +3,13 @@
 
 #include <vector>
 #include "../Common.h"
-#include "Order0Stream.h"	
+#include "ArithmeticOrder0Stream.h"	
 
-template<typename TEncoder, int AS>
+template<int AS>
 class SAMCompStream: public CompressionStream, public DecompressionStream {
 	static const int QBITS  = 12;
 	static const int MOD_SZ = (1 << QBITS) * 16 * 16;
-	AC0CompressionStream<TEncoder, AS> mod[MOD_SZ];
+	ArithmeticOrder0CompressionStream<AS> mod[MOD_SZ];
 
 	uint8_t q1, q2;
 	uint32_t context;
@@ -18,7 +18,8 @@ class SAMCompStream: public CompressionStream, public DecompressionStream {
 	bool hadSought;
 
 public:
-	SAMCompStream (void) {
+	SAMCompStream (void) 
+	{
 		q1 = q2 = 0;
 		context = 0;
 		pos = 0;
@@ -27,7 +28,8 @@ public:
 	}
 
 private:
-	void encode (uint8_t q, AC *ac) {
+	void encode (uint8_t q, ArithmeticCoder *ac) 
+	{
 		assert(q < AS);
 		assert(q < (1 << 6));
 		assert(context < MOD_SZ);
@@ -44,7 +46,8 @@ private:
 			delta = 5, pos = 0, context = 0, q1 = q2 = 0;
 	}
 
-	uint8_t decode (AC *ac) {
+	uint8_t decode (ArithmeticCoder *ac) 
+	{
 		assert(context < MOD_SZ);
 		uint8_t q = mod[context].decode(ac);
 		assert(q < AS);
@@ -64,30 +67,24 @@ private:
 	}
 
 public:
-	size_t compress (uint8_t *source, size_t source_sz, 
-			Array<uint8_t> &dest, size_t dest_offset) 
+	size_t compress (uint8_t *source, size_t source_sz, Array<uint8_t> &dest, size_t dest_offset) 
 	{
-		// ac keeps appending to the array.
-		// thus, just resize dest
 		dest.resize(dest_offset + sizeof(size_t));
 		memcpy(dest.data() + dest_offset, &source_sz, sizeof(size_t));
-		TEncoder *ac = new TEncoder();
-		ac->initEncode(&dest);
+		ArithmeticCoder ac;
+		ac.initEncode(&dest);
 		for (size_t i = 0; i < source_sz; i++)
-			encode(source[i], ac);
-		ac->flush();
+			encode(source[i], &ac);
+		ac.flush();
 		this->compressedCount += dest.size() - dest_offset;
-		delete ac;
 		return dest.size() - dest_offset;
-		//return 
 	}
 
-	size_t decompress (uint8_t *source, size_t source_sz, 
-			Array<uint8_t> &dest, size_t dest_offset) 
+	size_t decompress (uint8_t *source, size_t source_sz, Array<uint8_t> &dest, size_t dest_offset) 
 	{
 		size_t num = *((size_t*)source);
-		TEncoder *ac = new TEncoder();
-		ac->initDecode(source + sizeof(size_t), source_sz);
+		ArithmeticCoder ac;
+		ac.initDecode(source + sizeof(size_t), source_sz);
 		dest.resize(dest_offset + num);
 
 		// fill with 33s. zero terminators are not added. 
@@ -95,17 +92,17 @@ public:
 		if (hadSought) for (size_t i = 0; i < num; i++)
 			*(dest.data() + dest_offset + i) = 33;
 		else for (size_t i = 0; i < num; i++) 
-			*(dest.data() + dest_offset + i) = decode(ac);
-		delete ac;
+			*(dest.data() + dest_offset + i) = decode(&ac);
 		return num;
 	}
 
-	void getCurrentState (Array<uint8_t> &ou) {
+	void getCurrentState (Array<uint8_t> &ou) 
+	{
 		ou.add(0);
 	}
 
-	void setCurrentState (uint8_t *in, size_t sz) {
-	//	LOG("WAHAI!");
+	void setCurrentState (uint8_t *in, size_t sz) 
+	{
 		hadSought = true;
 	}
 };

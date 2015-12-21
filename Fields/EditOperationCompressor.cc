@@ -102,7 +102,7 @@ EditOperationCompressor::EditOperationCompressor (const SequenceCompressor &seq)
 	streams.resize(Fields::ENUM_COUNT);
 	for (int i = 0; i < streams.size(); i++)
 		streams[i] = make_shared<GzipCompressionStream<6>>();
-	streams[Fields::LOCATION] = make_shared<AC0CompressionStream<AC, 256>>();
+	streams[Fields::LOCATION] = make_shared<ArithmeticOrder0CompressionStream<256>>();
 }
 
 void EditOperationCompressor::printDetails(void) 

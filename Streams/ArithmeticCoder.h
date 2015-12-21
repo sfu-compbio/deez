@@ -1,5 +1,5 @@
-#ifndef ArithmeticStream_H
-#define ArithmeticStream_H
+#ifndef ArithmeticCoder_H
+#define ArithmeticCoder_H
 
 // Based on cld-c.inc from aridemo6.rar package available at http://compression.ru/sh/aridemo6.rar
 // Dword-oriented Rangecoder by Eugene D. Shelwien -- Plain C++
@@ -8,7 +8,7 @@
 #include <zlib.h>
 #include "../Common.h"
 
-class AC {
+class ArithmeticCoder {
 	uint64_t Range;
 	uint64_t Low;
 	uint64_t Code;
@@ -36,8 +36,8 @@ public:
 	virtual void initDecode (uint8_t *o, size_t osz);
 
 public:
-	AC ();
-	~AC (void);
+	ArithmeticCoder ();
+	~ArithmeticCoder (void);
 };
 	
-#endif
+#endif // ArithmeticCoder_H

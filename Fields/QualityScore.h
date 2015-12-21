@@ -3,10 +3,11 @@
 
 #include "../Common.h"
 #include "../Streams/GzipStream.h"
-#include "../Streams/Order2Stream.h"
 #include "../Streams/SAMCompStream.h"
 #include "../Engines/StringEngine.h"
+#include "../Streams/ArithmeticOrder2Stream.h"
 #include "../Streams/rANSOrder0Stream.h"
+#include "../Streams/rANSOrder2Stream.h"
 
 extern char optQuality;
 extern char optLossy;
@@ -15,12 +16,12 @@ extern bool optNoQual;
 const int QualRange = 96;
 
 typedef 
-	//AC0CompressionStream<AC, QualRange>
-	rANSOrder0CompressionStream<QualRange>
+	//ArithmeticOrder2CompressionStream<QualRange>
+	rANSOrder2CompressionStream<QualRange>
 	QualityCompressionStream;
 typedef 
-	rANSOrder0DecompressionStream<QualRange>
-	//AC0DecompressionStream<AC, QualRange>
+	//ArithmeticOrder2DecompressionStream<QualRange>
+	rANSOrder2DecompressionStream<QualRange>
 	QualityDecompressionStream;
 
 class QualityScoreCompressor: 

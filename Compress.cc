@@ -387,8 +387,8 @@ void FileCompressor::outputRecords (void)
 			}, 4);
 			threadPool.push([&](int t, int ti) {
 				compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, quality[f]);
+			//compressBlock(f, outputBuffer[5], idxBuffer[5], currentBlockCount, quality[f]);
 				ZAMAN_THREAD_JOIN();
-			//	LOG("qual done");
 			}, 5);
 			threadPool.push([&](int t, int ti) {
 				compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, pairedEnd[f], pairedEndInfos[f]);

@@ -1,6 +1,9 @@
 #include "QualityScore.h"
 using namespace std;
 
+#include "../Streams/Stream.h"	
+#include "../Streams/BzipStream.h"	
+
 QualityScoreCompressor::QualityScoreCompressor(void):
 	StringCompressor<QualityCompressionStream>(),
 	statMode(true),
@@ -12,7 +15,7 @@ QualityScoreCompressor::QualityScoreCompressor(void):
 		case 0:
 			break;
 		case 1:
-			streams[0] = make_shared<SAMCompStream<AC, QualRange>>();
+			streams[0] = make_shared<SAMCompStream<QualRange>>();
 			break;
 		default:
 			throw DZException("Invalid stream specified");

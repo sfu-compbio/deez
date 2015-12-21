@@ -9,7 +9,7 @@ QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
 		case 0:
 			break;
 		case 1:
-			streams[0] = make_shared<SAMCompStream<AC, QualRange>>();
+			streams[0] = make_shared<SAMCompStream<QualRange>>();
 			sought = 1;
 			break;
 		case 2:

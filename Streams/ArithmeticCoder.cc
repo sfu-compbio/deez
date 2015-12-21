@@ -1,25 +1,25 @@
-#include "ArithmeticStream.h"
+#include "ArithmeticCoder.h"
 
-AC::AC (void) {
+ArithmeticCoder::ArithmeticCoder (void) {
 	rc_FFNum = rc_LowH = rc_Cache = rc_Carry = 0;
 	Low = 0;
 	Range = 0x7FFFFFFFFFFFFFFFll;
 	Code = 0;
 }
 
-AC::~AC (void) {
+ArithmeticCoder::~ArithmeticCoder (void) {
 }
 
-void AC::initEncode (Array<uint8_t> *o) {
+inline void ArithmeticCoder::initEncode (Array<uint8_t> *o) {
 	dataO = o;
 }
 
-void AC::initDecode (uint8_t *o, size_t osz) {
+inline void ArithmeticCoder::initDecode (uint8_t *o, size_t osz) {
 	dataI = o;
 	getbit(), getbit(), getbit();
 }
 
-int AC::setbit (void) {
+inline int ArithmeticCoder::setbit (void) {
 	int w = 0;
 
 	rc_Carry = (Low >> 63) & 1;
@@ -40,13 +40,13 @@ int AC::setbit (void) {
 	return w;
 }
 
-void AC::getbit (void) {
+inline void ArithmeticCoder::getbit (void) {
 	rc_Cache = *(uint32_t*)dataI; dataI += sizeof(uint32_t);
 	Code = (Code << 32) + rc_Carry + (rc_Cache >> 1);
 	rc_Carry = rc_Cache << 31;
 }
 
-int AC::encode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq) {
+inline int ArithmeticCoder::encode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq) {
 	Range /= totFreq;
 	Low += Range * cumFreq;
 	Range *= freq;
@@ -57,12 +57,12 @@ int AC::encode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq) {
 	return 0;
 }
 
-uint32_t AC::getFreq (uint32_t totFreq) {
+inline uint32_t ArithmeticCoder::getFreq (uint32_t totFreq) {
 	return Code / (Range / totFreq);
 }
 
 //uint32_t symbol = model.find(count);
-void AC::decode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq) {	
+inline void ArithmeticCoder::decode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq) {	
 	Range /= totFreq;
 	Code -= Range * cumFreq;
 	Range *= freq;
@@ -72,7 +72,7 @@ void AC::decode (uint32_t cumFreq, uint32_t freq, uint32_t totFreq) {
 	}
 }
 
-void AC::flush (void) {
+inline void ArithmeticCoder::flush (void) {
 	Low++;
 	setbit();
 	setbit();
