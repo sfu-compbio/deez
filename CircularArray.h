@@ -4,8 +4,9 @@
 #include <cstring>
 #include <inttypes.h>
 #include <stdlib.h>
-#include "Common.h"
+#include "Utils.h"
 
+#if 0
 template<class T>
 class CircularArray {
 	T* _records;
@@ -38,12 +39,15 @@ public:
 
 	CircularArray (const CircularArray& a)
 	{
+	//	ZAMAN_START(CArray_Copy);
+	//	LOG("Copying circular array of size %d %d", a._size, a._capacity);
 		_size = a._size;
 		_capacity = a._capacity;
 		_extend = a._extend;
 		_start = a._start;
 		_records = new T[a._capacity];
 		std::copy(a._records, a._records + a._size, _records);
+	//	ZAMAN_END(CArray_Copy);
 	}
 
 	CircularArray(CircularArray&& a): CircularArray()
@@ -165,4 +169,5 @@ public:
 
 };
 
+#endif
 #endif

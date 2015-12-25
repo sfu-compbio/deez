@@ -14,9 +14,10 @@ void ReadNameCompressor::printDetails(void)
 {
 	LOG("  Index     : %'20lu", streams[Fields::INDEX]->getCount());
 	LOG("  Content   : %'20lu", streams[Fields::CONTENT]->getCount());
+	LOG("  Paired    : %'20lu", streams[Fields::PAIRED]->getCount());
 }
 
-void ReadNameCompressor::outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) 
+void ReadNameCompressor::outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const Array<PairedEndInfo> &pairedEndInfos) 
 {
 	if (!records.size()) { 
 		out.resize(0);
@@ -28,15 +29,33 @@ void ReadNameCompressor::outputRecords (const CircularArray<Record> &records, Ar
 
 	Array<uint8_t> buffer(this->totalSize, MB);
 	Array<uint8_t> indices(k * 10);	
+	Array<uint8_t> paired(k);	
 
 	for (size_t i = 0; i < k; i++) {
-		string rn = records[i].getReadName();
-		addTokenizedName(rn, buffer, indices);
-		this->totalSize -= rn.size() + 1;
+		size_t rnLen = strlen(records[i].getReadName());
+		if (pairedEndInfos[i].bit == PairedEndInfo::Bits::LOOK_BACK) {
+			indices.add(6 * MAX_TOKEN);
+			if (pairedEndInfos[i].tlen < (1 << 16)) {
+				uint16_t sz16 = pairedEndInfos[i].tlen;
+				assert(sz16 > 0);
+				paired.add((uint8_t*)&sz16, sizeof(uint16_t));
+			} else {
+				uint16_t sz16 = 0;
+				paired.add((uint8_t*)&sz16, sizeof(uint16_t));	
+				paired.add((uint8_t*)&pairedEndInfos[i].tlen, sizeof(uint32_t));	
+			}
+		} else {
+			addTokenizedName(records[i].getReadName(), 
+				rnLen,
+				buffer, indices);
+		}
+		this->totalSize -= rnLen + 1;
 	}
 
 	compressArray(streams[Fields::INDEX], indices, out, out_offset);
 	compressArray(streams[Fields::CONTENT], buffer, out, out_offset);
+	compressArray(streams[Fields::PAIRED], paired, out, out_offset);
+	
 	for (int i = 0; i < MAX_TOKEN; i++) {
 		prevTokens[i] = "";
 		prevCharTokens[i] = 0;
@@ -51,13 +70,8 @@ void ReadNameCompressor::getIndexData (Array<uint8_t> &out)
 	streams[Fields::CONTENT]->getCurrentState(out);
 }
 
-void ReadNameCompressor::addTokenizedName (const string &rn, Array<uint8_t> &content, Array<uint8_t> &index) 
-{
-	if (rn.size() == 0) {
-		index.add(6 * MAX_TOKEN);
-		return;
-	}
-	
+void ReadNameCompressor::addTokenizedName (const char *rn, size_t rnLen, Array<uint8_t> &content, Array<uint8_t> &index) 
+{	
 	ZAMAN_START(Tokenize);
 
 	int tokens[MAX_TOKEN], tc = 0;
@@ -65,7 +79,7 @@ void ReadNameCompressor::addTokenizedName (const string &rn, Array<uint8_t> &con
 	tokens[tc++] = 0;
 
 	bool specialSRRCase = false;
-	for (size_t i = 0; i < rn.size(); i++)
+	for (size_t i = 0; i < rnLen; i++)
 		if (tc < MAX_TOKEN) {
 			if (rn[i] < '0' || (rn[i] > '9' && rn[i] < 'A') || (rn[i] > 'Z' && rn[i] < 'a')) {
 				charTokens[tc - 1] = rn[i];
@@ -76,9 +90,9 @@ void ReadNameCompressor::addTokenizedName (const string &rn, Array<uint8_t> &con
 			}
 		}
 	
-	tokens[tc] = rn.size() + 1;
+	tokens[tc] = rnLen + 1;
 	for (int i = 0; i < tc; i++) {
-		string tk = rn.substr(tokens[i], tokens[i + 1] - tokens[i] - 1);
+		string tk = string(rn + tokens[i], tokens[i + 1] - tokens[i] - 1);
 		if (i == 0 && specialSRRCase) tk += rn[tk.size()];
 		if (tk != prevTokens[i] || charTokens[i] != prevCharTokens[i]) {
 			char *p;

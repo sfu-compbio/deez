@@ -3,7 +3,7 @@
 using namespace std;
 
 EditOperation::EditOperation(size_t s, const std::string &se, const std::string &op) :
-	start(s), end(s), seq(se), NM(-1), ops(2, op.size() / 2)
+	start(s), end(s), seq(se), NM(-1), ops(2, op.size() / 2), op(op)
 {
 	if (op == "*") {
 		ops.add(make_pair('*', 0));
@@ -112,7 +112,7 @@ void EditOperationCompressor::printDetails(void)
 		LOG("  %-10s: %'20lu ", s[i], streams[i]->getCount());
 }
 
-void EditOperationCompressor::outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const CircularArray<EditOperation> &editOps) 
+void EditOperationCompressor::outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const Array<EditOperation> &editOps) 
 {
 	if (!records.size()) { 
 		out.resize(0);

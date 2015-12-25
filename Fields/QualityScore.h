@@ -37,11 +37,11 @@ public:
 
 public:
 	void addRecord (const std::string &qual, int flag);
-	void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k);
-	size_t shrink(char *qual, size_t len, int flag);
+	void outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k);
+	static size_t shrink(char *qual, size_t len, int flag);
 
-	void calculateOffset (CircularArray<Record> &records);
-	void offsetRecords (CircularArray<Record> &records);
+	void calculateOffset (Array<Record> &records);
+	void offsetRecords (Array<Record> &records);
 
 	
 private:

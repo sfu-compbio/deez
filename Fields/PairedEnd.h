@@ -16,6 +16,7 @@ struct PairedEndInfo {
 
 	enum Bits {
 		LOOK_AHEAD,
+		LOOK_AHEAD_1, // for some incorrect TLEN estimates
 		LOOK_BACK,
 		OK,
 		GREATER_THAN_0,
@@ -36,7 +37,7 @@ public:
 	PairedEndCompressor (void);
 	
 public:
-	void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const CircularArray<PairedEndInfo> &pairedEndInfos);
+	void outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const Array<PairedEndInfo> &pairedEndInfos);
 	void printDetails(void);
 
 public:
@@ -45,7 +46,6 @@ public:
 		CHROMOSOME,
 		TLEN,
 		TLENBIT,
-		POINTER,
 		ENUM_COUNT
 	};
 };

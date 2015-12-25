@@ -281,11 +281,10 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 
 // TODO: stop early if slice/random access
 	ZAMAN_START_P(CheckMate);
-	for (int i = 0; i < editOp[f]->size(); i++) {
+	for (int i = 0, j = 0; i < editOp[f]->size(); i++) {
 		PairedEndInfo &pe = (*pairedEnd[f])[i];
 		if (pe.bit == PairedEndInfo::Bits::LOOK_BACK) {
-			int prevPos = i - pe.tlen;
-			//LOG("%d %d %d", prevPos, i, pe.tlen);
+			int prevPos = i - readName[f]->getPaired(j++);
 			(*readName[f])[i] = (*readName[f])[prevPos];
 						
 			EditOperation &eo = (*editOp[f])[i];
@@ -296,7 +295,7 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 			ppe.pos = eo.start;
 			pe.pos = peo.start;
 			pe.tlen = -ppe.tlen;
-			//LOG("%d %d %d %d %d %d %d", peo.start,peo.end,ppe.tlen,ppe.pos,eo.start,pe.tlen,pe.pos);
+		//	LOG("%d %d / %d == %d %d %d %d %d %d %d", i, prevPos, readName[f]->getPaired(j-1), peo.start,peo.end,ppe.tlen,ppe.pos,eo.start,pe.tlen,pe.pos);
 		}
 	}
 	ZAMAN_END_P(CheckMate);

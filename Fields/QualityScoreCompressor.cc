@@ -47,7 +47,7 @@ size_t QualityScoreCompressor::shrink(char *qual, size_t len, int flag)
 	return sz;
 }
 
-void QualityScoreCompressor::calculateOffset (CircularArray<Record> &records)
+void QualityScoreCompressor::calculateOffset (Array<Record> &records)
 {
 	if (offset) 
 		return;
@@ -89,7 +89,7 @@ void QualityScoreCompressor::calculateOffset (CircularArray<Record> &records)
 	} 
 }
 
-void QualityScoreCompressor::offsetRecords (CircularArray<Record> &records)
+void QualityScoreCompressor::offsetRecords (Array<Record> &records)
 {
 	assert(offset);
 	size_t threadSz = records.size() / optThreads + 1;
@@ -113,7 +113,7 @@ void QualityScoreCompressor::offsetRecords (CircularArray<Record> &records)
 		threads[i].join();
 }
 
-void QualityScoreCompressor::outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) 
+void QualityScoreCompressor::outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) 
 {
 	ZAMAN_START(QualityScoreOutput);
 	

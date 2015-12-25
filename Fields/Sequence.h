@@ -41,11 +41,11 @@ public:
 public:
 	void updateBoundary (size_t loc);
 	size_t getBoundary() const { return maxEnd; };
-	void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &output, size_t out_offset, size_t k);
+	void outputRecords (const Array<Record> &records, Array<uint8_t> &output, size_t out_offset, size_t k);
 	void getIndexData (Array<uint8_t> &out) { out.resize(0); }
 	void printDetails(void);
 
-	size_t applyFixes (size_t end, const CircularArray<Record> &records, const CircularArray<EditOperation> &editOps, size_t&, size_t&, size_t&, size_t&, size_t&);
+	size_t applyFixes (size_t end, const Array<Record> &records, const Array<EditOperation> &editOps, size_t&, size_t&, size_t&, size_t&, size_t&);
 
 	size_t currentMemoryUsage() {
 		LOG("Reference uses %'lu", reference.currentMemoryUsage());
@@ -70,7 +70,7 @@ private:
 		#warning "Not using SSE2 optimizations -- performance might be suboptimal"
 		typedef std::vector<std::array<uint16_t, 6>> Stats;
 	#endif
-	static void applyFixesThread(const CircularArray<Record> &records, const CircularArray<EditOperation> &editOps, Stats &stats, 
+	static void applyFixesThread(const Array<Record> &records, const Array<EditOperation> &editOps, Stats &stats, 
 		size_t fixedStart, size_t offset, size_t size);
 	static void updateGenomeLoc (size_t loc, char ch, Stats &stats);
 

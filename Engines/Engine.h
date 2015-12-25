@@ -16,7 +16,7 @@ public:
 public:
 	// Resets out
 	// set out size to compressed size block
-	virtual void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) = 0;
+	virtual void outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) = 0;
 	virtual void getIndexData (Array<uint8_t> &out) = 0;
 	virtual size_t compressedSize(void) { 
 		size_t res = 0;

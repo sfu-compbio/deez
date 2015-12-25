@@ -15,7 +15,7 @@ public:
 	}
 
 public:
-	void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k)
+	void outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k)
 	{
 		if (!records.size()) { 
 			out.resize(0);
@@ -23,14 +23,14 @@ public:
 		}
 		assert(k <= records.size());
 
-		ZAMAN_START(MappingFlag);
+		ZAMAN_START(MappingQuality);
 		Array<uint8_t> buffer(k);
 		for (size_t i = 0; i < k; i++) {
 			uint8_t mf = records[i].getMappingQuality();
 			buffer.add(mf);
 		}
 		compressArray(streams.front(), buffer, out, out_offset);
-		ZAMAN_END(MappingFlag);
+		ZAMAN_END(MappingQuality);
 	}
 };
 

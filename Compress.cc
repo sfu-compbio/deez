@@ -165,9 +165,9 @@ void FileCompressor::outputRecords (void)
 	vector<int64_t> currentSize(parsers.size(), 0);
 	for (int16_t f = 0; f < parsers.size(); f++) {
 		stats[f].fileName = parsers[f]->fileName();
-		records.push_back(CircularArray<Record>(blockSize));
-		editOps.push_back(CircularArray<EditOperation>(blockSize));
-		pairedEndInfos.push_back(CircularArray<PairedEndInfo>(blockSize));
+		records.push_back(Array<Record>(blockSize));
+		editOps.push_back(Array<EditOperation>(blockSize));
+		pairedEndInfos.push_back(Array<PairedEndInfo>(blockSize));
 	}
 	int64_t total = 0;
 	int64_t blockCount = 0;
@@ -203,7 +203,7 @@ void FileCompressor::outputRecords (void)
 				records[f].add();
 				pairedEndInfos[f].add();
 				editOps[f].add();
-				records[f][records[f].size() - 1] = parsers[f]->next();
+				records[f][records[f].size() - 1] = std::move(parsers[f]->next());
 				const Record &rc = records[f][records[f].size() - 1];
 				
 				size_t loc = rc.getLocation();
@@ -321,18 +321,22 @@ void FileCompressor::outputRecords (void)
 					PairedEndInfo &pe = pairedEndInfos[f][i];
 					EditOperation &peo = editOps[f][it->second];
 					PairedEndInfo &ppe = pairedEndInfos[f][it->second];
+				//	LOG("%s %s %s", rn.c_str(), eo.op.c_str(), peo.op.c_str());
+				//	LOG("%d %d %d", pe.tlen, ppe.tlen, eo.start + (peo.end - peo.start) - peo.start);
+				//	LOG("%d %d (%d) %d %d (%d)", eo.start, eo.end, pe.pos, peo.start, peo.end, ppe.pos);
+					uint32_t off;
 					if (pe.tlen == -ppe.tlen // TLEN can be calculated
 						&& eo.start == ppe.pos
 						&& pe.pos == peo.start // POS can be calculated
 						&& (ppe.chr == "=" || chr == ppe.chr) // CHR can be calculated as well
 						&& ppe.tlen >= 0 
-						&& ppe.tlen == eo.start + (peo.end - peo.start) - peo.start)
+						&& (off = eo.start + (peo.end - peo.start) - peo.start - ppe.tlen) <= 0)
 					{
-						ppe.bit = PairedEndInfo::Bits::LOOK_AHEAD; 
-						pe.bit = PairedEndInfo::Bits::LOOK_BACK; // DO NOT ADD!
+						ppe.bit = PairedEndInfo::Bits::LOOK_AHEAD + off; 
+						pe.bit = PairedEndInfo::Bits::LOOK_BACK;
 						pe.tlen = i - it->second;
-						*(char*)(records[f][i].getReadName()) = 0;
-						rn = "";
+						LOG("%d...", pe.tlen);
+						matchedMates++;
 					} else { // Replace with current read
 						readNames[rn] = i;
 					}
@@ -371,7 +375,7 @@ void FileCompressor::outputRecords (void)
 			// 	LOG("eo done");
 			}, 1);
 			threadPool.push([&](int t, int ti) {
-				compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, readName[f]);
+				compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, readName[f], pairedEndInfos[f]);
 				ZAMAN_THREAD_JOIN();
 			//	LOG("rn done");
 			}, 2);
@@ -401,9 +405,9 @@ void FileCompressor::outputRecords (void)
 			//	LOG("of done");
 			}, 7);
 			threadPool.stop(true);
-			records[f].remove_first_n(currentBlockCount);
-			editOps[f].remove_first_n(currentBlockCount);
-			pairedEndInfos[f].remove_first_n(currentBlockCount);
+			records[f].removeFirstK(currentBlockCount);
+			editOps[f].removeFirstK(currentBlockCount);
+			pairedEndInfos[f].removeFirstK(currentBlockCount);
 			// LOG("Memory after compressing: %'lu", currentMemUsage(f));
 		ZAMAN_END_P(Compress);
 

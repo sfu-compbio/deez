@@ -25,7 +25,7 @@ void SequenceCompressor::updateBoundary (size_t loc)
 	maxEnd = max(maxEnd, loc);
 }
 
-void SequenceCompressor::outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) 
+void SequenceCompressor::outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) 
 {
 	if (chromosome == "*") 
 		return;
@@ -89,7 +89,7 @@ inline void SequenceCompressor::updateGenomeLoc (size_t loc, char ch, Stats &sta
 	#endif
 }
 
-void SequenceCompressor::applyFixesThread(const CircularArray<Record> &records, const CircularArray<EditOperation> &editOps, Stats &stats,
+void SequenceCompressor::applyFixesThread(const Array<Record> &records, const Array<EditOperation> &editOps, Stats &stats,
 	size_t fixedStart, size_t offset, size_t size) 
 {
 	for (size_t k = 0; k < editOps.size(); k++) {
@@ -134,7 +134,7 @@ void SequenceCompressor::applyFixesThread(const CircularArray<Record> &records, 
  * in  nextBlockBegin: we retrieved all reads starting before nextBlockBegin
  * out start_S
  */
-size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, const CircularArray<Record> &records, const CircularArray<EditOperation> &editOps,
+size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, const Array<Record> &records, const Array<EditOperation> &editOps,
 	size_t &start_S, size_t &end_S, size_t &end_E, size_t &fS, size_t &fE) 
 {
 	if (editOps.size() == 0) 
@@ -160,16 +160,16 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, const CircularArra
 
 			// Update fixing table
 			if (fixed.size() && newFixedStart < fixedEnd) { // Copy old fixes
-				ZAMAN_START(Load);
+				ZAMAN_START_P(Load);
 				fixed = fixed.substr(newFixedStart - fixedStart, fixedEnd - newFixedStart);
 				fixed += reference.copy(fixedEnd, newFixedEnd);
 				reference.trim(fixedEnd);
-				ZAMAN_END(Load);
+				ZAMAN_END_P(Load);
 			} else {
-				ZAMAN_START(Load);
+				ZAMAN_START_P(Load);
 				fixed = reference.copy(newFixedStart, newFixedEnd);
 				reference.trim(newFixedStart);
-				ZAMAN_END(Load);
+				ZAMAN_END_P(Load);
 			}
 
 			fixedStart = newFixedStart, fixedEnd = newFixedEnd;

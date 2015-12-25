@@ -48,7 +48,6 @@ void PairedEndDecompressor::importRecords (uint8_t *in, size_t in_size)
 	decompressArray(streams[PairedEndCompressor::Fields::DIFF], in, buffer);
 	decompressArray(streams[PairedEndCompressor::Fields::CHROMOSOME], in, chromosomes);
 	decompressArray(streams[PairedEndCompressor::Fields::TLEN], in, tlens);
-	decompressArray(streams[PairedEndCompressor::Fields::POINTER], in, pointers);
 
 	uint8_t *chrs = chromosomes.data();
 	uint8_t *tls = tlens.data();
@@ -68,12 +67,7 @@ void PairedEndDecompressor::importRecords (uint8_t *in, size_t in_size)
 			if (!pe.tlen) 
 				pe.tlen = *(uint32_t*)tls, tls += sizeof(uint32_t);
 			pe.tlen--;
-		} else if (pe.bit == PairedEndInfo::Bits::LOOK_BACK) {
-			pe.tlen =  *(uint16_t*)ptr, ptr += sizeof(uint16_t);
-			if (!pe.tlen) 
-				pe.tlen = *(uint32_t*)ptr, ptr += sizeof(uint32_t);
-			pe.tlen;
-		}
+		} 
 
 		chr = *chrs++;
 		if (chr == -1) {

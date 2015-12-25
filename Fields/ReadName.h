@@ -7,6 +7,7 @@
 #include "../Streams/GzipStream.h"
 #include "../Engines/GenericEngine.h"
 #include "../Engines/StringEngine.h"
+#include "PairedEnd.h"
 
 /*
  * Three types of names DeeZ supports:
@@ -31,17 +32,18 @@ public:
 	ReadNameCompressor(void);
 	
 public:
-	void outputRecords(const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k);
+	void outputRecords(const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const Array<PairedEndInfo> &pairedEndInfos);
 	void getIndexData(Array<uint8_t> &out);
 	void printDetails(void);
 
 private:
-	void addTokenizedName (const std::string &rn, Array<uint8_t> &content, Array<uint8_t> &index);
+	void addTokenizedName (const char *rn, size_t rnLen, Array<uint8_t> &content, Array<uint8_t> &index);
 
 public:
 	enum Fields {
 		CONTENT,
 		INDEX,
+		PAIRED,
 		ENUM_COUNT
 	};
 };
@@ -49,6 +51,8 @@ public:
 class ReadNameDecompressor: 
 	public StringDecompressor<GzipDecompressionStream>  
 {
+	Array<uint32_t> paired;
+
 public:
 	ReadNameDecompressor(int blockSize);
 	virtual ~ReadNameDecompressor(void);
@@ -56,6 +60,9 @@ public:
 public:
 	void importRecords (uint8_t *in, size_t in_size);
 	void setIndexData (uint8_t *in, size_t in_size);
+
+public:
+	uint32_t getPaired(size_t i);
 };
 
 #endif

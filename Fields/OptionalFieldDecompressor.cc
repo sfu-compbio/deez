@@ -2,7 +2,8 @@
 using namespace std;
 
 OptionalFieldDecompressor::OptionalFieldDecompressor (int blockSize):
-	GenericDecompressor<OptionalField, GzipDecompressionStream>(blockSize)
+	GenericDecompressor<OptionalField, GzipDecompressionStream>(blockSize),
+	fields(AlphabetRange * AlphabetRange * AlphabetRange, -1)
 {
 }
 
@@ -18,12 +19,12 @@ OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, u
 	OptionalField of;
 	string &result = of.data;
 	while (size--) {
-		string key;
 		int keyIndex = getEncoded(tags) - 1;
-		auto it = fields.find(keyIndex);
-		if (it == fields.end()) {
-			while (*tags) key += *tags++; tags++;
-			fields[keyIndex] = key; 
+		int key = fields[keyIndex];
+		if (key == -1) {
+			key = getEncoded(tags) - 1;
+			fields[keyIndex] = key;
+
 			assert(oa.size() == keyIndex);
 			assert(out.size() == keyIndex);
 			if (fieldStreams.find(key) == fieldStreams.end())
@@ -31,38 +32,40 @@ OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, u
 			oa.push_back(Array<uint8_t>());
 			decompressArray(fieldStreams[key], in, oa[keyIndex]);
 			out.push_back(0);
-		} else {
-			key = it->second;
 		}
 
 		if (result != "") result += "\t";
-		result += S("%c%c:%c:", key[0], key[1], key[2]);
+		result += S("%c%c:%c:", 
+			AlphabetStart + (key / AlphabetRange) / AlphabetRange,
+			AlphabetStart + (key / AlphabetRange) % AlphabetRange,
+			AlphabetStart + key % AlphabetRange);
 
-		if (key[0] == 'P' && key[1] == 'G' && key[2] != 'Z') {
-			int64_t num = unpackInteger(key[3] - '0', oa[keyIndex], out[keyIndex]);
+		if (key > PGi && key <= PGi + 5) {
+			int64_t num = unpackInteger(key % AlphabetRange - 'i' + AlphabetStart - 1, oa[keyIndex], out[keyIndex]);
 			result[result.size() - 2] = 'Z';
 			assert(PG.find(num) != PG.end());
 			result += PG[num];	
-		} else if (key[0] == 'R' && key[1] == 'G' && key[2] != 'Z') {
-			int64_t num = unpackInteger(key[3] - '0', oa[keyIndex], out[keyIndex]);
+		} else if (key > RGi && key <= RGi + 5) {
+			int64_t num = unpackInteger(key % AlphabetRange - 'i' + AlphabetStart - 1, oa[keyIndex], out[keyIndex]);
 			result[result.size() - 2] = 'Z';
 			assert(RG.find(num) != RG.end());
 			result += RG[num];	
-		} else if (key == "MDZ" && !oa[keyIndex][out[keyIndex]]) {
+		} else if (key == MDZ && !oa[keyIndex][out[keyIndex]]) {
 			of.posMD = result.size();
 			out[keyIndex]++;
-		} else if (key == "XDZ" && !oa[keyIndex][out[keyIndex]]) {
+		} else if (key == XDZ && !oa[keyIndex][out[keyIndex]]) {
 			of.posXD = result.size();
 			out[keyIndex]++;
-		} else if (key == "NMi") {
+		} else if (key == NMi) {
 			of.posNM = result.size();
-		} else switch (key[2]) {
-			case 'c': case 'C':
-			case 's': case 'S':
-			case 'i': case 'I': {
-				assert(key.size() == 4);
+		} else switch (key % AlphabetRange + AlphabetStart) {
+			case 'i' + 1:
+			case 'i' + 2:
+			case 'i' + 3:
+			case 'i' + 4:
+			case 'i' + 5: {
 				result[result.size() - 2] = 'i'; // SAM only supports 'i' as tag
-				int64_t num = unpackInteger(key[3] - '0', oa[keyIndex], out[keyIndex]);
+				int64_t num = unpackInteger(key % AlphabetRange - 'i' + AlphabetStart - 1, oa[keyIndex], out[keyIndex]);
 				result += inttostr(num);
 				break;
 			}
@@ -79,15 +82,14 @@ OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, u
 				int p = 0;
 				while (oa[keyIndex].data()[out[keyIndex]])
 					result += oa[keyIndex].data()[out[keyIndex]++], p++;
-				if (key == "PGZ") {
+				if (key == PGZ) {
 					int pos = PG.size();
 					PG[pos] = result.substr(result.size() - p);
 				}
-				if (key == "RGZ") {
+				if (key == RGZ) {
 					int pos = RG.size();
 					RG[pos] = result.substr(result.size() - p);
 				}
-
 				out[keyIndex]++;
 				break;
 			}
@@ -137,6 +139,10 @@ void OptionalFieldDecompressor::importRecords (uint8_t *in, size_t in_size)
 	vector<Array<uint8_t>> oa;
 	vector<size_t> out;
 
+	PG.clear();
+	RG.clear();
+	fill(fields.begin(), fields.end(), -1);
+
 	records.resize(0);
 	while (szs != sizes.data() + sizes.size()) {
 		int size = getEncoded(szs) - 1;
@@ -144,6 +150,5 @@ void OptionalFieldDecompressor::importRecords (uint8_t *in, size_t in_size)
 	}
 
 	recordCount = 0;
-	fields.clear();
 	ZAMAN_END(ImportOptionalField);
 }

@@ -60,9 +60,9 @@ public:
 private:
 	void parser(size_t f, size_t, size_t);
 	
-	vector<CircularArray<Record>> records;
-	vector<CircularArray<EditOperation>> editOps;
-	vector<CircularArray<PairedEndInfo>> pairedEndInfos;
+	vector<Array<Record>> records;
+	vector<Array<EditOperation>> editOps;
+	vector<Array<PairedEndInfo>> pairedEndInfos;
 
 	std::mutex queueMutex;
 	size_t currentMemUsage(size_t f);

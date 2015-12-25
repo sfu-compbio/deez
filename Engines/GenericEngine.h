@@ -10,7 +10,7 @@ public:
 	GenericCompressor(void);
 
 public:
-	virtual void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) {};
+	virtual void outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) {};
 	virtual void getIndexData (Array<uint8_t> &out);
 };
  

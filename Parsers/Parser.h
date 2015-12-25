@@ -21,7 +21,7 @@ public:
 	virtual size_t fsize (void) = 0;
 	virtual std::string head (void) = 0;
 	virtual Record next (void) = 0;
-	virtual 	bool readNext () = 0;
+	virtual bool readNext () = 0;
 
 };
 

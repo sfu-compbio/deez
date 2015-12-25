@@ -2,7 +2,8 @@
 using namespace std;
 
 ReadNameDecompressor::ReadNameDecompressor (int blockSize):
-	StringDecompressor<GzipDecompressionStream> (blockSize)
+	StringDecompressor<GzipDecompressionStream>(blockSize),
+	paired(blockSize)
 {
 	streams.resize(ReadNameCompressor::Fields::ENUM_COUNT);
 	for (int i = 0; i < streams.size(); i++)
@@ -23,6 +24,11 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size)
 	size_t s1 = decompressArray(streams[ReadNameCompressor::Fields::INDEX], in, index);
 	Array<uint8_t> content;
 	decompressArray(streams[ReadNameCompressor::Fields::CONTENT], in, content);
+	
+	Array<uint8_t> pp;
+	decompressArray(streams[ReadNameCompressor::Fields::PAIRED], in, pp);
+	uint8_t *p = pp.data();
+	paired.resize(0);
 
 	string tokens[MAX_TOKEN];
 	size_t ic = 0, cc = 0;
@@ -38,7 +44,11 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size)
 		while (1) {
 			t = (T = index.data()[ic++]) % MAX_TOKEN;
 
-			if (t == 6 * MAX_TOKEN) {
+			if (T == 6 * MAX_TOKEN) {
+				int32_t tlen =  *(uint16_t*)p; p += sizeof(uint16_t);
+				if (!tlen) 
+					tlen = *(uint32_t*)p, p += sizeof(uint32_t);
+				paired.add(tlen);
 				records.add("");
 				continue;
 			}
@@ -98,6 +108,11 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size)
 	recordCount = 0;
 
 	ZAMAN_END(ReadNameImport);
+}
+
+uint32_t ReadNameDecompressor::getPaired(size_t i)
+{
+	return paired[i];
 }
 
 void ReadNameDecompressor::setIndexData (uint8_t *in, size_t in_size) 

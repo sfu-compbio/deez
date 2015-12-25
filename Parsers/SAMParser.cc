@@ -31,7 +31,7 @@ SAMParser::~SAMParser (void)
 string SAMParser::readComment (void)  
 {
 	string s;
-	while (getline(&currentRecord.line, &currentRecord.lineLength, input) != -1) {
+	while ((currentRecord.lineLength = getline(&currentRecord.line, &currentRecord.lineSize, input)) != -1) {
 		if (currentRecord.line[0] != '@') {
 			parse(currentRecord);
 			break;
@@ -44,7 +44,7 @@ string SAMParser::readComment (void)
 
 bool SAMParser::readNext ()  
 {
-	if (getline(&currentRecord.line, &currentRecord.lineLength, input) != -1) {
+	if ((currentRecord.lineLength = getline(&currentRecord.line, &currentRecord.lineSize, input)) != -1) {
 		assert(currentRecord.line[0] != '@');
 		parse(currentRecord);
 		return true;
@@ -84,16 +84,19 @@ void SAMParser::parse (Record &record)
 				record.strFields[sfc++] = (c + 1) - line;
 			f++;
 			*c = 0;
-			if (f == 12) break;
+			if (f == 12) {
+				c++;
+				while (*c) {
+					if (*c == '\t') *c = 0;
+					c++;
+				}
+				break;
+			}
 		}
 		c++;
 	}	
 	if (f == 11)
-		record.strFields[sfc++] = c - line;
-	/*while (*c) {
-		if (*c == '\t') *c = 0;
-		c++;
-	}*/
+		record.strFields[sfc++] = c - line + 1;
 	
 	record.intFields[Record::IntField::LOC]--;
 	record.intFields[Record::IntField::P_LOC]--;
@@ -101,7 +104,7 @@ void SAMParser::parse (Record &record)
 
 Record SAMParser::next (void) 
 {
-	return currentRecord;
+	return std::move(currentRecord);
 }
 
 string SAMParser::head (void) 

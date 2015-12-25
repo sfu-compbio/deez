@@ -8,6 +8,7 @@
 #include "../Streams/BzipStream.h"
 #include "../Streams/ACGTStream.h"
 #include "../Streams/ArithmeticOrder0Stream.h"
+#include "../Streams/rANSOrder0Stream.h"
 #include "../Engines/GenericEngine.h"
 #include "../Engines/StringEngine.h"
 #include "Reference.h"
@@ -41,7 +42,7 @@ public:
 	EditOperationCompressor(const SequenceCompressor &seq);
 
 public:
-	void outputRecords (const CircularArray<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const CircularArray<EditOperation> &editOps);
+	void outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const Array<EditOperation> &editOps);
 	void getIndexData (Array<uint8_t> &out);
 	void printDetails(void);
 
