@@ -69,12 +69,12 @@ public:
 	}
 
 public: // for range based loops
-	const T *begin() const
+	T *begin() const
 	{
 		return _records;
 	}
 
-	const T *end() const
+	T *end() const
 	{
 		return _records + _size;
 	}

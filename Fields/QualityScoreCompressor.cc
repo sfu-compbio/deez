@@ -47,30 +47,22 @@ size_t QualityScoreCompressor::shrink(char *qual, size_t len, int flag)
 	return sz;
 }
 
-void QualityScoreCompressor::calculateOffset (Array<Record> &records)
+int QualityScoreCompressor::getOffset()
 {
-	if (offset) 
-		return;
-	
-	vector<thread> threads(optThreads);
-	mutex m;
-	size_t threadSz = records.size() / optThreads + 1;
-	for (int ti = 0; ti < optThreads; ti++)
-		threads[ti] = thread([&](int ti, size_t start, size_t end) {
-			int st[128] = {0};
-			for (size_t i = start; i < end; i++) {
-				const char *q = records[i].getQuality();
-				while (*q) st[*q]++, q++;
-			}
-			{
-				lock_guard<mutex> l(m);
-				for (int i = 0; i < 128; i++)
-					stat[i] += st[i];
-			}
-		}, ti, threadSz * ti, min(records.size(), (ti + 1) * threadSz));
-	for (int i = 0; i < optThreads; i++)
-		threads[i].join();
+	return offset;
+}
 
+void QualityScoreCompressor::updateOffset(int *st)
+{
+	if (offset) return;
+	for (int i = 0; i < 128; i++)
+		stat[i] += st[i];
+}
+
+void QualityScoreCompressor::calculateOffset()
+{
+	if (offset) return;
+	
 	offset = 64;
 	for (int i = 33; i < 64; i++) {
 		if (i < 59 && stat[i]) {
@@ -89,28 +81,19 @@ void QualityScoreCompressor::calculateOffset (Array<Record> &records)
 	} 
 }
 
-void QualityScoreCompressor::offsetRecords (Array<Record> &records)
+void QualityScoreCompressor::offsetRecord (Record &rc)
 {
 	assert(offset);
-	size_t threadSz = records.size() / optThreads + 1;
-	vector<thread> threads(optThreads);
-	for (int ti = 0; ti < optThreads; ti++)
-		threads[ti] = thread([&](int ti, size_t start, size_t end) {
-			for (size_t i = start; i < end; i++) {
-				char *qual = (char*)records[i].getQuality();
-				lossyTransform(qual, strlen(qual));
-				while (*qual) {
-					if (*qual < offset)
-						throw DZException("Quality scores out of range with L offset %d [%c]", offset, *qual);
-					*qual = (*qual - offset) + 1;
-					if (*qual >= QualRange)
-						throw DZException("Quality scores out of range with R offset %d [%c]", offset, *qual + offset - 1);
-					qual++;
-				}
-			}
-		}, ti, threadSz * ti, min(records.size(), (ti + 1) * threadSz));
-	for (int i = 0; i < optThreads; i++)
-		threads[i].join();
+	char *qual = (char*)rc.getQuality();
+	lossyTransform(qual, strlen(qual));
+	while (*qual) {
+		if (*qual < offset)
+			throw DZException("Quality scores out of range with L offset %d [%c]", offset, *qual);
+		*qual = (*qual - offset) + 1;
+		if (*qual >= QualRange)
+			throw DZException("Quality scores out of range with R offset %d [%c]", offset, *qual + offset - 1);
+		qual++;
+	}
 }
 
 void QualityScoreCompressor::outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k) 

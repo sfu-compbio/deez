@@ -1,4 +1,5 @@
 #include "OptionalField.h"
+#include "../Streams/rANSOrder2Stream.h"
 using namespace std;
 
 OptionalFieldDecompressor::OptionalFieldDecompressor (int blockSize):
@@ -9,6 +10,47 @@ OptionalFieldDecompressor::OptionalFieldDecompressor (int blockSize):
 
 OptionalFieldDecompressor::~OptionalFieldDecompressor (void) 
 {
+}
+
+void OptionalFieldDecompressor::importRecords (uint8_t *in, size_t in_size) 
+{
+	if (in_size == 0) return;
+
+	ZAMAN_START(ImportOptionalField);
+
+	Array<uint8_t> index, sizes, lib;
+	size_t l = decompressArray(streams[0], in, lib);
+	library.clear();
+	for (uint8_t *i = lib.data(); i < lib.data() + lib.size();) {
+		uint32_t key = *(uint32_t*)i; i += sizeof(uint32_t);
+		uint32_t len = *(uint32_t*)i; i += sizeof(uint32_t);
+		for (int j = 0; j < len; j++) {
+			string s;
+			while (*i) s += *i++; i++;
+			library[key][j] = s;
+
+			LOG("%d %d->%s", key, j, s.c_str());
+		}
+	}
+
+	size_t s = decompressArray(streams[0], in, index);
+	decompressArray(streams[0], in, sizes);
+	uint8_t *tags = index.data();
+	uint8_t *szs = sizes.data();
+
+	vector<Array<uint8_t>> oa;
+	vector<size_t> out;
+
+	fill(fields.begin(), fields.end(), -1);
+
+	records.resize(0);
+	while (szs != sizes.data() + sizes.size()) {
+		int size = getEncoded(szs) - 1;
+		records.add(parseFields(size, tags, in, oa, out));
+	}
+
+	recordCount = 0;
+	ZAMAN_END(ImportOptionalField);
 }
 
 OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, uint8_t *&in, 
@@ -27,8 +69,13 @@ OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, u
 
 			assert(oa.size() == keyIndex);
 			assert(out.size() == keyIndex);
-			if (fieldStreams.find(key) == fieldStreams.end())
-				fieldStreams[key] = make_shared<GzipDecompressionStream>();
+			if (fieldStreams.find(key) == fieldStreams.end()) {
+				if (OptionalFieldCompressor::QualityTags.find(key) != OptionalFieldCompressor::QualityTags.end()) {
+					fieldStreams[key] = make_shared<rANSOrder2DecompressionStream<128>>();
+				} else {
+					fieldStreams[key] = make_shared<GzipDecompressionStream>();
+				}
+			}
 			oa.push_back(Array<uint8_t>());
 			decompressArray(fieldStreams[key], in, oa[keyIndex]);
 			out.push_back(0);
@@ -40,39 +87,38 @@ OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, u
 			AlphabetStart + (key / AlphabetRange) % AlphabetRange,
 			AlphabetStart + key % AlphabetRange);
 
-		if (key > PGi && key <= PGi + 5) {
-			int64_t num = unpackInteger(key % AlphabetRange - 'i' + AlphabetStart - 1, oa[keyIndex], out[keyIndex]);
+		int keyZ = key - (key % AlphabetRange) + ('Z' - AlphabetStart);
+		int type = key % AlphabetRange + AlphabetStart;
+		if (type > 'Z' && type <= 'Z' + 5) {
+			assert(OptionalFieldCompressor::LibraryTags.find(keyZ) != OptionalFieldCompressor::LibraryTags.end());
+			int64_t num = unpackInteger(key % AlphabetRange - ('Z' - AlphabetStart) - 1, oa[keyIndex], out[keyIndex]);			
 			result[result.size() - 2] = 'Z';
-			assert(PG.find(num) != PG.end());
-			result += PG[num];	
-		} else if (key > RGi && key <= RGi + 5) {
-			int64_t num = unpackInteger(key % AlphabetRange - 'i' + AlphabetStart - 1, oa[keyIndex], out[keyIndex]);
-			result[result.size() - 2] = 'Z';
-			assert(RG.find(num) != RG.end());
-			result += RG[num];	
-		} else if (key == MDZ && !oa[keyIndex][out[keyIndex]]) {
+			assert(library[keyZ].find(num) != library[keyZ].end());
+			result += library[keyZ][num];	
+		} else if (key == OptionalFieldCompressor::MDZ && !oa[keyIndex][out[keyIndex]]) {
 			of.posMD = result.size();
 			out[keyIndex]++;
-		} else if (key == XDZ && !oa[keyIndex][out[keyIndex]]) {
+		} else if (key == OptionalFieldCompressor::XDZ && !oa[keyIndex][out[keyIndex]]) {
 			of.posXD = result.size();
 			out[keyIndex]++;
-		} else if (key == NMi) {
+		} else if (key == OptionalFieldCompressor::NMi) {
 			of.posNM = result.size();
-		} else switch (key % AlphabetRange + AlphabetStart) {
+		} else switch (type) {
 			case 'i' + 1:
 			case 'i' + 2:
 			case 'i' + 3:
 			case 'i' + 4:
 			case 'i' + 5: {
 				result[result.size() - 2] = 'i'; // SAM only supports 'i' as tag
-				int64_t num = unpackInteger(key % AlphabetRange - 'i' + AlphabetStart - 1, oa[keyIndex], out[keyIndex]);
+				int64_t num = unpackInteger(type - 'i' - 1, oa[keyIndex], out[keyIndex]);
 				result += inttostr(num);
 				break;
 			}
+			case 'd':
 			case 'f': {
-				uint32_t num = 0;
-				REPEAT(4) num |= (oa[keyIndex].data()[out[keyIndex]++]) << (8 * _);
-				result += S("%g", *((float*)(&num)));
+				uint64_t num = 0;
+				REPEAT(8) num |= uint64_t(oa[keyIndex].data()[out[keyIndex]++]) << (8 * _);
+				result += S("%g", *((double*)(&num)));
 				break;
 			}
 			case 'A':
@@ -82,13 +128,9 @@ OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, u
 				int p = 0;
 				while (oa[keyIndex].data()[out[keyIndex]])
 					result += oa[keyIndex].data()[out[keyIndex]++], p++;
-				if (key == PGZ) {
-					int pos = PG.size();
-					PG[pos] = result.substr(result.size() - p);
-				}
-				if (key == RGZ) {
-					int pos = RG.size();
-					RG[pos] = result.substr(result.size() - p);
+				if (OptionalFieldCompressor::LibraryTags.find(keyZ) != OptionalFieldCompressor::LibraryTags.end()) {
+					int pos = library[keyZ].size();
+					library[keyZ][pos] = result.substr(result.size() - p);
 				}
 				out[keyIndex]++;
 				break;
@@ -112,7 +154,7 @@ const OptionalField &OptionalFieldDecompressor::getRecord(const EditOperation &e
 		if (of.posXD > of.posMD) of.posXD += eo.MD.size();
 	}
 	if (of.posXD != -1) {
-		string XD = OptionalFieldCompressor::getXDfromMD(eo.MD);
+		string XD = OptionalField::getXDfromMD(eo.MD);
 		of.data = of.data.substr(0, of.posXD) + XD + of.data.substr(of.posXD);
 		if (of.posNM > of.posXD) of.posNM += XD.size();
 	}
@@ -122,33 +164,4 @@ const OptionalField &OptionalFieldDecompressor::getRecord(const EditOperation &e
 	}
 	ZAMAN_END(GetOptionalField);
 	return of;
-}
-
-void OptionalFieldDecompressor::importRecords (uint8_t *in, size_t in_size) 
-{
-	if (in_size == 0) return;
-
-	ZAMAN_START(ImportOptionalField);
-
-	Array<uint8_t> index, sizes;
-	size_t s = decompressArray(streams[0], in, index);
-	decompressArray(streams[0], in, sizes);
-	uint8_t *tags = index.data();
-	uint8_t *szs = sizes.data();
-
-	vector<Array<uint8_t>> oa;
-	vector<size_t> out;
-
-	PG.clear();
-	RG.clear();
-	fill(fields.begin(), fields.end(), -1);
-
-	records.resize(0);
-	while (szs != sizes.data() + sizes.size()) {
-		int size = getEncoded(szs) - 1;
-		records.add(parseFields(size, tags, in, oa, out));
-	}
-
-	recordCount = 0;
-	ZAMAN_END(ImportOptionalField);
 }

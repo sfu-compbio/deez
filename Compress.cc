@@ -119,11 +119,12 @@ void FileCompressor::outputBlock (Array<uint8_t> &out, Array<uint8_t> &idxOut)
 		gzwrite(indexFile, idxOut.data(), out_sz);
 }
 
-void FileCompressor::parser(size_t f, size_t start, size_t end)
+void FileCompressor::parser(size_t f, size_t start, size_t end, unordered_map<int32_t, map<string, int>> &library)
 {
 	array<size_t, 3> stringEstimates { 0, 0, 0 };
 	size_t maxEnd = 0;
-	for (size_t i= start; i < end; i++) {
+	int st[128] = {0};
+	for (size_t i = start; i < end; i++) {
 		const Record &rc = records[f][i];
 		size_t loc = rc.getLocation();
 		if (loc == (size_t)-1) loc = 0; 
@@ -139,7 +140,13 @@ void FileCompressor::parser(size_t f, size_t start, size_t end)
 			rc.getPairChromosome(), p_loc, rc.getTemplateLenght(), 
 			eo.start, eo.end - eo.start, rc.getMappingFlag() & 0x10);
 
+		optFields[f][i] = OptionalField(rc.getOptional(), rc.getOptional() + rc.getOptionalSize(), library);
+
 		size_t est = quality[f]->shrink((char*)rc.getQuality(), strlen(rc.getQuality()), rc.getMappingFlag());
+		if (!quality[f]->getOffset()) {
+			const char *q = rc.getQuality();
+			while (*q) st[*q]++, q++;
+		}
 		stringEstimates[0] += rc.getReadNameSize() + 1;
 		stringEstimates[1] += est + 1;
 		stringEstimates[2] += rc.getOptionalSize() + 1;
@@ -148,6 +155,7 @@ void FileCompressor::parser(size_t f, size_t start, size_t end)
 	readName[f]->increaseTotalSize(stringEstimates[0]);
 	quality[f]->increaseTotalSize(stringEstimates[1]);
 	optField[f]->increaseTotalSize(stringEstimates[2]);
+	quality[f]->updateOffset(st);
 	sequence[f]->updateBoundary(maxEnd);
 }
 
@@ -168,6 +176,7 @@ void FileCompressor::outputRecords (void)
 		records.push_back(Array<Record>(blockSize));
 		editOps.push_back(Array<EditOperation>(blockSize));
 		pairedEndInfos.push_back(Array<PairedEndInfo>(blockSize));
+		optFields.push_back(Array<OptionalField>(blockSize));
 	}
 	int64_t total = 0;
 	int64_t blockCount = 0;
@@ -202,6 +211,7 @@ void FileCompressor::outputRecords (void)
 			for (; currentSize[f] < currentBlockSize[f] && parsers[f]->hasNext() && parsers[f]->head() == sequence[f]->getChromosome(); currentSize[f]++) {
 				records[f].add();
 				pairedEndInfos[f].add();
+				optFields[f].add();
 				editOps[f].add();
 				records[f][records[f].size() - 1] = std::move(parsers[f]->next());
 				const Record &rc = records[f][records[f].size() - 1];
@@ -219,8 +229,6 @@ void FileCompressor::outputRecords (void)
 				ZAMAN_END_P(Stats);
 
 				parsers[f]->readNext();
-				//LOG("%s %s %d %d %d", parsers[f]->head().c_str(), sequence[f]->getChromosome().c_str(), parsers[f]->hasNext(),
-				//	currentBlockSize[f], currentSize[f]);
 			}
 			ZAMAN_END_P(GetReads);	
 			//LOG("Memory after reading: %'lu", currentMemUsage(f));
@@ -228,10 +236,16 @@ void FileCompressor::outputRecords (void)
 			ZAMAN_START_P(ParseRecords);
 			assert(records[f].size() == currentSize[f]);
 			size_t threadSz = (currentSize[f] - blockOffset) / optThreads + 1;
+			mutex m;
+			unordered_map<int32_t, map<string, int>> optLibrary;
 			for (int i = 0; i < optThreads; i++)
-				threads[i] = thread([=](int ti, size_t start, size_t end) {
+				threads[i] = thread([&](int ti, size_t start, size_t end) {
 						ZAMAN_START(Thread);
-						this->parser(f, start, end);
+						unordered_map<int32_t, map<string, int>> lib;
+						this->parser(f, start, end, lib);
+						unique_lock<mutex> u(m);
+						for (auto &l: lib) 
+							optLibrary[l.first].insert(l.second.begin(), l.second.end());
 						ZAMAN_END(Thread);
 						ZAMAN_THREAD_JOIN();
 					}, 
@@ -241,24 +255,32 @@ void FileCompressor::outputRecords (void)
 				);
 			for (int i = 0; i < optThreads; i++)
 				threads[i].join();
+			for (auto &kv: optLibrary) {
+				int p = 0;
+				for (auto &l: kv.second) {
+					l.second = p++;
+				}
+			}
+
+			for (int i = 0; i < optThreads; i++) 
 			ZAMAN_END_P(ParseRecords);
 			
-			ZAMAN_START_P(ParseQualities);
-			quality[f]->calculateOffset(records[f]);
-			quality[f]->offsetRecords(records[f]);
-			ZAMAN_END_P(ParseQualities);
-
 			ZAMAN_START_P(Load);
+			quality[f]->calculateOffset();
 			sequence[f]->getReference().loadIntoBuffer(sequence[f]->getBoundary());
 			ZAMAN_END_P(Load);
 
-			ZAMAN_START_P(ParseMDandNM);
+			ZAMAN_START_P(Parse2);
 			threadSz = (currentSize[f] - blockOffset) / optThreads + 1;
 			for (int i = 0; i < optThreads; i++) 
 				threads[i] = thread([&](int ti, size_t start, size_t end) {
 						ZAMAN_START(Thread);
-						for (int i = start; i < end; i++) 
+						for (size_t i= start; i < end; i++) {
+							Record &rc = records[f][i];
 							editOps[f][i].calculateTags(sequence[f]->getReference());
+							optFields[f][i].parse((char*)rc.getOptional(), editOps[f][i], optLibrary);
+							quality[f]->offsetRecord(rc);
+						}
 						ZAMAN_END(Thread);
 						ZAMAN_THREAD_JOIN();
 					}, 
@@ -269,7 +291,7 @@ void FileCompressor::outputRecords (void)
 			for (int i = 0; i < optThreads; i++)
 				threads[i].join();
 			//LOG("Memory after calculating: %'lu", currentMemUsage(f));
-			ZAMAN_END_P(ParseMDandNM);
+			ZAMAN_END_P(Parse2);
 
 			total += currentSize[f] - blockOffset;
 			LOGN("  %5.1lf%% [%s,%zd]", (100.0 * parsers[f]->fpos()) / parsers[f]->fsize(), 
@@ -400,7 +422,7 @@ void FileCompressor::outputRecords (void)
 			//	LOG("pe done");
 			}, 6);
 			threadPool.push([&](int t, int ti) {
-				compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, optField[f], editOps[f]);
+				compressBlock(f, outputBuffer[ti], idxBuffer[ti], currentBlockCount, optField[f], optFields[f], optLibrary);
 				ZAMAN_THREAD_JOIN();
 			//	LOG("of done");
 			}, 7);
@@ -408,6 +430,7 @@ void FileCompressor::outputRecords (void)
 			records[f].removeFirstK(currentBlockCount);
 			editOps[f].removeFirstK(currentBlockCount);
 			pairedEndInfos[f].removeFirstK(currentBlockCount);
+			optFields[f].removeFirstK(currentBlockCount);
 			// LOG("Memory after compressing: %'lu", currentMemUsage(f));
 		ZAMAN_END_P(Compress);
 

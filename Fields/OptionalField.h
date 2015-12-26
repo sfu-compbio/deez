@@ -7,89 +7,87 @@
 #include "EditOperation.h"
 #include "SAMComment.h"
 #include <vector>
+#include <unordered_set>
 #include <unordered_map>
+#include <set>
 
 const int AlphabetStart = '!';
 const int AlphabetEnd = '~';
 const int AlphabetRange = AlphabetEnd - AlphabetStart + 1;
-constexpr int Field(char A, char B, char t)
+constexpr int OptTag(char A, char B, char t)
 {
 	return (A - '!') * AlphabetRange * AlphabetRange + (B - '!') * AlphabetRange + t - '!';
 }
-constexpr int Field(const char *F) 
+constexpr int OptTag(const char *F) 
 {
-	return Field(F[0], F[1], F[2]);
+	return OptTag(F[0], F[1], F[2]);
 }
-#define OptTag(X) const int X = Field(#X)
-
-// Alignment tags: to be calculated
-OptTag(MDZ);
-OptTag(XDZ);
-OptTag(NMi);
-
-// Library tags: to be looked up
-OptTag(PGZ);
-OptTag(RGZ);
-OptTag(LBZ);
-OptTag(PUZ);
-OptTag(PGi);
-OptTag(RGi);
-OptTag(LBi);
-OptTag(PUi);
-
-// Quality tags: to be compressed with rANS
-OptTag(BQZ);
-OptTag(CQZ);
-OptTag(E2Z);
-OptTag(OQZ);
-OptTag(QTZ);
-OptTag(Q2Z);
-OptTag(U2Z);
+#define OptTagKey(X) OptTag(#X)
+#define OptTagDef(X) static const int X = OptTag(#X)
 
 struct OptionalField {
 	string data;
 	int posNM, posMD, posXD;
 
+	union IntFloatUnion {
+		int64_t I;
+		double F;
+
+		IntFloatUnion() {}
+		IntFloatUnion(int64_t t): I(t) {}
+		IntFloatUnion(double t): F(t) {} 
+	};
+	Array<pair<int, IntFloatUnion>> keys; // Tag, Position | Int
+
 	OptionalField(): posXD(-1), posMD(-1), posNM(-1) {}
+	
+	OptionalField (const char *rec, const char *recEnd, 
+		std::unordered_map<int32_t, std::map<std::string, int>> &library);
+	void parse(char *rec, const EditOperation &eo, 
+		std::unordered_map<int32_t, std::map<std::string, int>> &library);
+
+public:
+	static std::string getXDfromMD(const std::string &eoMD);
+private:
+	bool parseXD(const char *rec, const std::string &eoMD);
 };
 
 class OptionalFieldCompressor: 
 	public StringCompressor<GzipCompressionStream<6>>  
 {
-	std::map<std::string, shared_ptr<CompressionStream>> fieldStreams;
-	std::unordered_map<std::string, int> PG, RG;
-
+	std::map<int, shared_ptr<CompressionStream>> fieldStreams;
 	vector<int> fields;
 	int fieldCount;
 
-	int totalXD, failedXD;
-	int totalNM, failedNM;
-	int totalMD, failedMD;
+public:
+	OptTagDef(MDZ);
+	OptTagDef(XDZ);
+	OptTagDef(NMi);
+	static std::unordered_set<int> LibraryTags;
+	static std::unordered_set<int> QualityTags;
 
 public:
 	OptionalFieldCompressor (void);
 	~OptionalFieldCompressor (void);
 	
 public:
-	void outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, const Array<EditOperation> &editOps);
+	void outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, 
+		const Array<OptionalField> &optFields, std::unordered_map<int32_t, std::map<std::string, int>> &library);
 	//void getIndexData (Array<uint8_t> &out);
 
 	void printDetails(void);
 	size_t compressedSize(void);
 
-public:
-	static std::string getXDfromMD(const std::string &eoMD);
-
 private:
-	int processFields(const char *rec, const char *recEnd, std::vector<Array<uint8_t>> &out, Array<uint8_t> &tags, const EditOperation &eo);
-	bool parseXD(const char *rec, const string &eoMD);
+	int processFields(const char *rec, std::vector<Array<uint8_t>> &out,
+		Array<uint8_t> &tags, const OptionalField &of);
 };
 
 class OptionalFieldDecompressor: 
 	public GenericDecompressor<OptionalField, GzipDecompressionStream> 
 {
 	std::unordered_map<int, shared_ptr<DecompressionStream>> fieldStreams;
-	std::unordered_map<int, std::string> PG, RG;
+	std::unordered_map<int, std::unordered_map<int, std::string>> library;
 	vector<int> fields;
 
 public:

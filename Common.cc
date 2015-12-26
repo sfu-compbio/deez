@@ -115,7 +115,7 @@ uint64_t unpackInteger(int T, Array<uint8_t> &i, size_t &ii)
 {
 	uint64_t e = 0;
 	if (T == 4) T += 3;
-	REPEAT(T + 1) e |= i.data()[ii++] << (8 * _);
+	REPEAT(T + 1) e |= (uint64_t)(i.data()[ii++]) << (8 * _);
 	return e;
 }
 

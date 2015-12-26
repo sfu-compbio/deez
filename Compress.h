@@ -58,11 +58,12 @@ public:
 	void compress (void);
 
 private:
-	void parser(size_t f, size_t, size_t);
+	void parser(size_t f, size_t, size_t, std::unordered_map<int32_t, std::map<std::string, int>>&);
 	
 	vector<Array<Record>> records;
 	vector<Array<EditOperation>> editOps;
 	vector<Array<PairedEndInfo>> pairedEndInfos;
+	vector<Array<OptionalField>> optFields;
 
 	std::mutex queueMutex;
 	size_t currentMemUsage(size_t f);
