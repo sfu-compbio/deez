@@ -131,22 +131,31 @@ void FileCompressor::parser(size_t f, size_t start, size_t end, unordered_map<in
 		size_t p_loc = rc.getPairLocation();
 		if (p_loc == (size_t)-1) p_loc = 0;
 
+		ZAMAN_START(EditOperation);
 		editOps[f][i] = EditOperation(loc, rc.getSequence(), rc.getCigar());
+		ZAMAN_END(EditOperation);
 
+		ZAMAN_START(PairedEnd);
 		auto &eo = editOps[f][i];
 		assert(eo.ops.size());
 		maxEnd = max(maxEnd, eo.end);
 		pairedEndInfos[f][i] = PairedEndInfo(
 			rc.getPairChromosome(), p_loc, rc.getTemplateLenght(), 
 			eo.start, eo.end - eo.start, rc.getMappingFlag() & 0x10);
+		ZAMAN_END(PairedEnd);
 
-		optFields[f][i] = OptionalField(rc.getOptional(), rc.getOptional() + rc.getOptionalSize(), library);
+		ZAMAN_START(Optionals);
+		optFields[f][i].parse1(rc.getOptional(), rc.getOptional() + rc.getOptionalSize(), library);
+		ZAMAN_END(Optionals);
 
+		ZAMAN_START(Qualities);
 		size_t est = quality[f]->shrink((char*)rc.getQuality(), strlen(rc.getQuality()), rc.getMappingFlag());
 		if (!quality[f]->getOffset()) {
 			const char *q = rc.getQuality();
 			while (*q) st[*q]++, q++;
 		}
+		ZAMAN_END(Qualities);
+
 		stringEstimates[0] += rc.getReadNameSize() + 1;
 		stringEstimates[1] += est + 1;
 		stringEstimates[2] += rc.getOptionalSize() + 1;
@@ -243,10 +252,14 @@ void FileCompressor::outputRecords (void)
 						ZAMAN_START(Thread);
 						unordered_map<int32_t, map<string, int>> lib;
 						this->parser(f, start, end, lib);
+						ZAMAN_END(Thread);
+
+						ZAMAN_START(Lock);
 						unique_lock<mutex> u(m);
 						for (auto &l: lib) 
 							optLibrary[l.first].insert(l.second.begin(), l.second.end());
-						ZAMAN_END(Thread);
+						ZAMAN_END(Lock);
+
 						ZAMAN_THREAD_JOIN();
 					}, 
 					i, 
@@ -261,8 +274,6 @@ void FileCompressor::outputRecords (void)
 					l.second = p++;
 				}
 			}
-
-			for (int i = 0; i < optThreads; i++) 
 			ZAMAN_END_P(ParseRecords);
 			
 			ZAMAN_START_P(Load);
@@ -352,12 +363,12 @@ void FileCompressor::outputRecords (void)
 						&& pe.pos == peo.start // POS can be calculated
 						&& (ppe.chr == "=" || chr == ppe.chr) // CHR can be calculated as well
 						&& ppe.tlen >= 0 
-						&& (off = eo.start + (peo.end - peo.start) - peo.start - ppe.tlen) <= 0)
+						&& (off = eo.start + (peo.end - peo.start) - peo.start - ppe.tlen) <= 1)
 					{
 						ppe.bit = PairedEndInfo::Bits::LOOK_AHEAD + off; 
 						pe.bit = PairedEndInfo::Bits::LOOK_BACK;
 						pe.tlen = i - it->second;
-						LOG("%d...", pe.tlen);
+					//	LOG("%d...", pe.tlen);
 						matchedMates++;
 					} else { // Replace with current read
 						readNames[rn] = i;

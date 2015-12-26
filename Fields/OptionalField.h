@@ -29,19 +29,11 @@ struct OptionalField {
 	string data;
 	int posNM, posMD, posXD;
 
-	union IntFloatUnion {
-		int64_t I;
-		double F;
+	Array<pair<int, int>> keys; // Tag, Position | Int
 
-		IntFloatUnion() {}
-		IntFloatUnion(int64_t t): I(t) {}
-		IntFloatUnion(double t): F(t) {} 
-	};
-	Array<pair<int, IntFloatUnion>> keys; // Tag, Position | Int
-
-	OptionalField(): posXD(-1), posMD(-1), posNM(-1) {}
+	OptionalField(): posXD(-1), posMD(-1), posNM(-1), keys(50, 100) {}
 	
-	OptionalField (const char *rec, const char *recEnd, 
+	void parse1 (const char *rec, const char *recEnd, 
 		std::unordered_map<int32_t, std::map<std::string, int>> &library);
 	void parse(char *rec, const EditOperation &eo, 
 		std::unordered_map<int32_t, std::map<std::string, int>> &library);
@@ -80,7 +72,7 @@ public:
 
 private:
 	int processFields(const char *rec, std::vector<Array<uint8_t>> &out,
-		Array<uint8_t> &tags, const OptionalField &of);
+		Array<uint8_t> &tags, const OptionalField &of, size_t k);
 };
 
 class OptionalFieldDecompressor: 

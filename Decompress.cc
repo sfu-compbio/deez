@@ -295,6 +295,9 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 			ppe.pos = eo.start;
 			pe.pos = peo.start;
 			pe.tlen = -ppe.tlen;
+
+			if (ppe.bit == PairedEndInfo::Bits::LOOK_AHEAD_1) 
+				pe.tlen++, ppe.tlen--;
 		//	LOG("%d %d / %d == %d %d %d %d %d %d %d", i, prevPos, readName[f]->getPaired(j-1), peo.start,peo.end,ppe.tlen,ppe.pos,eo.start,pe.tlen,pe.pos);
 		}
 	}

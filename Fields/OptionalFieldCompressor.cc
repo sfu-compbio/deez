@@ -77,7 +77,7 @@ void OptionalFieldCompressor::outputRecords (const Array<Record> &records, Array
 		lib.add((uint8_t*)&len, sizeof(uint32_t));
 		for (auto &k: l.second) {
 			lib.add((uint8_t*)k.first.c_str(), k.first.size() + 1);
-			LOG("%d %s->%d", l.first, k.first.c_str(), k.second);
+			 LOG("%d %s->%d", l.first, k.first.c_str(), k.second);
 		}
 	}
 
@@ -87,7 +87,7 @@ void OptionalFieldCompressor::outputRecords (const Array<Record> &records, Array
 
 	for (size_t i = 0; i < k; i++) {
 		int size = processFields(records[i].getOptional(), 
-			oa, buffer, optFields[i]);
+			oa, buffer, optFields[i], k);
 		addEncoded(size + 1, sizes);
 		totalSize -= records[i].getOptionalSize() + 1;
 	}
@@ -127,49 +127,52 @@ void OptionalFieldCompressor::outputRecords (const Array<Record> &records, Array
 }
 
 int OptionalFieldCompressor::processFields (const char *rec, vector<Array<uint8_t>> &out,
-	 Array<uint8_t> &tags, const OptionalField &of)
+	 Array<uint8_t> &tags, const OptionalField &of, size_t k)
 {
 	ZAMAN_START(ParseFields);
 	int prevKey = 0;
 	for (auto &kv: of.keys) {
 		int key = kv.first;
+
+		int type = key % AlphabetRange + AlphabetStart;
 		int keyIndex = fields[key];
 		if (keyIndex == -1) {
 			keyIndex = fields[key] = fieldCount++;
-			out.emplace_back(Array<uint8_t>(MB, MB));
+			if (type >= 'd') {
+				out.emplace_back(Array<uint8_t>(8 * k, MB));
+			} else {
+				int l = strlen(rec + kv.second);
+				out.emplace_back(Array<uint8_t>((l + 1) * k, MB));
+			}
 			addEncoded(prevKey = keyIndex + 1, tags);
 			addEncoded(key + 1, tags);
 		} else {
 			addEncoded(prevKey = keyIndex + 1, tags);
 		}
 
-		int type = key % AlphabetRange + AlphabetStart;
-		if (type >= 'i' || (type > 'Z' && type <= 'Z' + 5)) {
-			packInteger(kv.second.I, out[keyIndex]);
-		} else switch(type) {
-		case 'd':
-		case 'f': {
-			uint8_t *np = (uint8_t*)(&kv.second.F);
-			REPEAT(8) out[keyIndex].add(*np), np++;
-			break;
+		if (key == OptionalFieldCompressor::NMi) // it was calculated
+			continue;
+
+		// only zero is j!!!
+		int cnt;
+		if (type <= 'Z') { // strings
+			cnt = strlen(rec + kv.second);
+			if (type > 'A') cnt++; // include 0
+		} else if (type < 'i') { // d, f, library
+			cnt = 4;
+		} else {
+			cnt = type - 'i';
 		}
-		case 'A':
-			out[keyIndex].add(rec[kv.second.I]);
-			break;
-		default: 
-			for (const char *r = rec + kv.second.I; *r; r++)
-				out[keyIndex].add(*r);
-			out[keyIndex].add(0);
-		   break;
-		}
+		out[keyIndex].add((uint8_t*)(rec + kv.second), cnt);
 	}
 	ZAMAN_END(ParseFields);
 	return of.keys.size();
 }
 
-OptionalField::OptionalField (const char *rec, const char *recEnd, unordered_map<int32_t, map<string, int>> &library) 
+void OptionalField::parse1 (const char *rec, const char *recEnd, unordered_map<int32_t, map<string, int>> &library)
 {
 	ZAMAN_START(OptionalField);
+	keys.resize(0);
 	for (const char *recStart = rec; rec < recEnd; rec++) {
 		if (recEnd - rec < 5 || rec[2] != ':' || rec[4] != ':') {
 			LOG("ooops... %s %d %d", rec, rec[0], recEnd - rec);
@@ -179,23 +182,40 @@ OptionalField::OptionalField (const char *rec, const char *recEnd, unordered_map
 		char type = rec[3];
 		int key = OptTag(rec[0], rec[1], rec[3]);
 		rec += 5;
-		
 		switch (type) {
-		case 'i':
-			keys.add(make_pair(key, IntFloatUnion((int64_t)atoi(rec))));
-			break;
-		case 'd': // will round double to float; double is not supported by standard anyways
-		case 'f':
-			keys.add(make_pair(key, IntFloatUnion((double)atof(rec))));
-			break;
-		default:
-			keys.add(make_pair(key, IntFloatUnion((int64_t)(rec - recStart))));
-			if (OptionalFieldCompressor::LibraryTags.find(key) != OptionalFieldCompressor::LibraryTags.end()) {
-				library[key][rec] = 0;
+		case 'i': {
+			int64_t num = atoi(rec), sz = 0;
+			if (num >= numeric_limits<int8_t>::min() && num <= numeric_limits<int8_t>::max()) {
+				uint8_t n = num;
+				memcpy((uint8_t*)rec, &n, sz = sizeof(uint8_t));
+			} else if (num >= numeric_limits<int16_t>::min() && num <= numeric_limits<int16_t>::max()) {
+				uint16_t n = num;
+				memcpy((uint8_t*)rec, &n, sz = sizeof(uint16_t));
+			} else if (num >= numeric_limits<int32_t>::min() && num <= numeric_limits<int32_t>::max()) {
+				uint32_t n = num;
+				memcpy((uint8_t*)rec, &n, sz = sizeof(uint32_t));
+			} else {
+				uint64_t n = num;
+				memcpy((uint8_t*)rec, &n, sz = sizeof(uint64_t));
 			}
-
-		}		
-		while (*rec) rec++;
+			keys.add(make_pair(key + sz, rec - recStart));
+			rec += sz;
+			break;
+		}
+		case 'd': // will round double to float; double is not supported by standard anyways
+		case 'f': {
+			float n = atof(rec);
+			memcpy((uint8_t*)(rec - 4), &n, sizeof(float)); // to make sure it does fit!
+			keys.add(make_pair(key, rec - 4 - recStart));
+			break;
+		}
+		default: {
+			keys.add(make_pair(key, rec - recStart));
+			if (OptionalFieldCompressor::LibraryTags.find(key) != OptionalFieldCompressor::LibraryTags.end()) 
+				library[key][rec] = 0;
+		}	
+		}
+		while (*rec) rec++;	
 	}
 	ZAMAN_END(OptionalField);
 }
@@ -210,33 +230,38 @@ void OptionalField::parse(char *rec, const EditOperation &eo, unordered_map<int3
 		// 1. set library tag to proper value
 		// 2. check is MDZ/NM etc ok
 		if (OptionalFieldCompressor::LibraryTags.find(key) != OptionalFieldCompressor::LibraryTags.end()) {
-			assert(library[key].find(rec + kv.second.I) != library[key].end());
-			type = 'i'; 
-			kv.second.I = library[key][rec + kv.second.I];
+			assert(library[key].find(rec + kv.second) != library[key].end());
+			// 4 bita!!!!!!!!!!
+			// overwrite PG:x:
+			int32_t n = library[key][rec + kv.second];
+			kv.second -= 4;
+			memcpy(rec + kv.second, &n, sizeof(uint32_t));
+			kv.first += 4;
 		} else if (key == OptionalFieldCompressor::MDZ) {
-			if (strcmp(rec + kv.second.I, eo.MD.c_str())) {
-				DEBUG("MD calculation failed: calculated %s, found %s", eo.MD.c_str(), rec + kv.second.I);
+			if (strcmp(rec + kv.second, eo.MD.c_str())) {
+				DEBUG("MD calculation failed: calculated %s, found %s", eo.MD.c_str(), rec + kv.second);
 				failedMD++;
 			} else {
-				rec[kv.second.I] = 0;
+				rec[kv.second] = 0;
 			}
 			totalMD++;
 		} else if (key == OptionalFieldCompressor::XDZ) {
-			if (!parseXD(rec + kv.second.I, eo.MD)) {
+			if (!parseXD(rec + kv.second, eo.MD)) {
 				// DEBUG("XD calculation failed: calculated %s, found %s", eoXD.c_str(), rec + kv.second.I);
 				failedXD++;
 			} else {
-				rec[kv.second.I] = 0;
+				rec[kv.second] = 0;
 			}
 			totalXD++;
-		} 
-		if (type == 'i' && !(key == OptionalFieldCompressor::NMi && eo.NM != -1 && eo.NM == kv.second.I)) { // number and not valid NMi
-			uint64_t num = kv.second.I, p = 0;
-			while (num) num >>= 8, p++;
-			if (!p) p = 1;
-			if (p > 5) p = 5;
-			kv.first += p;
-		}	
+		} else if (key >= OptionalFieldCompressor::NMi && key <= OptionalFieldCompressor::NMi + 8 && eo.NM != -1) {
+			int64_t NM;
+			if (type == 'i' + 1) NM = *(uint8_t*)(rec + kv.second);
+			else if (type == 'i' + 2) NM = *(uint16_t*)(rec + kv.second);
+			else if (type == 'i' + 4) NM = *(uint32_t*)(rec + kv.second);
+			else NM = *(uint64_t*)(rec + kv.second);
+			if (NM == eo.NM)
+				kv.first = OptionalFieldCompressor::NMi;
+		}
 	}
 	ZAMAN_END(OptionalField);
 }

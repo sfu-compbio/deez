@@ -28,8 +28,7 @@ void OptionalFieldDecompressor::importRecords (uint8_t *in, size_t in_size)
 			string s;
 			while (*i) s += *i++; i++;
 			library[key][j] = s;
-
-			LOG("%d %d->%s", key, j, s.c_str());
+			 LOG("%d %d->%s", key, j, s.c_str());
 		}
 	}
 
@@ -89,12 +88,13 @@ OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, u
 
 		int keyZ = key - (key % AlphabetRange) + ('Z' - AlphabetStart);
 		int type = key % AlphabetRange + AlphabetStart;
-		if (type > 'Z' && type <= 'Z' + 5) {
+		if (type == 'Z' + 4) {
 			assert(OptionalFieldCompressor::LibraryTags.find(keyZ) != OptionalFieldCompressor::LibraryTags.end());
-			int64_t num = unpackInteger(key % AlphabetRange - ('Z' - AlphabetStart) - 1, oa[keyIndex], out[keyIndex]);			
+			uint32_t num = *(uint32_t*)(oa[keyIndex].data() + out[keyIndex]);
+			out[keyIndex] += sizeof(uint32_t);
 			result[result.size() - 2] = 'Z';
 			assert(library[keyZ].find(num) != library[keyZ].end());
-			result += library[keyZ][num];	
+			result += library[keyZ][num];
 		} else if (key == OptionalFieldCompressor::MDZ && !oa[keyIndex][out[keyIndex]]) {
 			of.posMD = result.size();
 			out[keyIndex]++;
@@ -104,21 +104,49 @@ OptionalField OptionalFieldDecompressor::parseFields(int size, uint8_t *&tags, u
 		} else if (key == OptionalFieldCompressor::NMi) {
 			of.posNM = result.size();
 		} else switch (type) {
-			case 'i' + 1:
-			case 'i' + 2:
-			case 'i' + 3:
-			case 'i' + 4:
-			case 'i' + 5: {
-				result[result.size() - 2] = 'i'; // SAM only supports 'i' as tag
-				int64_t num = unpackInteger(type - 'i' - 1, oa[keyIndex], out[keyIndex]);
+			/*case 'Z' + 1:
+			case 'Z' + 2:
+			case 'Z' + 4: {
+				assert(OptionalFieldCompressor::LibraryTags.find(keyZ) != OptionalFieldCompressor::LibraryTags.end());
+				uint32_t num = *(uint32_t)(oa[keyIndex].data() + out[keyIndex]);
+				out[keyIndex] += sizeof(uint32_t);
+				result[result.size() - 2] = 'Z';
+				assert(library[keyZ].find(num) != library[keyZ].end());
+				result += library[keyZ][num];
+			}*/
+			case 'i' + 1: {
+				int8_t num = *(uint8_t*)(oa[keyIndex].data() + out[keyIndex]);
+				result[result.size() - 2] = 'i'; 
 				result += inttostr(num);
+				out[keyIndex] += sizeof(num);
+				break;
+			}
+			case 'i' + 2: {
+				int16_t num = *(uint16_t*)(oa[keyIndex].data() + out[keyIndex]);
+				result[result.size() - 2] = 'i'; 
+				result += inttostr(num);
+				out[keyIndex] += sizeof(num);
+				break;
+			}
+			case 'i' + 4: {
+				int32_t num = *(uint32_t*)(oa[keyIndex].data() + out[keyIndex]);
+				result[result.size() - 2] = 'i'; 
+				result += inttostr(num);
+				out[keyIndex] += sizeof(num);
+				break;
+			}
+			case 'i' + 8: {
+				int64_t num = *(uint64_t*)(oa[keyIndex].data() + out[keyIndex]);
+				result[result.size() - 2] = 'i'; 
+				result += inttostr(num);
+				out[keyIndex] += sizeof(num);
 				break;
 			}
 			case 'd':
 			case 'f': {
-				uint64_t num = 0;
-				REPEAT(8) num |= uint64_t(oa[keyIndex].data()[out[keyIndex]++]) << (8 * _);
-				result += S("%g", *((double*)(&num)));
+				uint32_t num = 0;
+				REPEAT(4) num |= uint32_t(oa[keyIndex].data()[out[keyIndex]++]) << (8 * _);
+				result += S("%g", *((float*)(&num)));
 				break;
 			}
 			case 'A':

@@ -31,7 +31,6 @@ public:
 	virtual uint32_t getFreq (uint32_t);
 	virtual void flush (void);
 
-
 	virtual void initEncode (Array<uint8_t> *o);
 	virtual void initDecode (uint8_t *o, size_t osz);
 
