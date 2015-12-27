@@ -1,5 +1,7 @@
 #include "EditOperation.h"
 #include "Sequence.h"
+#include "../Streams/rANSOrder2Stream.h"
+
 using namespace std;
 
 EditOperation::EditOperation(size_t s, const std::string &se, const std::string &op) :
@@ -107,7 +109,8 @@ EditOperationCompressor::EditOperationCompressor (const SequenceCompressor &seq)
 
 void EditOperationCompressor::printDetails(void) 
 {
-	vector<const char*> s { "Positions", "Stitches", "Opcode", "SeqPos", "SeqLen", "XLen", "HSLen", "AnyLen", "OPLen", "ACGT", "ACGT+N" };
+	vector<const char*> s { "Positions", "Stitches", "Opcode", "SeqPos", "SeqLen", "XLen", "HSLen", "AnyLen", "OPLen", 
+		"ACGTMiss", "ACGTIns", "ACGTUnmap" };
 	for (int i = 0; i < streams.size(); i++) 
 		LOG("  %-10s: %'20lu ", s[i], streams[i]->getCount());
 }
@@ -128,8 +131,11 @@ void EditOperationCompressor::outputRecords (const Array<Record> &records, Array
 	Array<uint8_t> locations(k);
 	Array<uint32_t> stitches(k);	
 
-	ACTGStream nucleotides(k * records[0].getSequenceSize(), MB);
-	nucleotides.initEncode();
+	ACTGStream nucleotides[3];
+	REPEAT(3) { // Mismatch; InsClip; Unmapped
+		nucleotides[_] = ACTGStream(k * records[0].getSequenceSize(), MB); 
+		nucleotides[_].initEncode();
+	}
 
 	uint32_t lastLoc = 0;
 	for (size_t i = 0; i < k; i++) {
@@ -149,9 +155,11 @@ void EditOperationCompressor::outputRecords (const Array<Record> &records, Array
 	compressArray(streams[Fields::LOCATION], locations, out, out_offset);
 
 	ZAMAN_START(ACGT);
-	nucleotides.flush();
-	compressArray(streams[Fields::ACGT], nucleotides.seqvec, out, out_offset);
-	compressArray(streams[Fields::ACGT], nucleotides.Nvec, out, out_offset);
+	REPEAT(3) { 
+		nucleotides[_].flush();
+		compressArray(streams[Fields::ACGT + _], nucleotides[_].seqvec, out, out_offset);
+		compressArray(streams[Fields::ACGT + _], nucleotides[_].Nvec, out, out_offset);
+	}
 	ZAMAN_END(ACGT);
 
 	for (int i = 2; i < Fields::ACGT; i++)
@@ -160,7 +168,7 @@ void EditOperationCompressor::outputRecords (const Array<Record> &records, Array
 	ZAMAN_END(EditOperationOutput);
 }
 
-void EditOperationCompressor::addEditOperation(const Record &record, const EditOperation &eo, ACTGStream &nucleotides, vector<Array<uint8_t>> &out) 
+void EditOperationCompressor::addEditOperation(const Record &record, const EditOperation &eo, ACTGStream *nucleotides, vector<Array<uint8_t>> &out) 
 {
 	ZAMAN_START(AddEditOperation);
 
@@ -169,7 +177,7 @@ void EditOperationCompressor::addEditOperation(const Record &record, const EditO
 	
 	if (eo.ops[0].first == '*') {
 		if (seq[0] != '*') {
-			nucleotides.add(seq, seqSize);
+			nucleotides[2].add(seq, seqSize);
 			addEncoded(seqSize + 1, out[Fields::SEQEND]);
 		} else {
 			addEncoded(1, out[Fields::SEQEND]);
@@ -210,12 +218,12 @@ void EditOperationCompressor::addEditOperation(const Record &record, const EditO
 						lastOP = '=', lastOPSize = 1;
 					}
 				} else if (checkSequence && lastOP == 'X') {
-					nucleotides.add(seq + seqPos, 1), lastOPSize++;
+					nucleotides[0].add(seq + seqPos, 1), lastOPSize++;
 				} else {
 					if (lastOP && lastOP != '=') {
 						addOperation(lastOP, seqPos - prevSeqPos, lastOPSize, out), prevSeqPos = seqPos;
 					}
-					if (checkSequence) nucleotides.add(seq + seqPos, 1);
+					if (checkSequence) nucleotides[0].add(seq + seqPos, 1);
 					lastOP = 'X', lastOPSize = 1;
 				}
 				genPos++;
@@ -226,7 +234,7 @@ void EditOperationCompressor::addEditOperation(const Record &record, const EditO
 			break;
 		case 'I':
 		case 'S':
-			if (checkSequence) nucleotides.add(seq + seqPos, op.second);	
+			if (checkSequence) nucleotides[1].add(seq + seqPos, op.second);	
 			seqPos += op.second;
 			addOperation(op.first, seqPos - prevSeqPos, op.second, out), prevSeqPos = seqPos;
 			break;

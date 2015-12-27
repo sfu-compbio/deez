@@ -83,7 +83,7 @@ public: // for range based loops
 public:
 	void realloc (size_t sz) 
 	{
-		ZAMAN_START(Realloc);
+	//	ZAMAN_START(Realloc);
 		_capacity = sz + _extend;
 
 		if (_size > _capacity) _size = _capacity;
@@ -93,7 +93,7 @@ public:
 		std::copy(_records, _records + _size, tmp);
 		delete[] _records;
 		_records = tmp;
-		ZAMAN_END(Realloc);
+	//	ZAMAN_END(Realloc);
 	}
 
 	void resize (size_t sz) 

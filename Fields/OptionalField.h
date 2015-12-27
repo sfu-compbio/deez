@@ -50,6 +50,7 @@ class OptionalFieldCompressor:
 	std::map<int, shared_ptr<CompressionStream>> fieldStreams;
 	vector<int> fields;
 	int fieldCount;
+	vector<int> prevIndex;
 
 public:
 	OptTagDef(MDZ);
@@ -72,7 +73,15 @@ public:
 
 private:
 	int processFields(const char *rec, std::vector<Array<uint8_t>> &out,
-		Array<uint8_t> &tags, const OptionalField &of, size_t k);
+		Array<uint8_t> &tags, Array<uint8_t> &tags2, const OptionalField &of, size_t k);
+
+public:
+	enum Fields {
+		TAG, 
+		TAGX,
+		TAGLEN,
+		ENUM_COUNT
+	};
 };
 
 class OptionalFieldDecompressor: 
@@ -81,6 +90,7 @@ class OptionalFieldDecompressor:
 	std::unordered_map<int, shared_ptr<DecompressionStream>> fieldStreams;
 	std::unordered_map<int, std::unordered_map<int, std::string>> library;
 	vector<int> fields;
+	vector<int> prevIndex;
 
 public:
 	OptionalFieldDecompressor (int blockSize);
@@ -91,7 +101,7 @@ public:
 	void importRecords (uint8_t *in, size_t in_size);
 
 private:
-	OptionalField parseFields(int size, uint8_t *&tags, uint8_t *&in, std::vector<Array<uint8_t>>& oa, std::vector<size_t> &out);
+	OptionalField parseFields(int size, uint8_t *&tags, uint8_t *&tags2, uint8_t *&in, std::vector<Array<uint8_t>>& oa, std::vector<size_t> &out);
 };
 
 

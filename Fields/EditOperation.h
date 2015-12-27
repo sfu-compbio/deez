@@ -8,7 +8,6 @@
 #include "../Streams/BzipStream.h"
 #include "../Streams/ACGTStream.h"
 #include "../Streams/ArithmeticOrder0Stream.h"
-#include "../Streams/rANSOrder0Stream.h"
 #include "../Engines/GenericEngine.h"
 #include "../Engines/StringEngine.h"
 #include "Reference.h"
@@ -48,7 +47,7 @@ public:
 
 private:	
 	void addOperation(char op, int seqPos, int size, vector<Array<uint8_t>> &out);
-	void addEditOperation(const Record &record, const EditOperation &eo, ACTGStream &nucleotides, vector<Array<uint8_t>> &out);
+	void addEditOperation(const Record &record, const EditOperation &eo, ACTGStream *nucleotides, vector<Array<uint8_t>> &out);
 
 public:
 	friend class FileCompressor;
@@ -63,6 +62,8 @@ public:
 		LEN,
 		OPLEN,
 		ACGT,
+		ACGT_IS,
+		ACGT_U,
 		// ACGT_N,
 		ENUM_COUNT
 	};
@@ -82,7 +83,7 @@ public:
 	void setIndexData (uint8_t *in, size_t in_size);
 
 private:
-	EditOperation getEditOperation (size_t loc, ACTGStream &nucleotides, vector<uint8_t*> &fields);
+	EditOperation getEditOperation (size_t loc, ACTGStream *nucleotides, vector<uint8_t*> &fields);
 };
 
 #endif // EditOperation_H

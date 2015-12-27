@@ -18,6 +18,7 @@
 #include "../Engines/StringEngine.h"
 #include "../Fields/EditOperation.h"
 #include "../Streams/GzipStream.h"
+#include "../Streams/ACGTStream.h"
 #include "EditOperation.h"
 #include "SAMComment.h"
 
@@ -29,6 +30,8 @@ class SequenceCompressor: public Compressor {
 	Array<uint8_t> 
 		fixesLoc,
 		fixesReplace;
+	Array<uint8_t>
+		fixesLocSt;
 	
 	std::string chromosome; // chromosome index
 	std::string fixed;
@@ -77,6 +80,7 @@ private:
 public:
 	enum Fields {
 		FIXES,
+		FIXES_ST,
 		REPLACE,
 		ENUM_COUNT
 	};

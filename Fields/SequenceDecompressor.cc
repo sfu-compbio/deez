@@ -1,6 +1,7 @@
 #include <thread>
 #include <utility>
 #include "Sequence.h"
+#include "../Streams/rANSOrder0Stream.h"
 using namespace std;
 
 SequenceDecompressor::SequenceDecompressor (const string &refFile, int bs):
@@ -10,6 +11,7 @@ SequenceDecompressor::SequenceDecompressor (const string &refFile, int bs):
 	streams.resize(SequenceCompressor::Fields::ENUM_COUNT);
 	for (int i = 0; i < streams.size(); i++)
 		streams[i] = make_shared<GzipDecompressionStream>();
+	streams[SequenceCompressor::Fields::FIXES] = make_shared<rANSOrder0DecompressionStream<256>>();
 }
 
 SequenceDecompressor::~SequenceDecompressor (void)
@@ -33,6 +35,8 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)
 	
 	Array<uint8_t> fixes_loc;
 	decompressArray(streams[SequenceCompressor::Fields::FIXES], in, fixes_loc);
+	Array<uint8_t> fixes_st;
+	decompressArray(streams[SequenceCompressor::Fields::FIXES_ST], in, fixes_st);
 	Array<uint8_t> fixes_replace;
 	decompressArray(streams[SequenceCompressor::Fields::REPLACE], in, fixes_replace);
 
@@ -53,8 +57,14 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)
 	
 	size_t prevFix = 0;
 	uint8_t *len = fixes_loc.data();
+	uint8_t *fst = fixes_st.data();
 	for (size_t i = 0; i < fixes_replace.size(); i++) {
-		prevFix += getEncoded(len) - 1;
+		int l = *len++;
+		if (l == 255) {
+			l = getEncoded(fst) + 254 - 1;
+		}
+		prevFix += l;
+
 		assert(prevFix < fixedEnd);
 		assert(prevFix >= fixedStart);
 		fixed[prevFix - fixedStart] = fixes_replace.data()[i];

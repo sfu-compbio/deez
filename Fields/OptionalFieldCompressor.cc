@@ -31,11 +31,18 @@ unordered_set<int> OptionalFieldCompressor::QualityTags = {
 	OptTagKey(U2Z)
 };
 
+static FILE *fo;
 OptionalFieldCompressor::OptionalFieldCompressor(void):
 	StringCompressor<GzipCompressionStream<6>>(),
 	fields(AlphabetRange * AlphabetRange * AlphabetRange, -1),
+	prevIndex(AlphabetRange * AlphabetRange * AlphabetRange),
 	fieldCount(0)
 {
+	streams.resize(Fields::ENUM_COUNT);
+	for (int i = 0; i < streams.size(); i++)
+		streams[i] = make_shared<GzipCompressionStream<6>>();
+	streams[Fields::TAGX] = make_shared<rANSOrder0CompressionStream<256>>();
+	streams[Fields::TAGLEN] = make_shared<rANSOrder0CompressionStream<256>>();
 }
 
 OptionalFieldCompressor::~OptionalFieldCompressor (void) 
@@ -56,7 +63,9 @@ size_t OptionalFieldCompressor::compressedSize(void)
 
 void OptionalFieldCompressor::printDetails(void) 
 {
-	LOG("  Index     : %'20lu", streams[0]->getCount());
+	LOG("  TagSig    : %'20lu", streams[0]->getCount());
+	LOG("  TagX      : %'20lu", streams[1]->getCount());
+	LOG("  TagLen    : %'20lu", streams[2]->getCount());
 	for (auto &m: fieldStreams) 
 		LOG("  %-10s: %'20lu", keyStr(m.first).c_str(), m.second->getCount());
 }
@@ -77,25 +86,38 @@ void OptionalFieldCompressor::outputRecords (const Array<Record> &records, Array
 		lib.add((uint8_t*)&len, sizeof(uint32_t));
 		for (auto &k: l.second) {
 			lib.add((uint8_t*)k.first.c_str(), k.first.size() + 1);
-			 LOG("%d %s->%d", l.first, k.first.c_str(), k.second);
+		//	 LOG("%d %s->%d", l.first, k.first.c_str(), k.second);
 		}
 	}
 
 	vector<Array<uint8_t>> oa;
 	Array<uint8_t> buffer(k * 10, MB);
+	Array<uint8_t> buffer2(k * 10, MB);
 	Array<uint8_t> sizes(k, MB);
 
+	fill(prevIndex.begin(), prevIndex.end(), 0);
+	unordered_map<int, int> sizeMap;
 	for (size_t i = 0; i < k; i++) {
 		int size = processFields(records[i].getOptional(), 
-			oa, buffer, optFields[i], k);
-		addEncoded(size + 1, sizes);
+			oa, buffer, buffer2, optFields[i], k);
+		auto it = sizeMap.find(size);
+		if (it != sizeMap.end()) {
+			addEncoded(it->second, sizes);
+		} else {
+			int p = sizeMap.size() + 1;
+			sizeMap[size] = p;
+			addEncoded(p, sizes);
+			addEncoded(size + 1, sizes);
+		}
+		addEncoded(1, buffer);
 		totalSize -= records[i].getOptionalSize() + 1;
 	}
 
 	ZAMAN_START(Index);
-	compressArray(streams[0], lib, out, out_offset);
-	compressArray(streams[0], buffer, out, out_offset);
-	compressArray(streams[0], sizes, out, out_offset);
+	compressArray(streams[Fields::TAG], lib, out, out_offset);
+	compressArray(streams[Fields::TAG], buffer, out, out_offset);
+	//compressArray(streams[Fields::TAGX], buffer2, out, out_offset);
+	//compressArray(streams[Fields::TAGLEN], sizes, out, out_offset);
 	ZAMAN_END(Index);
 
 	ZAMAN_START(Keys);
@@ -127,15 +149,16 @@ void OptionalFieldCompressor::outputRecords (const Array<Record> &records, Array
 }
 
 int OptionalFieldCompressor::processFields (const char *rec, vector<Array<uint8_t>> &out,
-	 Array<uint8_t> &tags, const OptionalField &of, size_t k)
+	 Array<uint8_t> &tags, Array<uint8_t> &tags2, const OptionalField &of, size_t k)
 {
 	ZAMAN_START(ParseFields);
-	int prevKey = 0;
+	int pi = -1, pk = 0;
 	for (auto &kv: of.keys) {
 		int key = kv.first;
 
 		int type = key % AlphabetRange + AlphabetStart;
-		int keyIndex = fields[key];
+		int32_t keyIndex = fields[key];
+
 		if (keyIndex == -1) {
 			keyIndex = fields[key] = fieldCount++;
 			if (type >= 'd') {
@@ -144,11 +167,19 @@ int OptionalFieldCompressor::processFields (const char *rec, vector<Array<uint8_
 				int l = strlen(rec + kv.second);
 				out.emplace_back(Array<uint8_t>((l + 1) * k, MB));
 			}
-			addEncoded(prevKey = keyIndex + 1, tags);
+			addEncoded(keyIndex - pi + 1, tags);
 			addEncoded(key + 1, tags);
 		} else {
-			addEncoded(prevKey = keyIndex + 1, tags);
+			addEncoded(keyIndex - pi + 1, tags);
 		}
+		if (keyIndex < pi) {
+			swap(fields[key], fields[pk]);
+			swap(out[keyIndex], out[pi]);
+		}
+		printf("%d ", keyIndex - pi + 1);
+		pi = keyIndex;
+		pk = key;
+
 
 		if (key == OptionalFieldCompressor::NMi) // it was calculated
 			continue;
@@ -165,6 +196,8 @@ int OptionalFieldCompressor::processFields (const char *rec, vector<Array<uint8_
 		}
 		out[keyIndex].add((uint8_t*)(rec + kv.second), cnt);
 	}
+	addEncoded(1, tags2);
+	printf("\n");
 	ZAMAN_END(ParseFields);
 	return of.keys.size();
 }

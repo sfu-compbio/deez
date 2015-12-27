@@ -241,7 +241,7 @@ void Reference::loadIntoBuffer(size_t end)
 	auto it = chromosomes.find(currentChr);
 	if (it != chromosomes.end() && it->second.len > 0) {
 		while (currentPos < bufferEnd) {
-			buffer += c;
+			buffer += toupper(c);
 			
 			c = input->getc();
 			while (isspace(c) && c != EOF) 

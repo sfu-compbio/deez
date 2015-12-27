@@ -27,10 +27,12 @@ void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size)
 	Array<uint8_t> locations;
 	size_t sz = decompressArray(streams[EditOperationCompressor::Fields::LOCATION], in, locations);
 
-	ACTGStream nucleotides;
-	decompressArray(streams[EditOperationCompressor::Fields::ACGT], in, nucleotides.seqvec);
-	decompressArray(streams[EditOperationCompressor::Fields::ACGT], in, nucleotides.Nvec);
-	nucleotides.initDecode();
+	ACTGStream nucleotides[3];
+	REPEAT(3) {
+		decompressArray(streams[EditOperationCompressor::Fields::ACGT + _], in, nucleotides[_].seqvec);
+		decompressArray(streams[EditOperationCompressor::Fields::ACGT + _], in, nucleotides[_].Nvec);
+		nucleotides[_].initDecode();
+	}
 
 	vector<Array<uint8_t>> oa(EditOperationCompressor::Fields::ACGT);
 	vector<uint8_t*> fields(oa.size(), 0);
@@ -56,7 +58,7 @@ void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size)
 	recordCount = 0;
 }
 
-EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStream &nucleotides, vector<uint8_t*> &fields) 
+EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStream *nucleotides, vector<uint8_t*> &fields) 
 {
 	ZAMAN_START(GetEO);
 
@@ -144,7 +146,7 @@ end:
 					lastOPSize += opLen[i];
 				else 
 					lastOP = 'M', lastOPSize = opLen[i];
-				nucleotides.get(eo.seq, opLen[i]);
+				nucleotides[0].get(eo.seq, opLen[i]);
 
 				for (int j = 0; j < opLen[i]; j++) {
 					if (sequence.getReference()[genPos + j] != eo.seq[eo.seq.size() - opLen[i] + j]) {
@@ -161,9 +163,12 @@ end:
 
 			case 'I':
 				eo.NM += opLen[i];
-			case '*':
 			case 'S':
-				nucleotides.get(eo.seq, opLen[i]);
+			case '*':
+				if (opChr[i] == '*') 
+					nucleotides[2].get(eo.seq, opLen[i]);
+				else
+					nucleotides[1].get(eo.seq, opLen[i]);
 			case 'H':
 			case 'P':
 				if (lastOP != 0) {

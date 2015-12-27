@@ -23,14 +23,14 @@ struct ACTGStream {
 	}
 
 	void add_(char c) {
-		if (Ncnt == 8)
-			Nvec.add(N), Ncnt = 0;
-		if (c == 'N') {
-			seqvec.add(0);
-			N <<= 1, N |= 1, Ncnt++;
-			return;
-		}
-		c = "\0\0\001\0\0\0\002\0\0\0\0\0\0\0\0\0\0\0\0\003"[c - 'A'];
+		// if (Ncnt == 8)
+		// 	Nvec.add(N), Ncnt = 0;
+		// if (c == 'N') {
+		// 	seqvec.add(0);
+		// 	N <<= 1, N |= 1, Ncnt++;
+		// 	return;
+		// }
+		c = "\0\0\001\0\0\0\002\0\0\0\0\0\0\004\0\0\0\0\0\003"[c - 'A'];
 		seqvec.add(c);
 	}
 

@@ -35,16 +35,13 @@ public:
 		rANSCoder::Stat::setUpFreqs(stats, 1, AS);
 
 		Array<uint8_t> freqData(0, MB);
-		char fMin = -1, fMax;
+		uint8_t fMin = 255, fMax;
 		for (int i = 0; i < AS; i++)
 			if (stats[0][i].freq) {
-				if (fMin == -1) 
-					fMin = i; 
+				fMin = min(uint8_t(i), fMin); 
 				fMax = i;
 			}
-		if (fMin == -1)
-			fMin = fMax = 0;
-		freqData.add((uint8_t*)&fMin, 1);			
+		freqData.add((uint8_t*)&fMin, 1);
 		freqData.add((uint8_t*)&fMax, 1);
 		for (int i = fMin; i <= fMax; i++) {
 			uint16_t p = stats[0][i].freq;
