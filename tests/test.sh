@@ -6,8 +6,8 @@ out=`realpath out`
 log=`realpath log`
 deez=`realpath deez`
 
-find *dztest* -delete
-find *dztemp* -delete
+find . | grep dztest | xargs rm 
+find . | grep dztemp | xargs rm
 rm -rf ${out}/*
 rm -rf ${log}/*
 

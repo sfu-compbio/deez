@@ -330,6 +330,7 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 	size_t threadSz = recordCount / optThreads + 1;
 	vector<thread> threads(optThreads);
 	vector<vector<string>> records(optThreads);
+	vector<char> finishedRangeThread(optThreads, 0);
 	for (int ti = 0; ti < optThreads; ti++) {
 		records[ti].reserve(threadSz);
 		threads[ti] = thread([&](int ti, size_t S, size_t E) {
@@ -356,7 +357,7 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 				if (eo.start < start)
 					continue;
 				if (eo.start > end) {
-					finishedRange = true;
+					finishedRangeThread[ti] = true;
 					return;
 				}
 
@@ -394,6 +395,8 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 	}
 	for (int ti = 0; ti < optThreads; ti++) {
 		threads[ti].join();
+		if (finishedRangeThread[ti])
+			finishedRange = true;
 	}
 	ZAMAN_END_P(Parse);
 	

@@ -219,13 +219,16 @@ void FileCompressor::outputRecords (void)
 		ZAMAN_START_P(Parse);
 			ZAMAN_START_P(GetReads);
 			size_t blockOffset = currentSize[f];
-			for (; currentSize[f] < currentBlockSize[f] && parsers[f]->hasNext() && parsers[f]->head() == sequence[f]->getChromosome(); currentSize[f]++) {
+			size_t blockByteSize = 0, blockReadByteSize = 0;
+			for (; currentSize[f] < currentBlockSize[f] && parsers[f]->hasNext() && parsers[f]->head() == sequence[f]->getChromosome() && blockReadByteSize < 200 * blockSize; currentSize[f]++) {
 				records[f].add();
 				pairedEndInfos[f].add();
 				optFields[f].add();
 				editOps[f].add();
 				records[f][records[f].size() - 1] = std::move(parsers[f]->next());
 				const Record &rc = records[f][records[f].size() - 1];
+				blockByteSize += const_cast<Record&>(rc).getLineLength();
+				blockReadByteSize += rc.getSequenceSize();
 				
 				size_t loc = rc.getLocation();
 				if (loc == (size_t)-1) 
@@ -242,6 +245,7 @@ void FileCompressor::outputRecords (void)
 				parsers[f]->readNext();
 			}
 			ZAMAN_END_P(GetReads);	
+			//LOG("block size %'lu %'lu", blockByteSize, blockReadByteSize);
 			//LOG("Memory after reading: %'lu", currentMemUsage(f));
 	
 			ZAMAN_START_P(ParseRecords);

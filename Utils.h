@@ -45,7 +45,7 @@ inline uint64_t zaman()
 	return (t.tv_sec * 1000000ll + t.tv_usec);
 }
 
-#define ZAMAN
+// #define ZAMAN
 #ifdef ZAMAN
 	class __zaman__ { // crazy hack for gcc 5.1
 	public:
