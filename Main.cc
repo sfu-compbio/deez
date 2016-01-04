@@ -293,7 +293,7 @@ int main (int argc, char **argv)
 		exit(1);
 	}
 	
-	#undef ZAMAN
+	//#undef ZAMAN
 	#ifdef ZAMAN
 		LOG("\nTime usage:");
 		ZAMAN_REPORT();

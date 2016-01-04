@@ -25,6 +25,15 @@ constexpr int OptTag(const char *F)
 #define OptTagKey(X) OptTag(#X)
 #define OptTagDef(X) static const int X = OptTag(#X)
 
+inline string keyStr(int f) 
+{
+	char c[4] = {0};
+	c[0] = AlphabetStart + (f / AlphabetRange) / AlphabetRange;
+	c[1] = AlphabetStart + (f / AlphabetRange) % AlphabetRange;
+	c[2] = AlphabetStart + f % AlphabetRange;
+	return string(c);
+}
+
 struct OptionalField {
 	string data;
 	Array<pair<int, int>> keys; // Tag, Position | Int

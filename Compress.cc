@@ -348,37 +348,37 @@ void FileCompressor::outputRecords (void)
 		ZAMAN_START_P(CheckMate);
 			int matchedMates = 0;
 			unordered_map<string, int> readNames; 
-			// for (size_t i = 0; i < currentBlockCount; i++) {
-			// 	string rn = records[f][i].getReadName();
-			// 	auto it = readNames.find(rn);
-			// 	if (it == readNames.end()) {
-			// 		readNames[rn] = i;
-			// 	} else { // Check can we calculate back the necessary values
-			// 		EditOperation &eo = editOps[f][i];
-			// 		PairedEndInfo &pe = pairedEndInfos[f][i];
-			// 		EditOperation &peo = editOps[f][it->second];
-			// 		PairedEndInfo &ppe = pairedEndInfos[f][it->second];
-			// 	//	LOG("%s %s %s", rn.c_str(), eo.op.c_str(), peo.op.c_str());
-			// 	//	LOG("%d %d %d", pe.tlen, ppe.tlen, eo.start + (peo.end - peo.start) - peo.start);
-			// 	//	LOG("%d %d (%d) %d %d (%d)", eo.start, eo.end, pe.pos, peo.start, peo.end, ppe.pos);
-			// 		uint32_t off;
-			// 		if (pe.tlen == -ppe.tlen // TLEN can be calculated
-			// 			&& eo.start == ppe.pos
-			// 			&& pe.pos == peo.start // POS can be calculated
-			// 			&& (ppe.chr == "=" || chr == ppe.chr) // CHR can be calculated as well
-			// 			&& ppe.tlen >= 0 
-			// 			&& (off = eo.start + (peo.end - peo.start) - peo.start - ppe.tlen) <= 1)
-			// 		{
-			// 			ppe.bit = PairedEndInfo::Bits::LOOK_AHEAD + off; 
-			// 			pe.bit = PairedEndInfo::Bits::LOOK_BACK;
-			// 			pe.tlen = i - it->second;
-			// 		//	LOG("%d...", pe.tlen);
-			// 			matchedMates++;
-			// 		} else { // Replace with current read
-			// 			readNames[rn] = i;
-			// 		}
-			// 	}
-			// }
+			for (size_t i = 0; i < currentBlockCount; i++) {
+				string rn = records[f][i].getReadName();
+				auto it = readNames.find(rn);
+				if (it == readNames.end()) {
+					readNames[rn] = i;
+				} else { // Check can we calculate back the necessary values
+					EditOperation &eo = editOps[f][i];
+					PairedEndInfo &pe = pairedEndInfos[f][i];
+					EditOperation &peo = editOps[f][it->second];
+					PairedEndInfo &ppe = pairedEndInfos[f][it->second];
+				//	LOG("%s %s %s", rn.c_str(), eo.op.c_str(), peo.op.c_str());
+				//	LOG("%d %d %d", pe.tlen, ppe.tlen, eo.start + (peo.end - peo.start) - peo.start);
+				//	LOG("%d %d (%d) %d %d (%d)", eo.start, eo.end, pe.pos, peo.start, peo.end, ppe.pos);
+					uint32_t off;
+					if (pe.tlen == -ppe.tlen // TLEN can be calculated
+						&& eo.start == ppe.pos
+						&& pe.pos == peo.start // POS can be calculated
+						&& (ppe.chr == "=" || chr == ppe.chr) // CHR can be calculated as well
+						&& ppe.tlen >= 0 
+						&& (off = eo.start + (peo.end - peo.start) - peo.start - ppe.tlen) <= 1)
+					{
+						ppe.bit = PairedEndInfo::Bits::LOOK_AHEAD + off; 
+						pe.bit = PairedEndInfo::Bits::LOOK_BACK;
+						pe.tlen = i - it->second;
+					//	LOG("%d...", pe.tlen);
+						matchedMates++;
+					} else { // Replace with current read
+						readNames[rn] = i;
+					}
+				}
+			}
 			totalMatchedMates += matchedMates;
 		ZAMAN_END_P(CheckMate);
 

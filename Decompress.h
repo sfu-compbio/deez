@@ -37,14 +37,14 @@ typedef pair<pair<int, string>, pair<size_t, size_t>> range_t;
 
 class FileDecompressor {
 	vector<SAMComment> samComment;
-	vector<SequenceDecompressor*> sequence;
-	vector<EditOperationDecompressor*> editOp;
-	vector<ReadNameDecompressor*> readName;
-	vector<MappingFlagDecompressor*> mapFlag;
-	vector<MappingQualityDecompressor*> mapQual;
-	vector<QualityScoreDecompressor*> quality;
-	vector<PairedEndDecompressor*> pairedEnd;
-	vector<OptionalFieldDecompressor*> optField;
+	vector<shared_ptr<SequenceDecompressor>> sequence;
+	vector<shared_ptr<EditOperationDecompressor>> editOp;
+	vector<shared_ptr<ReadNameDecompressor>> readName;
+	vector<shared_ptr<MappingFlagDecompressor>> mapFlag;
+	vector<shared_ptr<MappingQualityDecompressor>> mapQual;
+	vector<shared_ptr<QualityScoreDecompressor>> quality;
+	vector<shared_ptr<PairedEndDecompressor>> pairedEnd;
+	vector<shared_ptr<OptionalFieldDecompressor>> optField;
 
    	vector<string> fileNames;
 	vector<FILE*> samFiles;
@@ -82,7 +82,7 @@ private:
 	void getMagic (void);
 	void getComment (void);
 	size_t getBlock (int f, const std::string &chromosome, size_t start, size_t end, int filterFlag);
-	void readBlock (Decompressor *d, Array<uint8_t> &in);
+	void readBlock (Array<uint8_t> &in);
 	void loadIndex (); 
 	vector<range_t> getRanges (std::string range);
 

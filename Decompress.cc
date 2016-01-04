@@ -127,15 +127,8 @@ FileDecompressor::FileDecompressor (const string &inFilePath, const string &outF
 FileDecompressor::~FileDecompressor (void) 
 {
 	for (int f = 0; f < fileNames.size(); f++) {
-		delete sequence[f];
-		delete editOp[f];
-		delete readName[f];
-		delete mapFlag[f];
-		delete mapQual[f];
-		delete quality[f];
-		delete pairedEnd[f];
-		delete optField[f];
-		if (samFiles[f]) fclose(samFiles[f]);
+		if (samFiles[f]) 
+			fclose(samFiles[f]);
 	}
 	if (idxFile) 
 		gzclose(idxFile);
@@ -157,14 +150,14 @@ void FileDecompressor::getMagic (void)
 		numFiles = inFile->readU16();
 
 	for (int f = 0; f < numFiles; f++) {
-		sequence.push_back(new SequenceDecompressor(genomeFile, blockSize));
-		editOp.push_back(new EditOperationDecompressor(blockSize, (*sequence.back())));
-		readName.push_back(new ReadNameDecompressor(blockSize));
-		mapFlag.push_back(new MappingFlagDecompressor(blockSize));
-		mapQual.push_back(new MappingQualityDecompressor(blockSize));
-		pairedEnd.push_back(new PairedEndDecompressor(blockSize));
-		optField.push_back(new OptionalFieldDecompressor(blockSize));
-		quality.push_back(new QualityScoreDecompressor(blockSize));
+		sequence.push_back(make_shared<SequenceDecompressor>(genomeFile, blockSize));
+		editOp.push_back(make_shared<EditOperationDecompressor>(blockSize, (*sequence.back())));
+		readName.push_back(make_shared<ReadNameDecompressor>(blockSize));
+		mapFlag.push_back(make_shared<MappingFlagDecompressor>(blockSize));
+		mapQual.push_back(make_shared<MappingQualityDecompressor>(blockSize));
+		pairedEnd.push_back(make_shared<PairedEndDecompressor>(blockSize));
+		optField.push_back(make_shared<OptionalFieldDecompressor>(blockSize));
+		quality.push_back(make_shared<QualityScoreDecompressor>(blockSize));
 	}
 	fileNames.resize(numFiles);
 
@@ -225,12 +218,11 @@ void FileDecompressor::getComment (void)
 	}
 }
 
-void FileDecompressor::readBlock (Decompressor *d, Array<uint8_t> &in) 
+void FileDecompressor::readBlock (Array<uint8_t> &in) 
 {
 	size_t sz = inFile->readU64();
 	in.resize(sz);
 	if (sz) inFile->read(in.data(), sz);
-	d->importRecords(in.data(), in.size());
 }
 
 size_t FileDecompressor::getBlock (int f, const string &chromosome, 
@@ -262,9 +254,7 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 	Array<uint8_t> in[8];
 
 	for (int ti = 0; ti < 8; ti++) {
-		size_t sz = inFile->readU64();
-		in[ti].resize(sz);
-		if (sz) inFile->read(in[ti].data(), sz); 
+		readBlock(in[ti]);
 	}
 
 	ctpl::thread_pool threadPool(optThreads);
@@ -314,25 +304,25 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 
 // TODO: stop early if slice/random access
 	ZAMAN_START_P(CheckMate);
-	// for (int i = 0, j = 0; i < editOp[f]->size(); i++) {
-	// 	PairedEndInfo &pe = (*pairedEnd[f])[i];
-	// 	if (pe.bit == PairedEndInfo::Bits::LOOK_BACK) {
-	// 		int prevPos = i - readName[f]->getPaired(j++);
-	// 		(*readName[f])[i] = (*readName[f])[prevPos];
+	for (int i = 0, j = 0; i < editOp[f]->size(); i++) {
+		PairedEndInfo &pe = (*pairedEnd[f])[i];
+		if (pe.bit == PairedEndInfo::Bits::LOOK_BACK) {
+			int prevPos = i - readName[f]->getPaired(j++);
+			(*readName[f])[i] = (*readName[f])[prevPos];
 						
-	// 		EditOperation &eo = (*editOp[f])[i];
-	// 		EditOperation &peo = (*editOp[f])[prevPos];
-	// 		PairedEndInfo &ppe = (*pairedEnd[f])[prevPos];
+			EditOperation &eo = (*editOp[f])[i];
+			EditOperation &peo = (*editOp[f])[prevPos];
+			PairedEndInfo &ppe = (*pairedEnd[f])[prevPos];
 
-	// 		ppe.tlen = eo.start + (peo.end - peo.start) - peo.start;
-	// 		ppe.pos = eo.start;
-	// 		pe.pos = peo.start;
-	// 		pe.tlen = -ppe.tlen;
+			ppe.tlen = eo.start + (peo.end - peo.start) - peo.start;
+			ppe.pos = eo.start;
+			pe.pos = peo.start;
+			pe.tlen = -ppe.tlen;
 
-	// 		if (ppe.bit == PairedEndInfo::Bits::LOOK_AHEAD_1) 
-	// 			pe.tlen++, ppe.tlen--;
-	// 	}
-	// }
+			if (ppe.bit == PairedEndInfo::Bits::LOOK_AHEAD_1) 
+				pe.tlen++, ppe.tlen--;
+		}
+	}
 	ZAMAN_END_P(CheckMate);
 
 	ZAMAN_START_P(Parse);
@@ -564,13 +554,14 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 					sequence[f]->scanChromosome(chr, samComment[f]);
 
 				Array<uint8_t> in;
-				readBlock(sequence[f], in);
+				readBlock(in);
+				sequence[f]->importRecords(in.data(), in.size());
 			}
 		}
 		// set up field data
 		while (r->second.first >= i->second.startPos && r->second.first <= i->second.endPos) {		
 			inFile->seek(i->second.zpos);
-			Decompressor *di[] = { 
+			shared_ptr<Decompressor> di[] = { 
 				sequence[f], editOp[f], readName[f], mapFlag[f], 
 				mapQual[f], quality[f], pairedEnd[f], optField[f] 
 			};

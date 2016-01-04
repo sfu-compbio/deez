@@ -6,15 +6,6 @@ using namespace std;
 int totalXD, failedXD;
 int totalMD, failedMD;
 
-inline string keyStr(int f) 
-{
-	char c[4] = {0};
-	c[0] = AlphabetStart + (f / AlphabetRange) / AlphabetRange;
-	c[1] = AlphabetStart + (f / AlphabetRange) % AlphabetRange;
-	c[2] = AlphabetStart + f % AlphabetRange;
-	return string(c);
-}
-
 unordered_set<int> OptionalFieldCompressor::LibraryTags = {
 	OptTagKey(PGZ),
 	OptTagKey(RGZ),

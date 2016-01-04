@@ -81,7 +81,7 @@ inline OptionalField OptionalFieldDecompressor::parseFields(uint8_t *&tags, uint
 			}
 			assert(data.size() == keyIndex);
 			data.push_back(Array<uint8_t>());
-			dataLoc.push_back(Array<size_t>());
+			dataLoc.push_back(Array<size_t>(records.capacity(), records.capacity()));
 			positions.push_back(0);
 		}
 		prevIndex[size] = key;
@@ -99,10 +99,10 @@ void OptionalFieldDecompressor::decompressThreads(ctpl::thread_pool &pool)
 
 	for (int i = 0; i < data.size(); i++) {
 		pool.push([&](int T, int ti, int key, shared_ptr<DecompressionStream> stream, uint8_t *in) {
-			//ZAMAN_START(OptionalFieldThread_C);
-			// #ifdef ZAMAN
-			// 	__zaman_thread__.prefix = __zaman_thread__.prefix.substr(0, __zaman_thread__.prefix.size() - 2) + keyStr(key);
-			// #endif
+			ZAMAN_START(OptionalField_C);
+			#ifdef ZAMAN
+				__zaman_thread__.prefix = __zaman_thread__.prefix.substr(0, __zaman_thread__.prefix.size() - 2) + keyStr(key);
+			#endif
 
 			decompressArray(stream, in, data[ti]);
 			int type = key % AlphabetRange + AlphabetStart;
@@ -114,11 +114,11 @@ void OptionalFieldDecompressor::decompressThreads(ctpl::thread_pool &pool)
 					}
 				}
 			}
-			//ZAMAN_END(OptionalFieldThread_C);
-			// #ifdef ZAMAN
-			// 	__zaman_thread__.prefix = __zaman_thread__.prefix.substr(0, __zaman_thread__.prefix.size() - 3 + 2);
-			// #endif
-			//ZAMAN_THREAD_JOIN();
+			ZAMAN_END(OptionalField_C);
+			#ifdef ZAMAN
+				__zaman_thread__.prefix = __zaman_thread__.prefix.substr(0, __zaman_thread__.prefix.size() - 3 + 2);
+			#endif
+			ZAMAN_THREAD_JOIN();
 		}, i, fields[i], fieldStreams[fields[i]], inputBuffer);
 		
 		size_t in_sz = *(size_t*)inputBuffer;
