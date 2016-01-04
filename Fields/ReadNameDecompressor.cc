@@ -41,11 +41,12 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size)
 	while (ic < s1) {
 		int prevTokenID = -1;
 		int T, t, prevT = 0;
-		while (1) {
+
+		while (ic < s1) {
 			t = (T = index.data()[ic++]) % MAX_TOKEN;
 
 			if (T == 6 * MAX_TOKEN) {
-				int32_t tlen =  *(uint16_t*)p; p += sizeof(uint16_t);
+				int32_t tlen = *(uint16_t*)p; p += sizeof(uint16_t);
 				if (!tlen) 
 					tlen = *(uint32_t*)p, p += sizeof(uint32_t);
 				paired.add(tlen);
@@ -56,7 +57,6 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size)
 			if (t == prevTokenID) {
 				charTokens[t] = unpackInteger(0, content, cc);
 				prevCharTokens[t] = charTokens[t];
-		//		LOGN("+[%c]", charTokens[t]);
 				continue;
 			}
 			prevTokenID = t;
@@ -67,8 +67,9 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size)
 				prevT++;
 			}
 			T /= MAX_TOKEN;
-			if (T >= 6)  
+			if (T >= 6)  {
 				break;
+			}
 			switch (T) {
 				case 0:
 				case 1:
@@ -104,8 +105,6 @@ void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size)
 			tokens[0] += charTokens[i - 1] + tokens[i];
 		records.add(tokens[0]);
 	}
-
-	recordCount = 0;
 
 	ZAMAN_END(ReadNameImport);
 }

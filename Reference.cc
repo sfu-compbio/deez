@@ -234,7 +234,7 @@ void Reference::loadIntoBuffer(size_t end)
 	if (end < bufferEnd) return;
 
 	DEBUG("Loading to %'lu", end);
-
+	
 	buffer.reserve(buffer.size() + (end - bufferEnd + 1));
 	bufferEnd = end;
 
@@ -261,6 +261,7 @@ char Reference::operator[](size_t pos) const
 	assert(pos >= bufferStart); // Access is sequential
 	assert(pos < bufferEnd);
 
+	// LOG("%d [%d] -> %c", pos, bufferStart, buffer[pos - bufferStart]);
 	return buffer[pos - bufferStart];
 }
 

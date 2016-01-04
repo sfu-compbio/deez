@@ -28,7 +28,7 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)
 	if (chromosome == "*" || in_size == 0)
 		return;
 
-	ZAMAN_START(SequenceImport);
+	ZAMAN_START(Sequence);
 
 	size_t newFixedStart = *(size_t*)in; in += sizeof(size_t);
 	size_t newFixedEnd   = *(size_t*)in; in += sizeof(size_t);
@@ -46,7 +46,7 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)
 	if (newFixedStart < fixedEnd) { // Copy old fixes
 		fixed = fixed.substr(newFixedStart - fixedStart, fixedEnd - newFixedStart);
 		fixed += reference.copy(fixedEnd, newFixedEnd);
-		reference.trim(fixedEnd);
+		reference.trim(newFixedStart);
 	} else {
 		fixed = reference.copy(newFixedStart, newFixedEnd);
 		reference.trim(newFixedStart);
@@ -70,7 +70,7 @@ void SequenceDecompressor::importRecords (uint8_t *in, size_t in_size)
 		fixed[prevFix - fixedStart] = fixes_replace.data()[i];
 	}
 
-	ZAMAN_END(SequenceImport);
+	ZAMAN_END(Sequence);
 }
 
 char SequenceDecompressor::operator[] (size_t pos) const
@@ -89,6 +89,7 @@ void SequenceDecompressor::scanChromosome (const string &s, const SAMComment &sa
 	//	assert(editOperation.size() == 0);
 
 	// clean genomePager
+	fixed.resize(0);
 	fixedStart = fixedEnd = 0;
 	chromosome = reference.scanChromosome(s, samComment);
 }

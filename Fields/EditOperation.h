@@ -10,7 +10,7 @@
 #include "../Streams/ArithmeticOrder0Stream.h"
 #include "../Engines/GenericEngine.h"
 #include "../Engines/StringEngine.h"
-#include "Reference.h"
+#include "../Reference.h"
 
 class SequenceCompressor;
 class SequenceDecompressor;
@@ -73,6 +73,7 @@ class EditOperationDecompressor:
 	public GenericDecompressor<EditOperation, GzipDecompressionStream>  
 {
 	const SequenceDecompressor &sequence;
+	ACTGStream nucleotides[3];
 
 public:
 	EditOperationDecompressor(int blockSize, const SequenceDecompressor &seq);
@@ -81,9 +82,10 @@ public:
 public:
 	void importRecords (uint8_t *in, size_t in_size);
 	void setIndexData (uint8_t *in, size_t in_size);
+	EditOperation &getRecord(size_t i);
 
 private:
-	EditOperation getEditOperation (size_t loc, ACTGStream *nucleotides, vector<uint8_t*> &fields);
+	EditOperation getEditOperation (size_t loc, vector<uint8_t*> &fields);
 };
 
 #endif // EditOperation_H

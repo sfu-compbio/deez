@@ -64,31 +64,12 @@ class FileDecompressor {
    	bool finishedRange;
 
 protected:
-    virtual inline void printRecord(const string &rname, int flag, const string &chr, const EditOperation &eo, int mqual,
-        const string &qual, const string &optional, const PairedEndInfo &pe, int file)
-    {
-        fprintf(samFiles[file], "%s\t%d\t%s\t%zu\t%d\t%s\t%s\t%lu\t%d\t%s\t%s",
-                rname.c_str(),
-                flag,
-                chr.c_str(),
-                eo.start,
-                mqual,
-                eo.op.c_str(),
-                pe.chr.c_str(),
-                pe.pos,
-                pe.tlen,
-                eo.seq.c_str(),
-                qual.c_str()
-        );
-        if (optional.size())
-            fprintf(samFiles[file], "\t%s", optional.c_str());
-        fprintf(samFiles[file], "\n");
-    }
+    // virtual inline void printRecord(const string &rname, int flag, const string &chr, const EditOperation &eo, int mqual,
+    //     const string &qual, const string &optional, const PairedEndInfo &pe, int file);
 
    	vector<string> comments;
-    virtual inline void printComment(int file) {
-        fwrite(comments[file].c_str(), 1, comments[file].size(), samFiles[file]);
-    }
+	virtual inline void printRecord(const string &record, int file);
+    virtual inline void printComment(int file);
 
 public:
 	static void printStats (const std::string &inFile, int filterFlag);

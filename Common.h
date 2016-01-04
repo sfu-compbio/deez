@@ -26,45 +26,19 @@ extern int  optThreads;
 extern int  optLogLevel;
 
 std::string S (const char* fmt, ...);
-std::string int2str (int64_t k);
-std::string inttostr (int64_t k);
+void initCache();
+void inttostr (int64_t k, FILE *f);
+void inttostr (int64_t k, std::string &r);
+std::string xtoa (int64_t k);
+
 char getDNAValue (char ch);
 
-void addEncoded (ssize_t n, Array<uint8_t> &o, uint8_t offset = 0);
+void addEncoded (size_t n, Array<uint8_t> &o, uint8_t offset = 0);
 ssize_t getEncoded (uint8_t *&len, uint8_t offset = 0);
 int packInteger(uint64_t num, Array<uint8_t> &o);
 uint64_t unpackInteger(int T, Array<uint8_t> &i, size_t &ii) ;
 
 extern bool optReadLossy;	
-
-inline std::vector<std::string> split (std::string s, char delim) 
-{
-	std::stringstream ss(s);
-	std::string item;
-	std::vector<std::string> elems;
-	while (std::getline(ss, item, delim)) 
-		elems.push_back(item);
-	return elems;
-}
-inline void ZAMAN_REPORT() 
-{ 
-	using namespace std;
-	ZAMAN_THREAD_JOIN();
-	vector<string> p;
-	for (auto &tt: __zaman_times_global__) { 
-		string s = tt.first; 
-		auto f = split(s, '_');
-		s = "";
-		for (int i = 0; i < f.size(); i++) {
-			if (i < p.size() && p[i] == f[i])
-				s += "  ";
-			else
-				s += "/" + f[i];
-		}
-		p = f;
-		LOG("  %-40s: %'8.1lfs", s.c_str(), tt.second/1000000.0);
-	}
-}
 
 template<typename T>
 size_t sizeInMemory(T t) {

@@ -28,6 +28,16 @@ extern int  optLogLevel;
 #define foreach(i,c) \
 	for (auto i = (c).begin(); i != (c).end(); ++i)
 
+inline std::vector<std::string> split (std::string s, char delim) 
+{
+	std::stringstream ss(s);
+	std::string item;
+	std::vector<std::string> elems;
+	while (std::getline(ss, item, delim)) 
+		elems.push_back(item);
+	return elems;
+}
+
 inline uint64_t zaman() 
 {
 	struct timeval t;
@@ -35,30 +45,68 @@ inline uint64_t zaman()
 	return (t.tv_sec * 1000000ll + t.tv_usec);
 }
 
-extern thread_local std::map<std::string, uint64_t> __zaman_times__;
-extern std::map<std::string, uint64_t> __zaman_times_global__;
-extern thread_local std::string __zaman_prefix__;
-extern std::string __zaman_prefix_global__;
-extern std::mutex __zaman_mtx__;
-#define ZAMAN_VAR(s) \
-	__zaman_time_##s
-#define ZAMAN_START(s) \
-	int64_t ZAMAN_VAR(s) = zaman(); \
-	__zaman_prefix__ += std::string(#s) + "_"; 
-#define ZAMAN_END(s) \
-	__zaman_times__[__zaman_prefix__] += (zaman() - ZAMAN_VAR(s)); \
-	__zaman_prefix__ = __zaman_prefix__.substr(0, __zaman_prefix__.size() - 1 - strlen(#s)); 
-#define ZAMAN_THREAD_JOIN() \
-	{ 	std::lock_guard<std::mutex> __l__(__zaman_mtx__); \
-		for (auto &s: __zaman_times__) \
-			__zaman_times_global__[__zaman_prefix_global__ + s.first] += s.second; \
-	}
-#define ZAMAN_START_P(s) \
-	int64_t ZAMAN_VAR(s) = zaman(); \
-	__zaman_prefix_global__ += std::string(#s) + "_"; 
-#define ZAMAN_END_P(s) \
-	__zaman_times_global__[__zaman_prefix_global__] += (zaman() - ZAMAN_VAR(s)); \
-	__zaman_prefix_global__ = __zaman_prefix_global__.substr(0, __zaman_prefix_global__.size() - 1 - strlen(#s)); \
+#define ZAMAN
+#ifdef ZAMAN
+	class __zaman__ { // crazy hack for gcc 5.1
+	public:
+		std::map<std::string, uint64_t> times;
+		std::string prefix;
 
+	public:
+		static std::map<std::string, uint64_t> times_global;
+		static std::string prefix_global;
+		static std::mutex mtx;
+	};
+	extern thread_local __zaman__ __zaman_thread__;
+
+	#define ZAMAN_VAR(s) \
+		__zaman_time_##s
+	#define ZAMAN_START(s) \
+		int64_t ZAMAN_VAR(s) = zaman(); \
+		__zaman_thread__.prefix += std::string(#s) + "_"; 
+	#define ZAMAN_END(s) \
+		__zaman_thread__.times[__zaman_thread__.prefix] += (zaman() - ZAMAN_VAR(s)); \
+		__zaman_thread__.prefix = __zaman_thread__.prefix.substr(0, __zaman_thread__.prefix.size() - 1 - strlen(#s)); 
+	#define ZAMAN_THREAD_JOIN() \
+		{ 	std::lock_guard<std::mutex> __l__(__zaman__::mtx); \
+			for (auto &s: __zaman_thread__.times) \
+				__zaman__::times_global[__zaman__::prefix_global + s.first] += s.second; \
+			__zaman_thread__.times.clear(); \
+		}
+	#define ZAMAN_START_P(s) \
+		int64_t ZAMAN_VAR(s) = zaman(); \
+		__zaman__::prefix_global += std::string(#s) + "_"; 
+	#define ZAMAN_END_P(s) \
+		__zaman__::times_global[__zaman__::prefix_global] += (zaman() - ZAMAN_VAR(s)); \
+		__zaman__::prefix_global = __zaman__::prefix_global.substr(0, __zaman__::prefix_global.size() - 1 - strlen(#s)); \
+
+	inline void ZAMAN_REPORT() 
+	{ 
+		using namespace std;
+		ZAMAN_THREAD_JOIN();
+		vector<string> p;
+		for (auto &tt: __zaman__::times_global) { 
+			string s = tt.first; 
+			auto f = split(s, '_');
+			s = "";
+			for (int i = 0; i < f.size(); i++) {
+				if (i < p.size() && p[i] == f[i])
+					s += "  ";
+				else
+					s += "/" + f[i];
+			}
+			p = f;
+			LOG("  %-40s: %'8.1lfs", s.c_str(), tt.second/1000000.0);
+		}
+	}
+#else
+	#define ZAMAN_VAR(s)	
+	#define ZAMAN_START(s) 
+	#define ZAMAN_END(s)
+	#define ZAMAN_THREAD_JOIN()
+	#define ZAMAN_START_P(s)
+	#define ZAMAN_END_P(s)
+	#define ZAMAN_REPORT()
+#endif
 
 #endif // Utils_H

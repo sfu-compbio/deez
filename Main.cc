@@ -235,14 +235,14 @@ void test (vector<string> s)
 
 	int64_t t = zaman();
 	compress(s, tmp + ".dz");
-	WARN("Compression time: %'lld", zaman() - t);
+	WARN("Compression time: %'.1lfs", (zaman() - t) / 1e6);
 
 	t = zaman();
 
 	vector<string> tx;
 	tx.push_back(tmp + ".dz");
 	decompress(tx, tmp + ".sam");
-	WARN("Decompression time: %'lld", zaman() - t);
+	WARN("Decompression time: %'.1lfs", (zaman() - t) / 1e6);
 
 	string cmd = "cmp " + s[0] + " " + tmp + ".sam";
 	system(cmd.c_str());
@@ -255,8 +255,6 @@ int main (int argc, char **argv)
 	curl_global_init(CURL_GLOBAL_ALL);
     setlocale(LC_ALL, "");
     parseArguments(argc, argv);
-    inttostr(0); // initialize; to avoid race condition
-    //ThreadPool = ctpl::thread_pool(optThreads);
 
 	#ifdef VER
     	LOG("DeeZ 0x%x (%s)", VERSION, VER);
@@ -295,8 +293,11 @@ int main (int argc, char **argv)
 		exit(1);
 	}
 	
-	LOG("\nTime usage:");
-	ZAMAN_REPORT();
+	#undef ZAMAN
+	#ifdef ZAMAN
+		LOG("\nTime usage:");
+		ZAMAN_REPORT();
+	#endif
 	return 0;
 }
 #endif

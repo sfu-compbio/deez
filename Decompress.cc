@@ -4,6 +4,8 @@ using namespace std;
 
 void FileDecompressor::printStats (const string &path, int filterFlag) 
 {
+	initCache();
+	
 	auto inFile = File::Open(path.c_str(), "rb");
 
 	if (inFile == NULL)
@@ -69,6 +71,8 @@ void FileDecompressor::printStats (const string &path, int filterFlag)
 FileDecompressor::FileDecompressor (const string &inFilePath, const string &outFile, const string &genomeFile, int bs): 
 	blockSize(bs), genomeFile(genomeFile), outFile(outFile), finishedRange(false)
 {
+	initCache();
+
 	string name1 = inFilePath;
 	this->inFile = File::Open(name1.c_str(), "rb");
 	if (this->inFile == NULL)
@@ -229,11 +233,6 @@ void FileDecompressor::readBlock (Decompressor *d, Array<uint8_t> &in)
 	d->importRecords(in.data(), in.size());
 }
 
-void readBlockThread (Decompressor *d, Array<uint8_t> &in) 
-{
-	d->importRecords(in.data(), in.size());
-}
-
 size_t FileDecompressor::getBlock (int f, const string &chromosome, 
 	size_t start, size_t end, int filterFlag) 
 {
@@ -256,91 +255,169 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 		if (chromosome != "" && chr != chromosome)
 			return 0;
 	}
-	ZAMAN_START_P(Seek);
 	while (chr != sequence[f]->getChromosome())
 		sequence[f]->scanChromosome(chr, samComment[f]);
-	ZAMAN_END_P(Seek);
 
 	ZAMAN_START_P(Blocks);
 	Array<uint8_t> in[8];
-	readBlock(sequence[f], in[7]);
-	//sequence[f]->setFixed(*(editOp[f]));
 
-	Decompressor *di[] = { editOp[f], readName[f], mapFlag[f], mapQual[f], quality[f], pairedEnd[f], optField[f] };
-	thread t[7];
-	for (int ti = 0; ti < 7; ti++) {
+	for (int ti = 0; ti < 8; ti++) {
 		size_t sz = inFile->readU64();
 		in[ti].resize(sz);
 		if (sz) inFile->read(in[ti].data(), sz); 
-		t[ti] = thread(readBlockThread, di[ti], ref(in[ti]));
 	}
-	for (int ti = 0; ti < 7; ti++) 
-		t[ti].join();
-	ZAMAN_END_P(Blocks);
 
+	ctpl::thread_pool threadPool(optThreads);
+	threadPool.push([&](int t, Array<uint8_t> &buffer) {
+		optField[f]->importRecords(buffer.data(), buffer.size());
+		ZAMAN_THREAD_JOIN();
+		// LOG("opt done");
+	}, ref(in[7]));
+	threadPool.push([&](int t, Array<uint8_t> &buffer) {
+		sequence[f]->importRecords(buffer.data(), buffer.size());
+		ZAMAN_THREAD_JOIN();
+		// LOG("seq done");
+	}, ref(in[0]));
+	threadPool.push([&](int t, Array<uint8_t> &buffer) {
+		editOp[f]->importRecords(buffer.data(), buffer.size());
+		ZAMAN_THREAD_JOIN();
+		// LOG("seq done");
+	}, ref(in[1]));
+	threadPool.push([&](int t, Array<uint8_t> &buffer) {
+		readName[f]->importRecords(buffer.data(), buffer.size());
+		ZAMAN_THREAD_JOIN();
+		// LOG("rname done");
+	}, ref(in[2]));
+	threadPool.push([&](int t, Array<uint8_t> &buffer) {
+		mapFlag[f]->importRecords(buffer.data(), buffer.size());
+		ZAMAN_THREAD_JOIN();
+		// LOG("mflag done");
+	}, ref(in[3]));
+	threadPool.push([&](int t, Array<uint8_t> &buffer) {
+		mapQual[f]->importRecords(buffer.data(), buffer.size());
+		ZAMAN_THREAD_JOIN();
+		// LOG("mqual done");
+	}, ref(in[4]));
+	threadPool.push([&](int t, Array<uint8_t> &buffer) {
+		quality[f]->importRecords(buffer.data(), buffer.size());
+		ZAMAN_THREAD_JOIN();
+		// LOG("qual done");
+	}, ref(in[5]));
+	threadPool.push([&](int t, Array<uint8_t> &buffer) {
+		pairedEnd[f]->importRecords(buffer.data(), buffer.size());
+		ZAMAN_THREAD_JOIN();
+		// LOG("pe done");
+	}, ref(in[6]));
+	optField[f]->decompressThreads(threadPool);
+	threadPool.stop(true);
+	ZAMAN_END_P(Blocks);
 
 // TODO: stop early if slice/random access
 	ZAMAN_START_P(CheckMate);
-	for (int i = 0, j = 0; i < editOp[f]->size(); i++) {
-		PairedEndInfo &pe = (*pairedEnd[f])[i];
-		if (pe.bit == PairedEndInfo::Bits::LOOK_BACK) {
-			int prevPos = i - readName[f]->getPaired(j++);
-			(*readName[f])[i] = (*readName[f])[prevPos];
+	// for (int i = 0, j = 0; i < editOp[f]->size(); i++) {
+	// 	PairedEndInfo &pe = (*pairedEnd[f])[i];
+	// 	if (pe.bit == PairedEndInfo::Bits::LOOK_BACK) {
+	// 		int prevPos = i - readName[f]->getPaired(j++);
+	// 		(*readName[f])[i] = (*readName[f])[prevPos];
 						
-			EditOperation &eo = (*editOp[f])[i];
-			EditOperation &peo = (*editOp[f])[prevPos];
-			PairedEndInfo &ppe = (*pairedEnd[f])[prevPos];
+	// 		EditOperation &eo = (*editOp[f])[i];
+	// 		EditOperation &peo = (*editOp[f])[prevPos];
+	// 		PairedEndInfo &ppe = (*pairedEnd[f])[prevPos];
 
-			ppe.tlen = eo.start + (peo.end - peo.start) - peo.start;
-			ppe.pos = eo.start;
-			pe.pos = peo.start;
-			pe.tlen = -ppe.tlen;
+	// 		ppe.tlen = eo.start + (peo.end - peo.start) - peo.start;
+	// 		ppe.pos = eo.start;
+	// 		pe.pos = peo.start;
+	// 		pe.tlen = -ppe.tlen;
 
-			if (ppe.bit == PairedEndInfo::Bits::LOOK_AHEAD_1) 
-				pe.tlen++, ppe.tlen--;
-		//	LOG("%d %d / %d == %d %d %d %d %d %d %d", i, prevPos, readName[f]->getPaired(j-1), peo.start,peo.end,ppe.tlen,ppe.pos,eo.start,pe.tlen,pe.pos);
-		}
-	}
+	// 		if (ppe.bit == PairedEndInfo::Bits::LOOK_AHEAD_1) 
+	// 			pe.tlen++, ppe.tlen--;
+	// 	}
+	// }
 	ZAMAN_END_P(CheckMate);
 
-	size_t count = 0;
-		
 	ZAMAN_START_P(Parse);
-	while (editOp[f]->hasRecord()) {	
-		int flag = mapFlag[f]->getRecord();
-		if (filterFlag) {
-			if (filterFlag > 0 && (flag & filterFlag) != filterFlag)
-				continue;
-			if (filterFlag < 0 && (flag & -filterFlag) == -filterFlag)
-				continue;
-		}
-		EditOperation eo = editOp[f]->getRecord();		
-		auto pe = pairedEnd[f]->getRecord(eo.start, eo.end - eo.start, flag & 0x10);
+	size_t recordCount = editOp[f]->size();
+	size_t threadSz = recordCount / optThreads + 1;
+	vector<thread> threads(optThreads);
+	vector<vector<string>> records(optThreads);
+	for (int ti = 0; ti < optThreads; ti++) {
+		records[ti].reserve(threadSz);
+		threads[ti] = thread([&](int ti, size_t S, size_t E) {
+			ZAMAN_START(Thread);
+			size_t maxLen = 255;
+			for (size_t i = S; i < E; i++) {
+				int flag = mapFlag[f]->getRecord(i);
 
-		if (chr != "*") eo.start++;
-		if (pe.chr != "*") pe.pos++;
+				if (filterFlag) {
+					if (filterFlag > 0 && (flag & filterFlag) != filterFlag)
+						continue;
+					if (filterFlag < 0 && (flag & -filterFlag) == -filterFlag)
+						continue;
+				}
 
-		if (eo.start < start)
-			continue;
-		if (eo.start > end) {
-			finishedRange = true;
-			ZAMAN_END_P(Parse);
-			return count;
-		}
+				auto &eo = editOp[f]->getRecord(i);
+				auto &pe = pairedEnd[f]->getRecord(i, eo.start, eo.end - eo.start, flag & 0x10);
 
-		//LOG("%d %d %d", pe.pos, pe.tlen, pe.diff);
+				if (chr != "*") 
+					eo.start++;
+				if (pe.chr != "*") 
+					pe.pos++;
 
-		string rname = readName[f]->getRecord();
-		int mqual = mapQual[f]->getRecord();
-		string qual = quality[f]->getRecord(eo.seq.size(), flag);
-		string optional = optField[f]->getRecord(eo).data;
-		
-		printRecord(rname, flag, chr, eo, mqual, qual, optional, pe, f);
-		if (count % (1 << 16) == 0) 
-			LOGN("\r   Chr %-6s %5.2lf%%", chr.c_str(), (100.0 * inFile->tell()) / inFileSz);
-		count++;
+				if (eo.start < start)
+					continue;
+				if (eo.start > end) {
+					finishedRange = true;
+					return;
+				}
+
+				string record;
+				record.reserve(maxLen);
+				record += readName[f]->getRecord(i);
+				record += '\t';
+				inttostr(flag, record); 
+				record += '\t';
+				record += chr; 
+				record += '\t';
+				inttostr(eo.start, record); 
+				record += '\t';
+				inttostr(mapQual[f]->getRecord(i), record); 
+				record += '\t';
+				record += eo.op; 
+				record += '\t';
+				record += pe.chr; 
+				record += '\t';
+				inttostr(pe.pos, record); 
+				record += '\t';
+				inttostr(pe.tlen, record); 
+				record += '\t';
+				record += eo.seq; 
+				record += '\t';
+				record += quality[f]->getRecord(i, eo.seq.size(), flag);
+				optField[f]->getRecord(i, eo, record);
+				maxLen = max(record.size(), maxLen);
+
+				records[ti].push_back(record);
+			}
+			ZAMAN_END(Thread);
+			ZAMAN_THREAD_JOIN();
+		}, ti, threadSz * ti, min(recordCount, (ti + 1) * threadSz));
+	}
+	for (int ti = 0; ti < optThreads; ti++) {
+		threads[ti].join();
 	}
 	ZAMAN_END_P(Parse);
+	
+	ZAMAN_START_P(Write);
+	size_t count = 0;
+	for (auto &v: records)
+		for (auto &r: v) {
+			printRecord(r, f);
+			count++;
+		}
+	LOGN("\r\t%5.2lf%% [Chr %-10s]", (100.0 * inFile->tell()) / inFileSz, chr.substr(0, 10).c_str());
+	ZAMAN_END_P(Write);
+	
+	ZAMAN_THREAD_JOIN();
 	return count;
 }
 
@@ -453,6 +530,8 @@ void FileDecompressor::decompress (int filterFlag)
 
 void FileDecompressor::decompress (const string &range, int filterFlag)
 {
+	ZAMAN_START_P(Decompress);
+
 	auto ranges = getRanges(range);
 
 	size_t 	blockSz = 0, 
@@ -512,6 +591,50 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 			i++;
 		}
 	}
-
+	ZAMAN_END_P(Decompress);
 	LOGN("\nDecompressed %'lu records, %'lu blocks\n", totalSz, blockCount);
 }
+
+inline void FileDecompressor::printRecord(const string &record, int file) 
+{
+	fputs(record.c_str(), samFiles[file]);
+	fputc('\n', samFiles[file]);
+}
+
+inline void FileDecompressor::printComment(int file) 
+{
+    fputs(comments[file].c_str(), samFiles[file]);
+}
+
+/*
+inline void FileDecompressor::printRecord(const string &rname, int flag, const string &chr, const EditOperation &eo, int mqual,
+    const string &qual, const string &optional, const PairedEndInfo &pe, int file)
+{
+	fputs(rname.c_str(), samFiles[file]);
+	fputc('\t', samFiles[file]);
+	inttostr(flag, samFiles[file]);
+	fputc('\t', samFiles[file]);
+	fputs(chr.c_str(), samFiles[file]);
+	fputc('\t', samFiles[file]);
+	inttostr(eo.start, samFiles[file]);
+	fputc('\t', samFiles[file]);
+	inttostr(mqual, samFiles[file]);
+	fputc('\t', samFiles[file]);
+	fputs(eo.op.c_str(), samFiles[file]);
+	fputc('\t', samFiles[file]);
+	fputs(pe.chr.c_str(), samFiles[file]);
+	fputc('\t', samFiles[file]);
+	inttostr(pe.pos, samFiles[file]);
+	fputc('\t', samFiles[file]);
+	inttostr(pe.tlen, samFiles[file]);
+	fputc('\t', samFiles[file]);
+	fputs(eo.seq.c_str(), samFiles[file]);
+	fputc('\t', samFiles[file]);
+	fputs(qual.c_str(), samFiles[file]);
+	if (optional.size()) {
+		fputc('\t', samFiles[file]);
+		fputs(optional.c_str(), samFiles[file]);
+	}
+	fputc('\n', samFiles[file]);
+}
+*/

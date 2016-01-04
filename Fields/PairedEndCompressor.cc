@@ -15,6 +15,7 @@ PairedEndInfo::PairedEndInfo (const std::string &c, size_t pos, int32_t t, size_
 	} else {
 		diff = opos + tlen + ospan - pos;
 	} 
+	//LOG("%d %d %d -- %d %d %d", bit, tlen, diff, opos, ospan, reverse);
 	//LOG("%d %d %d %d %s %d %d", tlen, pos, diff, bit, chr.c_str(), opos, ospan);
 }
 

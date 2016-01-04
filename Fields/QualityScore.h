@@ -60,10 +60,9 @@ class QualityScoreDecompressor:
 
 public:
 	QualityScoreDecompressor (int blockSize);
-	virtual ~QualityScoreDecompressor (void);
 
 public:
-	std::string getRecord (size_t seq_len, int flag);
+	std::string getRecord (size_t i, size_t seq_len, int flag);
 	void importRecords (uint8_t *in, size_t in_size);
 	void setIndexData (uint8_t *in, size_t in_size);
 };

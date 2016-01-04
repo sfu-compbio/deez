@@ -13,6 +13,9 @@ QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
 			sought = 1;
 			break;
 		case 2:
+			streams[0] = make_shared<rANSOrder2DecompressionStream<QualRange>>();
+			break;
+		default:
 			throw DZException("Not implemented");
 			break;
 	}
@@ -22,10 +25,6 @@ QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
 		sought = 2;
 }
 
-QualityScoreDecompressor::~QualityScoreDecompressor (void) 
-{
-}
-
 void QualityScoreDecompressor::setIndexData (uint8_t *in, size_t in_size) 
 {
 	streams[0]->setCurrentState(in, in_size);
@@ -33,7 +32,7 @@ void QualityScoreDecompressor::setIndexData (uint8_t *in, size_t in_size)
 		sought = 2;
 }
 
-string QualityScoreDecompressor::getRecord (size_t seq_len, int flag) 
+string QualityScoreDecompressor::getRecord (size_t record, size_t seq_len, int flag) 
 {
 	ZAMAN_START(QualityScoreGet);
 
@@ -45,9 +44,7 @@ string QualityScoreDecompressor::getRecord (size_t seq_len, int flag)
 		return s;
 	}
 
-	assert(hasRecord());
-	
-	string s = string(StringDecompressor<QualityDecompressionStream>::getRecord());
+	string s = string(StringDecompressor<QualityDecompressionStream>::getRecord(record));
 	if (s == "") {
 		ZAMAN_END(QualityScoreGet);
 		return "*";

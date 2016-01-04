@@ -14,12 +14,13 @@ PairedEndDecompressor::~PairedEndDecompressor (void)
 {	
 }
 
-const PairedEndInfo &PairedEndDecompressor::getRecord (size_t opos, size_t ospan, bool reverse) 
+PairedEndInfo &PairedEndDecompressor::getRecord (size_t i, size_t opos, size_t ospan, bool reverse) 
 {
-	assert(hasRecord());
 	ZAMAN_START(PairedEndGet);
 
-	PairedEndInfo &pe = records.data()[recordCount++];
+	PairedEndInfo &pe = records[i];
+	//LOG("%d %d %d -- %d %d %d", records[i].bit, records[i].tlen, records[i].diff, opos, ospan, reverse);
+
 	if (pe.bit >= PairedEndInfo::Bits::OK) { // otherwise fixed by Decompress main loop
 		if ((pe.bit == PairedEndInfo::OK && reverse) || (pe.bit == PairedEndInfo::LESS_THAN_0)) {
 			pe.tlen = -pe.tlen;
@@ -83,7 +84,6 @@ void PairedEndDecompressor::importRecords (uint8_t *in, size_t in_size)
 		records.add(pe);
 	}
 	
-	recordCount = 0;
 	ZAMAN_END(PairedEndImport);
 }
 

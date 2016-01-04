@@ -27,8 +27,8 @@ void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size)
 	Array<uint8_t> locations;
 	size_t sz = decompressArray(streams[EditOperationCompressor::Fields::LOCATION], in, locations);
 
-	ACTGStream nucleotides[3];
 	REPEAT(3) {
+		nucleotides[_] = ACTGStream();
 		decompressArray(streams[EditOperationCompressor::Fields::ACGT + _], in, nucleotides[_].seqvec);
 		decompressArray(streams[EditOperationCompressor::Fields::ACGT + _], in, nucleotides[_].Nvec);
 		nucleotides[_].initDecode();
@@ -50,27 +50,21 @@ void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size)
 			lastLoc = ((uint32_t*)stitches.data())[stitchIdx++];
 		else
 			lastLoc += locations.data()[i];
-		records.add(getEditOperation(lastLoc, nucleotides, fields));
+		records.add(getEditOperation(lastLoc, fields));
 	}
 
 	ZAMAN_END(EditOperation);
-
-	recordCount = 0;
 }
 
-EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStream *nucleotides, vector<uint8_t*> &fields) 
+inline EditOperation EditOperationDecompressor::getEditOperation (size_t loc, vector<uint8_t*> &fields) 
 {
 	ZAMAN_START(GetEO);
 
 	EditOperation eo;
 	eo.start = eo.end = loc;
+	eo.ops.resize(0);
+	eo.seq = "";
 	
-	static Array<char> opChr(100, 100);
-	static Array<int>  opLen(100, 100);
-
-	opChr.resize(0);
-	opLen.resize(0);
-
 	size_t prevLoc = 0, endPos = 0; 
 	int count = getEncoded(fields[EditOperationCompressor::Fields::OPLEN]) - 1;
 	for (int i = 0; i < count; i++) {
@@ -80,8 +74,10 @@ EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStrea
 		if (c == '*') { // Unmapped case. Just add * and exit
 			assert(count == 1);
 			endPos = getEncoded(fields[EditOperationCompressor::Fields::SEQEND]) - 1;
-			opChr.add('*'), opLen.add(endPos);
-			goto end;
+			eo.ops.add(make_pair('*', endPos));
+			nucleotides[2].get(eo.seq, endPos);
+			ZAMAN_END(GetEO);
+			return eo;
 		} 
 		
 		endPos += getEncoded(fields[EditOperationCompressor::Fields::SEQPOS]) - 1;
@@ -96,61 +92,84 @@ EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ACTGStrea
 		}
 
 		// Do  we have trailing = ?
-		if ((c == 'N' || c == 'D' || c == 'H' || c == 'P') && endPos > prevLoc) 
-			opChr.add('='), opLen.add(endPos - prevLoc);
-		else if (c != 'N' && c != 'D' && c != 'H' && c != 'P' && endPos - l > prevLoc) 
-			opChr.add('='), opLen.add(endPos - l - prevLoc);
+		if ((c == 'N' || c == 'D' || c == 'H' || c == 'P') && endPos > prevLoc) {
+			eo.ops.add(make_pair('=', endPos - prevLoc));
+			eo.end += endPos - prevLoc;
+		} else if (c != 'N' && c != 'D' && c != 'H' && c != 'P' && endPos - l > prevLoc) {
+			eo.ops.add(make_pair('=', endPos - l - prevLoc));
+			eo.end += endPos - l - prevLoc;
+		}
 		prevLoc = endPos;
-		opChr.add(c), opLen.add(l);
+		eo.ops.add(make_pair(c, l));
+		if (c != 'S' && c != 'I' && c != 'H' && c != 'P') {
+			if (c == 'X') {
+				nucleotides[0].get(eo.seq, l);
+			}
+			eo.end += l;
+		} else if (c == 'I' || c == 'S') {
+			nucleotides[1].get(eo.seq, l);
+		}
 	}
 	// End case. Check is prevLoc at end. If not, add = and exit
 	endPos = getEncoded(fields[EditOperationCompressor::Fields::SEQEND]) - 1;
 	if (!endPos)
-		eo.seq = "*";
-	else if (endPos > prevLoc)  
-		opChr.add('='), opLen.add(endPos - prevLoc);
+		eo.seq += "*";
+	else if (endPos > prevLoc) {
+		eo.ops.add(make_pair('=', endPos - prevLoc));
+		eo.end += endPos - prevLoc;
+	}
 
-end:
-	//for (int i = 0; i < opLen.size(); i++)
-	//	LOG("%c %d", opChr[i], opLen[i]);
+	ZAMAN_END(GetEO);
+}
 
-	size_t genPos = loc;
+EditOperation &EditOperationDecompressor::getRecord(size_t i) 
+{
+	ZAMAN_START(EditOperationGet);
+
+	EditOperation &eo = records[i];
+
+	size_t genPos = eo.start;
 	char lastOP = 0;
 	int  lastOPSize = 0;
 	int mdOperLen = 0;
 	eo.NM = 0;
-	for (int i = 0; i < opChr.size(); i++) {
+	
+	size_t eoSeqPos = 0;
+	string seq;
+
+	for (auto &op: eo.ops) {
 		// restore original part
-		switch (opChr[i]) {
+		switch (op.first) {
 			case '=':
 				if (lastOP == 'M')
-					lastOPSize += opLen[i];
+					lastOPSize += op.second;
 				else 
-					lastOP = 'M', lastOPSize = opLen[i];
+					lastOP = 'M', lastOPSize = op.second;
 				
-				for (int j = 0; j < opLen[i]; j++) {
-					eo.seq += sequence[genPos + j];
+				for (int j = 0; j < op.second; j++) {
+					seq += sequence[genPos + j];
 					if (sequence[genPos + j] != sequence.getReference()[genPos + j]) {
-						eo.MD += inttostr(mdOperLen), mdOperLen = 0;
+						inttostr(mdOperLen, eo.MD), mdOperLen = 0;
 						eo.MD += sequence.getReference()[genPos + j];
 						eo.NM++;
 					} else {
 						mdOperLen++;
 					}
 				}
-				genPos += opLen[i];
+				genPos += op.second;
 				break;
 
 			case 'X':
 				if (lastOP == 'M')
-					lastOPSize += opLen[i];
+					lastOPSize += op.second;
 				else 
-					lastOP = 'M', lastOPSize = opLen[i];
-				nucleotides[0].get(eo.seq, opLen[i]);
-
-				for (int j = 0; j < opLen[i]; j++) {
-					if (sequence.getReference()[genPos + j] != eo.seq[eo.seq.size() - opLen[i] + j]) {
-						eo.MD += inttostr(mdOperLen), mdOperLen = 0;
+					lastOP = 'M', lastOPSize = op.second;
+				seq += eo.seq.substr(eoSeqPos, op.second);
+				eoSeqPos += op.second;
+				
+				for (int j = 0; j < op.second; j++) {
+					if (sequence.getReference()[genPos + j] != seq[seq.size() - op.second + j]) {
+						inttostr(mdOperLen, eo.MD), mdOperLen = 0;
 						eo.MD += sequence.getReference()[genPos + j];
 						eo.NM++;
 					} else {
@@ -158,63 +177,65 @@ end:
 					}
 				}
 
-				genPos += opLen[i];
+				genPos += op.second;
 				break;
 
 			case 'I':
-				eo.NM += opLen[i];
+				eo.NM += op.second;
 			case 'S':
 			case '*':
-				if (opChr[i] == '*') 
-					nucleotides[2].get(eo.seq, opLen[i]);
-				else
-					nucleotides[1].get(eo.seq, opLen[i]);
+				seq += eo.seq.substr(eoSeqPos, op.second);
+				eoSeqPos += op.second;
 			case 'H':
 			case 'P':
 				if (lastOP != 0) {
-					eo.op += inttostr(lastOPSize) + lastOP;
-					if (lastOP != 'S' && lastOP != 'I' && lastOP != 'H' && lastOP != 'P')
-						eo.end += lastOPSize;
+					inttostr(lastOPSize, eo.op); eo.op += lastOP;
+				//	if (lastOP != 'S' && lastOP != 'I' && lastOP != 'H' && lastOP != 'P')
+				//		eo.end += lastOPSize;
 					lastOP = 0, lastOPSize = 0;
 				}
-				if (opChr[i] == '*') {
+				if (op.first == '*') {
 					eo.op = "*";
 				} else {
-					eo.op += inttostr(opLen[i]) + char(opChr[i]);
+					inttostr(op.second, eo.op); eo.op += op.first;
 				}
 				break;
 
 			case 'D':
-				eo.MD += inttostr(mdOperLen), mdOperLen = 0;
+				inttostr(mdOperLen, eo.MD), mdOperLen = 0;
 				eo.MD += "^";
-				for (int j = 0; j < opLen[i]; j++)
+				for (int j = 0; j < op.second; j++)
 					eo.MD += sequence.getReference()[genPos + j]; 
-				eo.NM += opLen[i];
+				eo.NM += op.second;
 			case 'N': 
 				if (lastOP != 0) {
-					eo.op += inttostr(lastOPSize) + lastOP;
-					if (lastOP != 'S' && lastOP != 'I' && lastOP != 'H' && lastOP != 'P')
-						eo.end += lastOPSize;
+					inttostr(lastOPSize, eo.op); eo.op += lastOP;
+				//	if (lastOP != 'S' && lastOP != 'I' && lastOP != 'H' && lastOP != 'P')
+				//		eo.end += lastOPSize;
 					lastOP = 0, lastOPSize = 0;
 				}
-				eo.op += inttostr(opLen[i]) + char(opChr[i]);
-				eo.end += opLen[i];
-				genPos += opLen[i];
+				inttostr(op.second, eo.op); eo.op += op.first;
+				// eo.end += op.second;
+				genPos += op.second;
 				break;
+
+			default:
+				throw DZException("Invalid CIGAR opcode %c:%d", op.first, op.second);
 		}
 	}
 	if (lastOP != 0) {
-		eo.op += inttostr(lastOPSize) + lastOP;
-		if (lastOP != 'S' && lastOP != 'I' && lastOP != 'H' && lastOP != 'P')
-			eo.end += lastOPSize;
+		inttostr(lastOPSize, eo.op); eo.op += lastOP;
+	//	if (lastOP != 'S' && lastOP != 'I' && lastOP != 'H' && lastOP != 'P')
+	//		eo.end += lastOPSize;
 	}
-	if (mdOperLen || !isdigit(eo.MD.back())) eo.MD += inttostr(mdOperLen);
+	if (mdOperLen || !isdigit(eo.MD.back())) inttostr(mdOperLen, eo.MD);
 	if (!isdigit(eo.MD[0])) eo.MD = "0" + eo.MD;
 
-	if (eo.seq == "" || eo.seq[0] == '*')
-		eo.seq = "*";
+	if (seq == "" || eo.seq.back() == '*')
+		seq = "*";
+	eo.seq = seq;
 
-	ZAMAN_END(GetEO);
+	ZAMAN_END(EditOperationGet);
 	return eo;
 }
 

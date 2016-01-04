@@ -72,7 +72,7 @@ void ReadNameCompressor::getIndexData (Array<uint8_t> &out)
 
 void ReadNameCompressor::addTokenizedName (const char *rn, size_t rnLen, Array<uint8_t> &content, Array<uint8_t> &index) 
 {	
-	ZAMAN_START(Tokenize);
+	//ZAMAN_START(Tokenize);
 
 	int tokens[MAX_TOKEN], tc = 0;
 	char charTokens[MAX_TOKEN] = { 0 };
@@ -116,5 +116,5 @@ void ReadNameCompressor::addTokenizedName (const char *rn, size_t rnLen, Array<u
 	}
 	index.add(6 * MAX_TOKEN + tc); // how many tokens
 	
-	ZAMAN_END(Tokenize);
+	//ZAMAN_END(Tokenize);
 }

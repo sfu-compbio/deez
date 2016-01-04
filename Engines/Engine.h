@@ -49,7 +49,6 @@ public:
 	virtual ~Decompressor (void) {};
 
 public:
-	virtual bool hasRecord (void) = 0;
 	virtual void importRecords (uint8_t *in, size_t in_size) = 0;
 	virtual void setIndexData (uint8_t *, size_t) = 0;
 };

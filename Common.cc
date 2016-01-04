@@ -4,13 +4,14 @@
 #include <mutex>
 using namespace std;
 
-thread_local std::map<std::string, uint64_t> __zaman_times__;
-std::map<std::string, uint64_t> __zaman_times_global__;
-thread_local std::string __zaman_prefix__;
-std::string __zaman_prefix_global__;
-std::mutex __zaman_mtx__;
+#ifdef ZAMAN
+	thread_local __zaman__ __zaman_thread__;
+	std::map<std::string, uint64_t> __zaman__::times_global;
+	std::string __zaman__::prefix_global;
+	std::mutex __zaman__::mtx;
+#endif
 
-string int2str (int64_t k) 
+inline string int2str (int64_t k) 
 {
 	assert(k >= 0);
 	string s;
@@ -21,26 +22,72 @@ string int2str (int64_t k)
 	return s;
 }
 
-string inttostr (int64_t k) 
+std::vector<std::string> intCache;
+std::vector<std::string> intCache0;
+void initCache()
 {
-	static std::mutex mutex;
-    static std::vector<std::string> intCache;
-    if (intCache.size() == 0) {
-		mutex.lock();
-    	intCache.resize(10001);
-		intCache[0] = "0";
-		for (int64_t i = 1; i < 10000; i++)
-			intCache[i] = int2str(i);
-		mutex.unlock();
-    }
+	const int MAXCACHE = 10000; // must be power of 10, otherwise good luck
+	const int LOGCACHE = 4; // # of digits(cache) - 1
+	intCache.resize(MAXCACHE);
+	intCache[0] = "0"; 
+	intCache0.resize(MAXCACHE);
+	intCache0[0] = string(LOGCACHE, '0');
+	for (int64_t i = 1; i < MAXCACHE; i++) {
+		intCache[i] = int2str(i);
+		intCache0[i] = string(LOGCACHE - intCache[i].size(), '0') + intCache[i];
+	}
+}
 
-    bool bit = 0;
-    if (k < 0) bit = 1, k = -k;
+void inttostr (int64_t k, FILE *f) 
+{
+	if (k < 0) fputc('-', f), k = -k;
+	if (k < intCache.size())
+		fputs(intCache[k].c_str(), f);
+	else {
+		string s[5]; int i = 0;
+		while (k >= intCache.size()) {
+			s[i++] = intCache0[k % intCache.size()];
+			k /= intCache.size();
+		}
+		fputs(intCache[k].c_str(), f);
+		while (i) fputs(s[--i].c_str(), f);
+	}
+}
+
+void inttostr (int64_t k, string &r) 
+{
+    if (k < 0) r += "-", k = -k;
 
     if (k < intCache.size())
-    	return (bit ? "-" : "") + intCache[k];
-    else
-    	return (bit ? "-" : "") + int2str(k);
+    	r += intCache[k];
+    else{
+		string s[5]; int i = 0;
+		while (k >= intCache.size()) {
+			s[i++] = intCache0[k % intCache.size()];
+			k /= intCache.size();
+		}
+		r += intCache[k];
+		while (i) r += s[--i];
+	}
+}
+
+string xtoa (int64_t k) 
+{
+	string r;
+	if (k < 0) r += "-", k = -k;
+
+    if (k < intCache.size())
+    	r += intCache[k];
+    else{
+		string s[5]; int i = 0;
+		while (k >= intCache.size()) {
+			s[i++] = intCache0[k % intCache.size()];
+			k /= intCache.size();
+		}
+		r += intCache[k];
+		while (i) r += s[--i];
+	}
+	return r;
 }
 
 char getDNAValue (char ch) 
@@ -60,7 +107,7 @@ char getDNAValue (char ch)
 	return c[ch];
 }
 
-void addEncoded (ssize_t n, Array<uint8_t> &o, uint8_t offset) 
+void addEncoded (size_t n, Array<uint8_t> &o, uint8_t offset) 
 {
 	n += offset;
 	assert(n != offset);

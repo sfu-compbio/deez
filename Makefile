@@ -15,7 +15,7 @@ debug: $(SOURCES) $(EXECUTABLE)
 superdebug: CFLAGS += -g -O0 -fno-inline
 superdebug: $(SOURCES) $(EXECUTABLE)
 
-profile: CFLAGS += -g -pg 
+profile: CFLAGS += -g -pg  -O2
 profile: LDFLAGS += -pg
 profile: $(SOURCES) $(EXECUTABLE)
 
@@ -23,7 +23,7 @@ all: CFLAGS += -O3 -DNDEBUG
 all: $(SOURCES) $(EXECUTABLE)
 
 gprofile: LDFLAGS += -ltcmalloc -lprofiler
-gprofile: CFLAGS += -g
+gprofile: CFLAGS += -g -O2
 gprofile: $(SOURCES) $(EXECUTABLE)
 
 test: CFLAGS += -O3 -DNDEBUG -std=c++11
@@ -37,10 +37,6 @@ lib: $(SOURCES) $(LIB)
 
 libdebug: CFLAGS += -g -fpic -DDEEZLIB
 libdebug: $(SOURCES) $(LIB)
-
-$(TESTEXE): OBJECTS := $(subst ./Main.o,,$(OBJECTS))
-$(TESTEXE): $(OBJECTS)
-	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
 
 $(EXECUTABLE): OBJECTS := $(subst ./Test.o,,$(OBJECTS))
 $(EXECUTABLE): $(OBJECTS) 

@@ -197,67 +197,68 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, const Array<Record
 
 		// obtain statistics
 		
-		// ZAMAN_START_P(Calculate);
-		// vector<thread> t(optThreads);
-		// #ifdef __SSE2__
-		// 	Stats stats(fixedEnd - fixedStart, _mm_setzero_si128());
-		// #else
-		// 	Stats stats(fixedEnd - fixedStart, array<uint16_t, 6>());
-		// #endif
-		// size_t maxSz = fixedEnd - fixedStart;
-		// size_t sz = maxSz / optThreads + 1;
-		// vector<thread> threads(optThreads);
-		// for (int i = 0; i < optThreads; i++) 
-		// 	threads[i] = thread([&](int ti, size_t start, size_t end) {
-		// 			ZAMAN_START(Thread);
-		// 			applyFixesThread(records, editOps, stats, fixedStart, start, end);
-		// 			ZAMAN_END(Thread);
-		// 			ZAMAN_THREAD_JOIN();
-		// 			// LOG("Done with %d.. %d %d fixes", ti, start, end);
-		// 		}, i, fixedStart + i * sz, min(maxSz, fixedStart + (i + 1) * sz)
-		// 	);
-		// for (int i = 0; i < optThreads; i++) 
-		// 	threads[i].join();
-		// ZAMAN_END_P(Calculate); 
+		ZAMAN_START_P(Calculate);
+		vector<thread> t(optThreads);
+		#ifdef __SSE2__
+			Stats stats(fixedEnd - fixedStart, _mm_setzero_si128());
+		#else
+			Stats stats(fixedEnd - fixedStart, array<uint16_t, 6>());
+		#endif
+		size_t maxSz = fixedEnd - fixedStart;
+		size_t sz = maxSz / optThreads + 1;
+		vector<thread> threads(optThreads);
+		for (int i = 0; i < optThreads; i++) 
+			threads[i] = thread([&](int ti, size_t start, size_t end) {
+					ZAMAN_START(Thread);
+					applyFixesThread(records, editOps, stats, fixedStart, start, end);
+					ZAMAN_END(Thread);
+					ZAMAN_THREAD_JOIN();
+					// LOG("Done with %d.. %d %d fixes", ti, start, end);
+				}, i, fixedStart + i * sz, min(maxSz, fixedStart + (i + 1) * sz)
+			);
+		for (int i = 0; i < optThreads; i++) 
+			threads[i].join();
+		ZAMAN_END_P(Calculate); 
 
 
-		// // patch reference genome
-		// size_t fixedPrev = 0;
-		// ZAMAN_START_P(Apply);
-		// fixesLoc.resize(0);
-		// fixesLocSt.resize(0);
-		// fixesReplace.resize(0);
+		// patch reference genome
+		size_t fixedPrev = 0;
+		ZAMAN_START_P(Apply);
+		fixesLoc.resize(0);
+		fixesLocSt.resize(0);
+		fixesReplace.resize(0);
 
-		// __m128i invert = _mm_set_epi16(0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff);
-		// for (size_t i = 0; i < fixedEnd - fixedStart; i++) {
-		// 	#ifdef __SSE2__
-		// 		if (_mm_movemask_epi8(_mm_cmpeq_epi8(stats[i], _mm_setzero_si128())) == 0xFFFF)
-		// 			continue;
-		// 		int pos = _mm_extract_epi16(_mm_minpos_epu16(_mm_sub_epi16(invert, stats[i])), 1);
-		// 	#else
-		// 		int max = -1, pos = -1;
-		// 		for (int j = 1; j < 6; j++) {
-		// 			if (stats[i][j] > max)
-		// 				max = stats[i][pos = j];
-		// 		}
-		// 		if (max <= 0) continue;
-		// 	#endif
+		__m128i invert = _mm_set_epi16(0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff);
+		for (size_t i = 0; i < fixedEnd - fixedStart; i++) {
+			#ifdef __SSE2__
+				if (_mm_movemask_epi8(_mm_cmpeq_epi8(stats[i], _mm_setzero_si128())) == 0xFFFF)
+					continue;
+				int pos = _mm_extract_epi16(_mm_minpos_epu16(_mm_sub_epi16(invert, stats[i])), 1);
+			#else
+				int max = -1, pos = -1;
+				for (int j = 1; j < 6; j++) {
+					if (stats[i][j] > max)
+						max = stats[i][pos = j];
+				}
+				if (max <= 0) continue;
+			#endif
 
-		// 	if (fixed[i] != pos[".ACGTN"]) {
-		// 		int p = fixedStart + i - fixedPrev;
-		// 		if (p >= 254) {
-		// 			fixesLoc.add(255);
-		// 			addEncoded(p - 254 + 1, fixesLocSt);
-		// 		} else {
-		// 			fixesLoc.add(p);
-		// 		}
-		// 		// addEncoded(fixedStart + i - fixedPrev + 1, fixesLoc);  // +1 for 0 termninator avoid
-		// 		// fprintf(fo, "%d %c%c\n", fixedStart + i - fixedPrev + 1, fixed[i], pos[".ACGTN"]);
-		// 		fixedPrev = fixedStart + i;
-		// 		fixesReplace.add(fixed[i] = pos[".ACGTN"]);
-		// 	}
-		// }
-		// ZAMAN_END_P(Apply);
+			if (fixed[i] != pos[".ACGTN"]) {
+				int p = fixedStart + i - fixedPrev;
+				if (p >= 254) {
+					fixesLoc.add(255);
+					addEncoded(p - 254 + 1, fixesLocSt);
+				} else {
+					fixesLoc.add(p);
+				}
+				// addEncoded(fixedStart + i - fixedPrev + 1, fixesLoc);  // +1 for 0 termninator avoid
+				// fprintf(fo, "%d %c%c\n", fixedStart + i - fixedPrev + 1, fixed[i], pos[".ACGTN"]);
+				fixedPrev = fixedStart + i;
+				fixesReplace.add(fixed[i] = pos[".ACGTN"]);
+			}
+		}
+
+		ZAMAN_END_P(Apply);
 	}
 
 	// generate new cigars

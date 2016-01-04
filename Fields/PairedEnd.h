@@ -59,7 +59,7 @@ public:
 	
 public:
 	void importRecords (uint8_t *in, size_t in_size);
-	const PairedEndInfo &getRecord (size_t opos, size_t ospan, bool reverse);
+	PairedEndInfo &getRecord (size_t i, size_t opos, size_t ospan, bool reverse);
 };
 
 #endif

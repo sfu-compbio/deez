@@ -66,7 +66,6 @@ void StringDecompressor<TStream>::importRecords (uint8_t *in, size_t in_size)
 			this->records.add(std::string((char*)out.data() + start, i - start));
 			start = i + 1;
 		}	
-	this->recordCount = 0;
 }
 
 #endif

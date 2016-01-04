@@ -27,11 +27,11 @@ constexpr int OptTag(const char *F)
 
 struct OptionalField {
 	string data;
-	int posNM, posMD, posXD;
-
 	Array<pair<int, int>> keys; // Tag, Position | Int
 
-	OptionalField(): posXD(-1), posMD(-1), posNM(-1), keys(50, 100) {}
+	OptionalField(): keys(50, 100) 
+	{
+	}
 	
 	void parse1 (const char *rec, const char *recEnd, 
 		std::unordered_map<int32_t, std::map<std::string, int>> &library);
@@ -51,6 +51,10 @@ class OptionalFieldCompressor:
 	vector<int> fields;
 	int fieldCount;
 	vector<int> prevIndex;
+	vector<Array<uint8_t>*> oa;
+	std::condition_variable condition;
+	std::mutex conditionMutex;
+	Array<int32_t> idxToKey;
 
 public:
 	OptTagDef(MDZ);
@@ -66,14 +70,15 @@ public:
 public:
 	void outputRecords (const Array<Record> &records, Array<uint8_t> &out, size_t out_offset, size_t k, 
 		const Array<OptionalField> &optFields, std::unordered_map<int32_t, std::map<std::string, int>> &library);
+	void compressThreads(Array<Array<uint8_t>> &outT, ctpl::thread_pool &pool);
 	//void getIndexData (Array<uint8_t> &out);
 
 	void printDetails(void);
 	size_t compressedSize(void);
 
 private:
-	int processFields(const char *rec, std::vector<Array<uint8_t>> &out,
-		Array<uint8_t> &tags, Array<uint8_t> &tags2, const OptionalField &of, size_t k);
+	int processFields(const char *rec, std::vector<Array<uint8_t>*> &out,
+		Array<uint8_t> &tags, const OptionalField &of, size_t k);
 
 public:
 	enum Fields {
@@ -92,16 +97,25 @@ class OptionalFieldDecompressor:
 	vector<int> fields;
 	vector<int> prevIndex;
 
+	vector<Array<uint8_t>> data;
+	vector<Array<size_t>> dataLoc;
+	vector<int> positions;
+
+	std::condition_variable condition;
+	std::mutex conditionMutex;
+	uint8_t *inputBuffer;
+
 public:
 	OptionalFieldDecompressor (int blockSize);
 	virtual ~OptionalFieldDecompressor (void);
 	
 public:
-	const OptionalField &getRecord(const EditOperation &eo);
+	void getRecord(size_t i, const EditOperation &eo, std::string &record);
 	void importRecords (uint8_t *in, size_t in_size);
+	void decompressThreads(ctpl::thread_pool &pool);
 
 private:
-	OptionalField parseFields(int size, uint8_t *&tags, uint8_t *&tags2, uint8_t *&in, std::vector<Array<uint8_t>>& oa, std::vector<size_t> &out);
+	OptionalField parseFields(uint8_t *&tags, uint8_t *&in);
 };
 
 

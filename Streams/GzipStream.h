@@ -4,6 +4,7 @@
 #include <zlib.h>
 #include "../Common.h"
 #include "Stream.h"
+#include "BzipStream.h"
 
 template<char Level>
 class GzipCompressionStream: public CompressionStream {	
@@ -29,6 +30,21 @@ public:
 	}
 	virtual void getCurrentState (Array<uint8_t> &ou) {}
 };
+
+// template<char Level>
+// class GzipCompressionStream: public CompressionStream {	
+// 	BzipCompressionStream bz;
+
+// public:
+// 	virtual size_t compress (uint8_t *source, size_t source_sz, 
+// 		Array<uint8_t> &dest, size_t dest_offset) 
+// 	{
+// 		size_t sz = bz.compress(source, source_sz, dest, dest_offset);
+// 		this->compressedCount += sz;
+// 		return sz;
+// 	}
+// 	virtual void getCurrentState (Array<uint8_t> &ou) {}
+// };
 
 class GzipDecompressionStream: public DecompressionStream {
 public:
