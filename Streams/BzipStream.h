@@ -6,10 +6,6 @@
 #include "Stream.h"
 
 class BzipCompressionStream: public CompressionStream {	
-public:
-	BzipCompressionStream (void) {}
-	~BzipCompressionStream (void) {}
-
 	size_t bz2compressBound(size_t sz) {
 		return double(sz * 1.1) + 600;
 	}
@@ -30,14 +26,13 @@ public:
 		else 
 			throw DZException("bzlib compression error %d, %d", c, source_sz);
 	}
-	virtual void getCurrentState (Array<uint8_t> &ou) {}
+
+	virtual void getCurrentState (Array<uint8_t> &ou) 
+	{
+	}
 };
 
 class BzipDecompressionStream: public DecompressionStream {
-public:
-	BzipDecompressionStream (void) {}
-	~BzipDecompressionStream (void) {}
-
 public:
 	virtual size_t decompress (uint8_t *source, size_t source_sz, 
 		Array<uint8_t> &dest, size_t dest_offset) 
@@ -50,7 +45,10 @@ public:
 		else 
 			throw DZException("bzlib decompression error %d", c);
 	}
-	virtual void setCurrentState (uint8_t *source, size_t source_sz) {}
+
+	virtual void setCurrentState (uint8_t *source, size_t source_sz) 
+	{
+	}
 };
 
 #endif

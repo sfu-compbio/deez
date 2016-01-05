@@ -32,6 +32,7 @@ char optLossy   = 0;
 int optThreads  = 4;
 int optFlag     = 0;
 int optLogLevel	= 0;
+bool optBzip = false;
 size_t optSortMemory = GB;
 
 void parseArguments (int argc, char **argv) 
@@ -55,10 +56,11 @@ void parseArguments (int argc, char **argv)
 		{ "noqual",      0, NULL, 'Q' },
 		{ "quality",     1, NULL, 'q' },
 		{ "verbosity",   1, NULL, 'v' },
+		{ "bzip",        0, NULL, 'b' },
 	//	{ "allow-invalid-ref", 0, NULL, 'I' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:t:T!co:q:l:sM:Sf:F:QLv:" /*"I"*/;
+	const char *short_opt = "hr:t:T!co:q:l:sM:Sf:F:QLbv:" /*"I"*/;
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
@@ -72,6 +74,9 @@ void parseArguments (int argc, char **argv)
 				break;
 			case 'T':
 				optTest = true;
+				break;
+			case 'b':
+				optBzip = true;
 				break;
 			case 't':
 				optThreads = atoi(optarg);
@@ -108,7 +113,7 @@ void parseArguments (int argc, char **argv)
 			case 'q':
 				if (!strcmp(optarg, "samcomp") || atoi(optarg) == 1)
 					optQuality = 1;
-				else if (!strcmp(optarg, "test") || atoi(optarg) == 2)
+				else if (!strcmp(optarg, "arithmetic") || atoi(optarg) == 2)
 					optQuality = 2;
 				else 
 					throw DZException("Unknown quality compression mode %s", optarg);

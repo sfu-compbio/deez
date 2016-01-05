@@ -17,11 +17,14 @@ QualityScoreCompressor::QualityScoreCompressor(void):
 		case 1:
 			streams[0] = make_shared<SAMCompStream<QualRange>>();
 			break;
+		case 2:
+			streams[0] = make_shared<ArithmeticOrder2CompressionStream<QualRange>>();
+			break;
 		default:
 			throw DZException("Invalid stream specified");
 			break;
 	}
-	const char* qualities[] = { "default", "samcomp", "test" };
+	const char* qualities[] = { "default", "samcomp", "arithmetic" };
 	LOG("Using quality mode %s", qualities[optQuality]);
 }
 

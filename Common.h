@@ -39,6 +39,7 @@ int packInteger(uint64_t num, Array<uint8_t> &o);
 uint64_t unpackInteger(int T, Array<uint8_t> &i, size_t &ii) ;
 
 extern bool optReadLossy;	
+extern bool optBzip;
 
 template<typename T>
 size_t sizeInMemory(T t) {

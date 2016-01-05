@@ -30,9 +30,13 @@ OptionalFieldCompressor::OptionalFieldCompressor(void):
 	fieldCount(0)
 {
 	streams.resize(Fields::ENUM_COUNT);
-	for (int i = 0; i < streams.size(); i++)
-		streams[i] = make_shared<GzipCompressionStream<6>>();
-	//streams[Fields::TAG] = make_shared<rANSOrder0CompressionStream<256>>();
+	if (optBzip) {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<BzipCompressionStream>();
+	} else {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<GzipCompressionStream<6>>();
+	}
 }
 
 OptionalFieldCompressor::~OptionalFieldCompressor (void) 
@@ -99,9 +103,14 @@ void OptionalFieldCompressor::outputRecords (const Array<Record> &records, Array
 		idxToKey[fields[key]] = key;
 	for (int keyIndex = 0; keyIndex < oa.size(); keyIndex++) {
 		int key = idxToKey[keyIndex];
+		int type = key % AlphabetRange + AlphabetStart;
 		if (fieldStreams.find(key) == fieldStreams.end()) {
 			if (QualityTags.find(key) != QualityTags.end()) {
 				fieldStreams[key] = make_shared<rANSOrder2CompressionStream<128>>();
+			} else if (optBzip) {
+				fieldStreams[key] = make_shared<BzipCompressionStream>();
+			} else if (type == 'j' || type == 'k' || type == 'A') {
+				fieldStreams[key] = make_shared<GzipCompressionStream<6, Z_RLE>>();
 			} else {
 				fieldStreams[key] = make_shared<GzipCompressionStream<6>>();
 			}

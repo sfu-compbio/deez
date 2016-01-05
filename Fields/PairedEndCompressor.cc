@@ -28,8 +28,15 @@ PairedEndCompressor::PairedEndCompressor(void):
 	GenericCompressor<PairedEndInfo, GzipCompressionStream<6>>()
 {
 	streams.resize(Fields::ENUM_COUNT);
-	for (int i = 0; i < streams.size(); i++)
-		streams[i] = make_shared<GzipCompressionStream<6>>();
+	if (optBzip) {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<BzipCompressionStream>();
+	} else {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<GzipCompressionStream<6>>();
+		streams[Fields::TLENBIT] = make_shared<GzipCompressionStream<6, Z_RLE>>();
+		streams[Fields::CHROMOSOME] = make_shared<GzipCompressionStream<6, Z_RLE>>();
+	}
 }
 
 void PairedEndCompressor::printDetails(void) 

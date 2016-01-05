@@ -13,13 +13,13 @@ QualityScoreDecompressor::QualityScoreDecompressor (int blockSize):
 			sought = 1;
 			break;
 		case 2:
-			streams[0] = make_shared<rANSOrder2DecompressionStream<QualRange>>();
+			streams[0] = make_shared<ArithmeticOrder2DecompressionStream<QualRange>>();
 			break;
 		default:
 			throw DZException("Not implemented");
 			break;
 	}
-	const char* qualities[] = { "default", "samcomp", "test" };
+	const char* qualities[] = { "default", "samcomp", "arithmetic" };
 	LOG("Using quality mode %s", qualities[optQuality]);
 	if (optNoQual)
 		sought = 2;

@@ -18,11 +18,14 @@ SequenceCompressor::SequenceCompressor (const string &refFile):
 	maxEnd(0)
 {
 	streams.resize(Fields::ENUM_COUNT);
-	for (int i = 0; i < streams.size(); i++)
-		streams[i] = make_shared<GzipCompressionStream<6>>();
+	if (optBzip) {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<BzipCompressionStream>();
+	} else {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<GzipCompressionStream<6, Z_RLE>>();
+	}
 	streams[Fields::FIXES] = make_shared<rANSOrder0CompressionStream<256>>();
-
-	//fo=fopen("_fixLoc", "w");
 }
 
 void SequenceCompressor::printDetails(void) 
@@ -30,7 +33,6 @@ void SequenceCompressor::printDetails(void)
 	LOG("  Fixes     : %'20lu", streams[Fields::FIXES]->getCount());
 	LOG("  Fixes St  : %'20lu", streams[Fields::FIXES_ST]->getCount());
 	LOG("  Replace   : %'20lu", streams[Fields::REPLACE]->getCount());
-	//fclose(fo);
 }
 
 void SequenceCompressor::updateBoundary (size_t loc) 

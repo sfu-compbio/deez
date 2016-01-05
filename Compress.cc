@@ -63,6 +63,7 @@ void FileCompressor::outputMagic (void)
 	uint32_t magic = MAGIC;
 	fwrite(&magic, 4, 1, outputFile);
 	fwrite(&optQuality, 1, 1, outputFile);
+	fwrite(&optBzip, 1, 1, outputFile);
 
 	uint16_t numFiles = parsers.size();
 	fwrite(&numFiles, 2, 1, outputFile);

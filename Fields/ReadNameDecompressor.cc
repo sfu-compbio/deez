@@ -6,12 +6,13 @@ ReadNameDecompressor::ReadNameDecompressor (int blockSize):
 	paired(blockSize)
 {
 	streams.resize(ReadNameCompressor::Fields::ENUM_COUNT);
-	for (int i = 0; i < streams.size(); i++)
-		streams[i] = make_shared<GzipDecompressionStream>();
-}
-
-ReadNameDecompressor::~ReadNameDecompressor (void) 
-{
+	if (optBzip) {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<BzipDecompressionStream>();	
+	} else {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<GzipDecompressionStream>();
+	}
 }
 
 void ReadNameDecompressor::importRecords (uint8_t *in, size_t in_size) 

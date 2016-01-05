@@ -9,11 +9,11 @@ EditOperationDecompressor::EditOperationDecompressor (int blockSize, const Seque
 	streams.resize(EditOperationCompressor::Fields::ENUM_COUNT);
 	for (int i = 0; i < streams.size(); i++)
 		streams[i] = make_shared<GzipDecompressionStream>();
+	if (optBzip) {
+		streams[EditOperationCompressor::Fields::OPCODES] = make_shared<BzipDecompressionStream>();
+		streams[EditOperationCompressor::Fields::ACGT_U] = make_shared<BzipDecompressionStream>();
+	}
 	streams[EditOperationCompressor::Fields::LOCATION] = make_shared<ArithmeticOrder0DecompressionStream<256>>();
-}
-
-EditOperationDecompressor::~EditOperationDecompressor (void) 
-{
 }
 
 void EditOperationDecompressor::importRecords (uint8_t *in, size_t in_size) 

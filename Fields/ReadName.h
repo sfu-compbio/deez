@@ -5,6 +5,7 @@
 
 #include "../Common.h"
 #include "../Streams/GzipStream.h"
+#include "../Streams/BzipStream.h"
 #include "../Engines/GenericEngine.h"
 #include "../Engines/StringEngine.h"
 #include "PairedEnd.h"
@@ -55,7 +56,6 @@ class ReadNameDecompressor:
 
 public:
 	ReadNameDecompressor(int blockSize);
-	virtual ~ReadNameDecompressor(void);
 
 public:
 	void importRecords (uint8_t *in, size_t in_size);

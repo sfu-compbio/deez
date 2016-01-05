@@ -144,6 +144,8 @@ void FileDecompressor::getMagic (void)
 	 	magic & 0xf
 	);
 	optQuality = inFile->readU8();
+	optBzip = inFile->readU8();
+	if (optBzip) LOG("Using bzip decoding");
 
 	uint16_t numFiles = 1;
 	if ((magic & 0xff) >= 0x11) // DeeZ v1.1

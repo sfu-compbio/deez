@@ -3,6 +3,7 @@
 
 #include "../Common.h"
 #include "../Streams/GzipStream.h"
+#include "../Streams/BzipStream.h"
 #include "../Engines/StringEngine.h"
 #include "EditOperation.h"
 #include "SAMComment.h"
@@ -116,7 +117,6 @@ class OptionalFieldDecompressor:
 
 public:
 	OptionalFieldDecompressor (int blockSize);
-	virtual ~OptionalFieldDecompressor (void);
 	
 public:
 	void getRecord(size_t i, const EditOperation &eo, std::string &record);

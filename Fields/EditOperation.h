@@ -77,7 +77,6 @@ class EditOperationDecompressor:
 
 public:
 	EditOperationDecompressor(int blockSize, const SequenceDecompressor &seq);
-	virtual ~EditOperationDecompressor(void);
 
 public:
 	void importRecords (uint8_t *in, size_t in_size);

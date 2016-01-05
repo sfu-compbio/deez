@@ -9,13 +9,14 @@ SequenceDecompressor::SequenceDecompressor (const string &refFile, int bs):
 	chromosome("")
 {
 	streams.resize(SequenceCompressor::Fields::ENUM_COUNT);
-	for (int i = 0; i < streams.size(); i++)
-		streams[i] = make_shared<GzipDecompressionStream>();
+	if (optBzip) {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<BzipDecompressionStream>();	
+	} else {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<GzipDecompressionStream>();
+	}
 	streams[SequenceCompressor::Fields::FIXES] = make_shared<rANSOrder0DecompressionStream<256>>();
-}
-
-SequenceDecompressor::~SequenceDecompressor (void)
-{
 }
 
 bool SequenceDecompressor::hasRecord (void) 

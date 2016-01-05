@@ -18,6 +18,7 @@
 #include "../Engines/StringEngine.h"
 #include "../Fields/EditOperation.h"
 #include "../Streams/GzipStream.h"
+#include "../Streams/BzipStream.h"
 #include "../Streams/ACGTStream.h"
 #include "EditOperation.h"
 #include "SAMComment.h"
@@ -96,7 +97,6 @@ private:
 
 public:
 	SequenceDecompressor (const std::string &refFile, int bs);
-	~SequenceDecompressor (void);
 
 public:
 	bool hasRecord (void);

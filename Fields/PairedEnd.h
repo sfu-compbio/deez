@@ -6,6 +6,7 @@
 
 #include "../Common.h"
 #include "../Streams/GzipStream.h"
+#include "../Streams/BzipStream.h"
 #include "../Engines/GenericEngine.h"
 
 struct PairedEndInfo {
@@ -55,7 +56,6 @@ class PairedEndDecompressor:
 {
 public:
 	PairedEndDecompressor (int blockSize);
-	virtual ~PairedEndDecompressor (void);
 	
 public:
 	void importRecords (uint8_t *in, size_t in_size);

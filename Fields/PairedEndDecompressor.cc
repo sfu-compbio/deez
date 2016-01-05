@@ -6,12 +6,13 @@ PairedEndDecompressor::PairedEndDecompressor (int blockSize):
 	GenericDecompressor<PairedEndInfo, GzipDecompressionStream>(blockSize)
 {
 	streams.resize(PairedEndCompressor::Fields::ENUM_COUNT);
-	for (int i = 0; i < streams.size(); i++)
-		streams[i] = make_shared<GzipDecompressionStream>();
-}
-
-PairedEndDecompressor::~PairedEndDecompressor (void) 
-{	
+	if (optBzip) {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<BzipDecompressionStream>();	
+	} else {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<GzipDecompressionStream>();
+	}
 }
 
 PairedEndInfo &PairedEndDecompressor::getRecord (size_t i, size_t opos, size_t ospan, bool reverse) 

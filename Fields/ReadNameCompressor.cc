@@ -5,8 +5,13 @@ ReadNameCompressor::ReadNameCompressor(void):
 	StringCompressor<GzipCompressionStream<6>>()
 {
 	streams.resize(Fields::ENUM_COUNT);
-	for (int i = 0; i < streams.size(); i++)
-		streams[i] = make_shared<GzipCompressionStream<6>>();
+	if (optBzip) {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<BzipCompressionStream>();
+	} else {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<GzipCompressionStream<6>>();
+	}
 	memset(prevCharTokens, 0, MAX_TOKEN);
 }
 

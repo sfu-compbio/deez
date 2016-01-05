@@ -102,8 +102,15 @@ EditOperationCompressor::EditOperationCompressor (const SequenceCompressor &seq)
 	sequence(seq)
 {
 	streams.resize(Fields::ENUM_COUNT);
-	for (int i = 0; i < streams.size(); i++)
+	 for (int i = 0; i < Fields::ACGT; i++)
 		streams[i] = make_shared<GzipCompressionStream<6>>();
+	for (int i = Fields::ACGT; i < streams.size(); i++)
+		streams[i] = make_shared<GzipCompressionStream<6, Z_RLE>>();
+	
+	if (optBzip) {
+		streams[Fields::OPCODES] = make_shared<BzipCompressionStream>();
+		streams[Fields::ACGT_U] = make_shared<BzipCompressionStream>();
+	}
 	streams[Fields::LOCATION] = make_shared<ArithmeticOrder0CompressionStream<256>>();
 }
 

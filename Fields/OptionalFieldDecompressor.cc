@@ -9,13 +9,13 @@ OptionalFieldDecompressor::OptionalFieldDecompressor (int blockSize):
 	prevIndex(AlphabetRange * AlphabetRange * AlphabetRange)
 {
 	streams.resize(OptionalFieldCompressor::Fields::ENUM_COUNT);
-	for (int i = 0; i < streams.size(); i++)
-		streams[i] = make_shared<GzipDecompressionStream>();
-	//streams[OptionalFieldCompressor::Fields::TAG] = make_shared<rANSOrder0DecompressionStream<256>>();
-}
-
-OptionalFieldDecompressor::~OptionalFieldDecompressor (void) 
-{
+	if (optBzip) {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<BzipDecompressionStream>();	
+	} else {
+		for (int i = 0; i < streams.size(); i++)
+			streams[i] = make_shared<GzipDecompressionStream>();
+	}
 }
 
 void OptionalFieldDecompressor::importRecords (uint8_t *in, size_t in_size) 
@@ -75,6 +75,8 @@ inline OptionalField OptionalFieldDecompressor::parseFields(uint8_t *&tags, uint
 			if (fieldStreams.find(key) == fieldStreams.end()) {
 				if (OptionalFieldCompressor::QualityTags.find(key) != OptionalFieldCompressor::QualityTags.end()) {
 					fieldStreams[key] = make_shared<rANSOrder2DecompressionStream<128>>();
+				} else if (optBzip) {
+					fieldStreams[key] = make_shared<BzipDecompressionStream>();	
 				} else {
 					fieldStreams[key] = make_shared<GzipDecompressionStream>();
 				}

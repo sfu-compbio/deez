@@ -14,15 +14,24 @@ rm -rf ${log}/*
 function test {
 	sam=$1;
 	ref="";
+
 	if [ ! -z "$2" ];
 	then 
-		ref="-r $2";
+		comp="$2";
 	else
-		ref="";
+		comp=""
 	fi
 
-	echo -ne "${sam}\n\tCompressing ... " >&2 ;
-	cmdc="${deez} ${ref} ${sam} -! -o ${out}/${sam}.dz";
+	if [ ! -z "$3" ];
+	then 
+		ref="-r $3";
+	else
+		ref=""
+	fi
+
+	echo -ne "${sam}\t${comp} ${ref}\n\tCompressing ... " >&2 ;
+	cmdc="${deez} ${comp} ${ref} ${sam} -! -o ${out}/${sam}.dz";
+	#echo ${cmdc};
 	`${cmdc} 2>${log}/c_${sam}`;
 	
 	echo -ne "\tDecompressing ... " >&2 ;
@@ -42,21 +51,23 @@ function test {
 	fi;
 }
 
+# TODO: test random access, noqual, filtering
+
 echo -ne "========================================================================\n"
 echo -ne "### Batch BASIC\n" >&2 ;
 echo -ne "========================================================================\n"
 
 for sam in *.sam ;
 do
-	test ${sam} "ref";
-done ;
+	test ${sam}
+	test ${sam} ""       "ref"
+	test ${sam} "-b"     "ref"
+	test ${sam} "-q1"    "ref"
+	test ${sam} "-q2"    "ref"
+	test ${sam} "-b -q1" "ref"
+	test ${sam} "-b -q2" "ref"
 
-echo -ne "========================================================================\n"
-echo -ne "### Batch BASIC NoRef\n" >&2 ;
-echo -ne "========================================================================\n"
-for sam in *.sam ;
-do
-	test ${sam};
+	echo;
 done ;
 
 cd staden
@@ -67,7 +78,11 @@ do
 	echo -ne "========================================================================\n"
 	for sam in ${r}*.sam ;
 	do
-		test ${sam} "${r}.fa"
+		test ${sam}
+		test ${sam} ""       "${r}.fa"
+		test ${sam} "-b -q1" "${r}.fa"
+
+		echo
 	done ;
 done
 
