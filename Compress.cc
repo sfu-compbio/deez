@@ -293,7 +293,7 @@ void FileCompressor::outputRecords (void)
 			for (int i = 0; i < optThreads; i++) 
 				threads[i] = thread([&](int ti, size_t start, size_t end) {
 						ZAMAN_START(Thread);
-						for (size_t i= start; i < end; i++) {
+						for (size_t i = start; i < end; i++) {
 							Record &rc = records[f][i];
 							editOps[f][i].calculateTags(sequence[f]->getReference());
 							optFields[f][i].parse((char*)rc.getOptional(), editOps[f][i], optLibrary);

@@ -23,6 +23,13 @@
 #include "EditOperation.h"
 #include "SAMComment.h"
 
+#ifdef __SSE4_1__
+	#define DEEZ_SSE
+#else
+	#warning "Not using SSE 4.1 optimizations -- performance might be suboptimal"
+#endif
+
+
 class SequenceCompressor: public Compressor {
 	friend class Stats;
 	
@@ -68,10 +75,9 @@ public:
 	Reference &getReference() { return reference; }
 
 private:
-	#ifdef __SSE2__
+	#ifdef DEEZ_SSE
 		typedef std::vector<__m128i> Stats;
 	#else
-		#warning "Not using SSE2 optimizations -- performance might be suboptimal"
 		typedef std::vector<std::array<uint16_t, 6>> Stats;
 	#endif
 	static void applyFixesThread(const Array<Record> &records, const Array<EditOperation> &editOps, Stats &stats, 

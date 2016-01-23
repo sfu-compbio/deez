@@ -85,6 +85,9 @@ void SequenceCompressor::scanChromosome (const string &s, const SAMComment &samC
 // called at the end of the block!
 // IS NOT ATOMIC!
 
+// From SSEPlus_emulation_REF.h -- SSEPlus project
+/** \SSE4_1{Reference,_mm_minpos_epu16} */
+
 #define _ 0
 static __m128i getSSEvalueCache[] =  {
 	_mm_set_epi16(_,_,_,_,_,_,_,1),
@@ -99,7 +102,7 @@ static __m128i getSSEvalueCache[] =  {
 #undef _
 inline void SequenceCompressor::updateGenomeLoc (size_t loc, char ch, Stats &stats) 
 {
-	#ifdef __SSE2__
+	#ifdef DEEZ_SSE
 		stats[loc] = _mm_add_epi16(stats[loc], getSSEvalueCache[getDNAValue(ch)]);
 	#else
 		stats[loc][getDNAValue(ch)]++;
@@ -201,7 +204,7 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, const Array<Record
 		
 		ZAMAN_START_P(Calculate);
 		vector<thread> t(optThreads);
-		#ifdef __SSE2__
+		#ifdef DEEZ_SSE
 			Stats stats(fixedEnd - fixedStart, _mm_setzero_si128());
 		#else
 			Stats stats(fixedEnd - fixedStart, array<uint16_t, 6>());
@@ -230,9 +233,11 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin, const Array<Record
 		fixesLocSt.resize(0);
 		fixesReplace.resize(0);
 
-		__m128i invert = _mm_set_epi16(0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff);
+		#ifdef DEEZ_SSE
+			__m128i invert = _mm_set_epi16(0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff);
+		#endif
 		for (size_t i = 0; i < fixedEnd - fixedStart; i++) {
-			#ifdef __SSE2__
+			#ifdef DEEZ_SSE
 				if (_mm_movemask_epi8(_mm_cmpeq_epi8(stats[i], _mm_setzero_si128())) == 0xFFFF)
 					continue;
 				int pos = _mm_extract_epi16(_mm_minpos_epu16(_mm_sub_epi16(invert, stats[i])), 1);
