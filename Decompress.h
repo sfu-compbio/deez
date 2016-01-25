@@ -64,18 +64,19 @@ class FileDecompressor {
    	bool finishedRange;
 
 protected:
-    // virtual inline void printRecord(const string &rname, int flag, const string &chr, const EditOperation &eo, int mqual,
-    //     const string &qual, const string &optional, const PairedEndInfo &pe, int file);
+	const bool isAPI; // Ugly; hack for now
+    virtual inline void printRecord(const string &rname, int flag, const string &chr, const EditOperation &eo, int mqual,
+        const string &qual, const string &optional, const PairedEndInfo &pe, int file, int thread);
 
    	vector<string> comments;
-	virtual inline void printRecord(const string &record, int file);
+	inline void printRecord(const string &record, int file);
     virtual inline void printComment(int file);
 
 public:
 	static void printStats (const std::string &inFile, int filterFlag);
 
 public:
-	FileDecompressor (const std::string &inFile, const std::string &outFile, const std::string &genomeFile, int bs);
+	FileDecompressor (const std::string &inFile, const std::string &outFile, const std::string &genomeFile, int bs, bool isAPI = false);
 	~FileDecompressor (void);
 
 private:

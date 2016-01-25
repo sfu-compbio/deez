@@ -11,6 +11,7 @@
 #include "Decompress.h"
 #include "Sort.h"
 #include "FileIO.h"
+#include "Legacy/v1.1/Decompress.h"
 using namespace std;
 
 bool optTest 	= false;
@@ -146,13 +147,15 @@ void parseArguments (int argc, char **argv)
 		optInput.push_back(argv[optind++]);
 }
 
-bool isDZfile (const string &s) 
+uint8_t isDZfile (const string &s) 
 {
 	auto f = File::Open(s.c_str(), "r");
-	bool res = false;
+	uint8_t res = 0;
 	try {
 		uint32_t magic = f->readU32();
-		res = (magic >> 8) == (MAGIC >> 8);
+		if ((magic >> 8) == (MAGIC >> 8)) {
+			res = magic & 0xff;
+		}
 	} catch (...) {
 	}
 	return res;
@@ -205,10 +208,15 @@ void decompress (const vector<string> &in, const string &out)
 {
 	if (in.size() > 2)
 		throw DZException("Only one file can be decompressed per invocation.");
-	if (!isDZfile(in[0]))
+	uint8_t version = isDZfile(in[0]);
+	if (!version)
 		throw DZException("File %s is not DZ file", in[0].c_str());
 	if (optStats) {
-		FileDecompressor::printStats(in[0], optFlag);
+		if (version <= 0x11) {
+			Legacy::v11::FileDecompressor::printStats(in[0], optFlag);
+		} else {
+			FileDecompressor::printStats(in[0], optFlag);
+		}
 		return;
 	}
 
@@ -224,12 +232,23 @@ void decompress (const vector<string> &in, const string &out)
 	if (!optStdout) 
 		DEBUG("Using output file %s", out.c_str());
 	LOG("Decompressing %s to %s ...", in[0].c_str(), optStdout ? "stdout" : out.c_str());
-	FileDecompressor sd(in[0], out, optRef, optBlock);
-	
-	if (in.size() <= 1) {
-		sd.decompress(optFlag);
-	} else {
-		sd.decompress(in[1], optFlag);
+	DEBUG("File version 0x%x", version);
+
+	if (version <= 0x11) {
+		LOG("Using legacy DeeZ file support (file version: 0x%x)", version);
+		Legacy::v11::FileDecompressor sd(in[0], out, optRef, optBlock);
+		if (in.size() <= 1) {
+			sd.decompress(optFlag);
+		} else {
+			sd.decompress(in[1], optFlag);
+		}
+	} else { // if version >= 0x20
+		FileDecompressor sd(in[0], out, optRef, optBlock);
+		if (in.size() <= 1) {
+			sd.decompress(optFlag);
+		} else {
+			sd.decompress(in[1], optFlag);
+		}
 	}
 }
 
@@ -263,6 +282,9 @@ int main (int argc, char **argv)
 
 	#ifdef VER
     	LOG("DeeZ 0x%x (%s)", VERSION, VER);
+    	#ifndef DEEZ_SSE
+    		LOG("     compiled without SSE4.1 support -- performance might be suboptimal!");
+    	#endif
 	#endif
 
     try {

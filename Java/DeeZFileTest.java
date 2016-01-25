@@ -3,7 +3,7 @@
 public class DeeZFileTest {
 	public static void main (String[] args) {
 		try {
-			DeeZFile df = new DeeZFile("../run/test1.dz", "../run/hs37d5.fa");
+			DeeZFile df = new DeeZFile("../run/exp.sam.dztemp.dz", "../run/hs37d5.fa");
 			//df.setLogLevel(1);
 
 			int f = df.getFileCount();

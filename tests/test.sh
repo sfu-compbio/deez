@@ -1,4 +1,6 @@
 #!/bin/bash
+# 786
+# One day, this should be written in python...
 
 mkdir -p out
 mkdir -p log
@@ -6,8 +8,8 @@ out=`realpath out`
 log=`realpath log`
 deez=`realpath deez`
 
-find . | grep dztest | xargs rm 
-find . | grep dztemp | xargs rm
+find . | grep dztest | xargs rm -f 
+find . | grep dztemp | xargs rm -f
 rm -rf ${out}/*
 rm -rf ${log}/*
 
@@ -48,6 +50,7 @@ function test {
 		echo "OK" >&2
 	else
 		echo -ne "FAIL\n\t\tCC: ${cmdc}\n\t\tDC: ${cmdd}\n" >&2 
+		exit
 	fi;
 }
 
@@ -85,4 +88,3 @@ do
 		echo
 	done ;
 done
-

@@ -1,12 +1,73 @@
 #include "Decompress.h"
 #include <thread>
+#include <cstring>
 using namespace std;
 
-void FileDecompressor::printStats (const string &path, int filterFlag) 
+extern char optQuality;
+
+namespace Legacy {
+namespace v11 {
+
+/****************************************************************************************/
+
+Stats::Stats():
+	reads(0)
 {
-	initCache();
-	
-	auto inFile = File::Open(path.c_str(), "rb");
+	fill(flags, flags + FLAGCOUNT, 0);
+}
+
+Stats::Stats (Array<uint8_t> &in, uint32_t magic) {
+	uint8_t *pin = in.data();
+	fileName = string((char*)pin);
+	pin += fileName.size() + 1;
+
+	reads = *(size_t*)pin; pin += 8;
+	memcpy((uint8_t*)flags, pin, FLAGCOUNT * 8);
+	pin += FLAGCOUNT * sizeof(size_t);
+
+	while (pin < in.data() + in.size()) {
+		string chr = string((char*)pin);
+		pin += chr.size() + 1;
+		if ((magic & 0xff) >= 0x11) {
+			string fn = string((char*)pin);
+			pin += fn.size() + 1;
+			string md5 = string((char*)pin);
+			pin += md5.size() + 1;
+			chromosomes[chr] = {chr, md5, fn, 0, 0};
+		}
+
+		size_t len = *(size_t*)pin; 
+		pin += 8;
+		chromosomes[chr].len = len;
+	}
+}
+
+Stats::~Stats() {
+}
+
+void Stats::addRecord (uint16_t flag) {
+	flags[flag]++;
+	reads++;
+}
+
+size_t Stats::getStats (int flag) {
+	int result = 0;
+	if (flag > 0) {
+		for (int i = 0; i < FLAGCOUNT; i++)
+			if ((i & flag) == flag) result += flags[i];
+	}
+	else if (flag < 0) {
+		flag = -flag;
+		for (int i = 0; i < FLAGCOUNT; i++)
+			if ((i & flag) == 0) result += flags[i];
+	}
+	return result;
+}
+
+/****************************************************************************************/
+
+void FileDecompressor::printStats (const string &path, int filterFlag) {
+	File *inFile = OpenFile(path.c_str(), "rb");
 
 	if (inFile == NULL)
 		throw DZException("Cannot open the file %s", path.c_str());
@@ -15,8 +76,6 @@ void FileDecompressor::printStats (const string &path, int filterFlag)
 	uint32_t magic = inFile->readU32();
 	uint8_t optQuality = inFile->readU8();
 	uint16_t numFiles = 1;
-	if ((magic & 0xff) < 0x20)
-		throw DZException("Old DeeZ files are not supported");
 	if ((magic & 0xff) >= 0x11) // DeeZ v1.1
 		numFiles = inFile->readU16();
 
@@ -29,13 +88,13 @@ void FileDecompressor::printStats (const string &path, int filterFlag)
 	if (strcmp(statmagic, "DZSTATS"))
 		throw DZException("Stats are corrupted ...%s", statmagic);
 
-	vector<shared_ptr<Stats>> stats(numFiles);
+	vector<Stats*> stats(numFiles);
 	for (int i = 0; i < numFiles; i++) {
 		size_t sz = inFile->readU64();
 		Array<uint8_t> in(sz);
 		in.resize(sz);
 		inFile->read(in.data(), sz);
-		stats[i] = make_shared<Stats>(in, magic);
+		stats[i] = new Stats(in, magic);
 	}
 
 	WARN("Index size %'lu bytes", inFileSz - statPos);
@@ -61,30 +120,34 @@ void FileDecompressor::printStats (const string &path, int filterFlag)
 				WARN("%'16lu records with flag %d(0x%x)", p, filterFlag, filterFlag);
 			else
 				WARN("%'16lu records without flag %d(0x%x)", p, -filterFlag, -filterFlag);
-		} else {
+		}
+		else {
 			for (int i = 0; i < Stats::FLAGCOUNT; i++) {
 				size_t p = stats[f]->getFlagCount(i);
 				if (p) WARN("%4d 0x%04x: %'16lu", i, i, p);
 			}
 		}
 	}
+
+	inFile->close();
+	delete inFile;
+
+	for (int i = 0; i < numFiles; i++) 
+		delete stats[i];
 }
 
-FileDecompressor::FileDecompressor (const string &inFilePath, const string &outFile, const string &genomeFile, int bs, bool isAPI): 
-	blockSize(bs), genomeFile(genomeFile), outFile(outFile), finishedRange(false), isAPI(isAPI)
-{
-	initCache();
+/****************************************************************************************/
 
+FileDecompressor::FileDecompressor (const string &inFilePath, const string &outFile, const string &genomeFile, int bs): 
+	blockSize(bs), genomeFile(genomeFile), outFile(outFile), finishedRange(false)
+{
 	string name1 = inFilePath;
-	this->inFile = File::Open(name1.c_str(), "rb");
+	this->inFile = OpenFile(name1.c_str(), "rb");
 	if (this->inFile == NULL)
 		throw DZException("Cannot open the file %s", name1.c_str());
 
 	inFileSz = inFile->size();
 	magic = inFile->readU32();
-
-	if ((magic & 0xff) < 0x20)
-		throw DZException("Old DeeZ files are not supported");
 
 	// seek to index
 	inFile->seek(inFileSz - sizeof(size_t));
@@ -98,7 +161,7 @@ FileDecompressor::FileDecompressor (const string &inFilePath, const string &outF
 	Array<uint8_t> in(sz);
 	in.resize(sz);
 	inFile->read(in.data(), sz);
-	stats = make_shared<Stats>(in, magic);
+	stats = new Stats(in, magic);
 
 	keymagic[5] = 0;
 	inFile->read(keymagic, 5);
@@ -116,9 +179,13 @@ FileDecompressor::FileDecompressor (const string &inFilePath, const string &outF
 	free(buffer);
 	
 	int idx = dup(fileno(tmp));
+
+	//fseek(tmp, 0, SEEK_END);
+	//LOG("Index gz'd sz=%'lu", ftell(tmp));
 	fseek(tmp, 0, SEEK_SET);
 	lseek(idx, 0, SEEK_SET); // needed for gzdopen
 	idxFile = gzdopen(idx, "rb");
+	//idxFile = gzopen((inFile+".dzi").c_str(), "rb");
 	if (idxFile == Z_NULL)
 		throw DZException("Cannot open the index");
 		
@@ -129,42 +196,48 @@ FileDecompressor::FileDecompressor (const string &inFilePath, const string &outF
 	loadIndex();
 }
 
-FileDecompressor::~FileDecompressor (void) 
-{
+FileDecompressor::~FileDecompressor (void) {
 	for (int f = 0; f < fileNames.size(); f++) {
-		if (samFiles[f]) 
-			fclose(samFiles[f]);
+		delete sequence[f];
+		delete editOp[f];
+		delete readName[f];
+		delete mapFlag[f];
+		delete mapQual[f];
+		delete quality[f];
+		delete pairedEnd[f];
+		delete optField[f];
+		if (samFiles[f]) fclose(samFiles[f]);
 	}
-	if (idxFile) 
-		gzclose(idxFile);
+	if (idxFile) gzclose(idxFile);
+	if (inFile) {
+		inFile->close();
+		delete inFile;
+	}
 }
 
-void FileDecompressor::getMagic (void) 
-{
+void FileDecompressor::getMagic (void) {
 	magic = inFile->readU32();
-	LOG("File format: %c%c v%d.%d",
-		(magic >> 16) & 0xff,
+	 LOG("File format: %c%c v%d.%d",
+	 	(magic >> 16) & 0xff,
 	 	(magic >> 8) & 0xff,
 	 	(magic >> 4) & 0xf,
 	 	magic & 0xf
-	);
+	 );
 	optQuality = inFile->readU8();
-	optBzip = inFile->readU8();
-	if (optBzip) LOG("Using bzip decoding");
 
 	uint16_t numFiles = 1;
 	if ((magic & 0xff) >= 0x11) // DeeZ v1.1
 		numFiles = inFile->readU16();
 
 	for (int f = 0; f < numFiles; f++) {
-		sequence.push_back(make_shared<SequenceDecompressor>(genomeFile, blockSize));
-		editOp.push_back(make_shared<EditOperationDecompressor>(blockSize, (*sequence.back())));
-		readName.push_back(make_shared<ReadNameDecompressor>(blockSize));
-		mapFlag.push_back(make_shared<MappingFlagDecompressor>(blockSize));
-		mapQual.push_back(make_shared<MappingQualityDecompressor>(blockSize));
-		pairedEnd.push_back(make_shared<PairedEndDecompressor>(blockSize));
-		optField.push_back(make_shared<OptionalFieldDecompressor>(blockSize));
-		quality.push_back(make_shared<QualityScoreDecompressor>(blockSize));
+		sequence.push_back(new SequenceDecompressor(genomeFile, blockSize));
+		editOp.push_back(new EditOperationDecompressor(blockSize));
+		readName.push_back(new ReadNameDecompressor(blockSize));
+		mapFlag.push_back(new MappingFlagDecompressor(blockSize));
+		mapQual.push_back(new MappingQualityDecompressor(blockSize));
+		pairedEnd.push_back(new PairedEndDecompressor(blockSize));
+		optField.push_back(new OptionalFieldDecompressor(blockSize));
+		quality.push_back(new QualityScoreDecompressor(blockSize));
 	}
 	fileNames.resize(numFiles);
 
@@ -190,9 +263,9 @@ void FileDecompressor::getMagic (void)
 	}
 	samFiles.resize(numFiles);
 	for (int f = 0; f < numFiles; f++) {
-		if (optStdout) {
+		if (optStdout)
 			samFiles[f] = stdout;
-		} else if (outFile != "") {
+		else if (outFile != "") {
 			string fn = outFile;
 			if (numFiles > 1) fn += S("_%d", f + 1);
 			samFiles[f] = fopen(fn.c_str(), "wb");
@@ -202,41 +275,36 @@ void FileDecompressor::getMagic (void)
 	}
 }
 
-void FileDecompressor::getComment (void) 
-{
+void FileDecompressor::getComment (void) {
 	comments.resize(fileNames.size());
 	for (int f = 0; f < fileNames.size(); f++) {
 		size_t arcsz = inFile->readU64();
-		string comment = "";
 		if (arcsz) {
 			Array<uint8_t> arc;
 			arc.resize(arcsz);
 			arcsz = inFile->readU64();
-			Array<uint8_t> commentArr;
-			commentArr.resize(arcsz);
-			inFile->read(commentArr.data(), arcsz);
+			Array<uint8_t> comment;
+			comment.resize(arcsz);
+			inFile->read(comment.data(), arcsz);
 			
 			GzipDecompressionStream gzc;
-			gzc.decompress(commentArr.data(), commentArr.size(), arc, 0);
-			comment = string((char*)arc.data(), arc.size());
+			gzc.decompress(comment.data(), comment.size(), arc, 0);
+
+			comments[f] = string((char*)arc.data(), arc.size());
+			sequence[f]->scanSAMComment(comments[f]);
 		}
-		comments[f] = comment;
-		samComment.push_back(SAMComment(comments[f]));
 	}
 }
 
-void FileDecompressor::readBlock (Array<uint8_t> &in) 
-{
+void FileDecompressor::readBlock (Decompressor *d, Array<uint8_t> &in) {
 	size_t sz = inFile->readU64();
 	in.resize(sz);
 	if (sz) inFile->read(in.data(), sz);
+	d->importRecords(in.data(), in.size());
 }
 
-void FileDecompressor::printRecord(const string &rname, int flag, 
-	const string &chr, const EditOperation &eo, int mqual, 
-	const string &qual, const string &optional, const PairedEndInfo &pe, 
-	int file, int thread)
-{
+void readBlockThread (Decompressor *d, Array<uint8_t> &in) {
+	d->importRecords(in.data(), in.size());
 }
 
 size_t FileDecompressor::getBlock (int f, const string &chromosome, 
@@ -261,194 +329,67 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 		if (chromosome != "" && chr != chromosome)
 			return 0;
 	}
+
 	while (chr != sequence[f]->getChromosome())
-		sequence[f]->scanChromosome(chr, samComment[f]);
+		sequence[f]->scanChromosome(chr);
 
-	ZAMAN_START_P(Blocks);
 	Array<uint8_t> in[8];
+	readBlock(sequence[f], in[7]);
+	sequence[f]->setFixed(*(editOp[f]));
 
-	for (int ti = 0; ti < 8; ti++) {
-		readBlock(in[ti]);
+	Decompressor *di[] = { editOp[f], readName[f], mapFlag[f], mapQual[f], quality[f], pairedEnd[f], optField[f] };
+	thread t[7];
+	for (int ti = 0; ti < 7; ti++) {
+		size_t sz = inFile->readU64();
+		in[ti].resize(sz);
+		if (sz) inFile->read(in[ti].data(), sz);
+	//#ifdef DEEZLIB
+	//	readBlockThread(di[ti], in[ti]);
+	//#else
+		t[ti] = thread(readBlockThread, di[ti], ref(in[ti]));
+	//#endif
 	}
+	//#ifndef DEEZLIB
+		for (int ti = 0; ti < 7; ti++)
+			t[ti].join();
+	//#endif
 
-	ctpl::thread_pool threadPool(optThreads);
-	threadPool.push([&](int t, Array<uint8_t> &buffer) {
-		optField[f]->importRecords(buffer.data(), buffer.size());
-		ZAMAN_THREAD_JOIN();
-		// LOG("opt done");
-	}, ref(in[7]));
-	threadPool.push([&](int t, Array<uint8_t> &buffer) {
-		sequence[f]->importRecords(buffer.data(), buffer.size());
-		ZAMAN_THREAD_JOIN();
-		// LOG("seq done");
-	}, ref(in[0]));
-	threadPool.push([&](int t, Array<uint8_t> &buffer) {
-		editOp[f]->importRecords(buffer.data(), buffer.size());
-		ZAMAN_THREAD_JOIN();
-		// LOG("seq done");
-	}, ref(in[1]));
-	threadPool.push([&](int t, Array<uint8_t> &buffer) {
-		readName[f]->importRecords(buffer.data(), buffer.size());
-		ZAMAN_THREAD_JOIN();
-		// LOG("rname done");
-	}, ref(in[2]));
-	threadPool.push([&](int t, Array<uint8_t> &buffer) {
-		mapFlag[f]->importRecords(buffer.data(), buffer.size());
-		ZAMAN_THREAD_JOIN();
-		// LOG("mflag done");
-	}, ref(in[3]));
-	threadPool.push([&](int t, Array<uint8_t> &buffer) {
-		mapQual[f]->importRecords(buffer.data(), buffer.size());
-		ZAMAN_THREAD_JOIN();
-		// LOG("mqual done");
-	}, ref(in[4]));
-	threadPool.push([&](int t, Array<uint8_t> &buffer) {
-		quality[f]->importRecords(buffer.data(), buffer.size());
-		ZAMAN_THREAD_JOIN();
-		// LOG("qual done");
-	}, ref(in[5]));
-	threadPool.push([&](int t, Array<uint8_t> &buffer) {
-		pairedEnd[f]->importRecords(buffer.data(), buffer.size());
-		ZAMAN_THREAD_JOIN();
-		// LOG("pe done");
-	}, ref(in[6]));
-	optField[f]->decompressThreads(threadPool);
-	threadPool.stop(true);
-	ZAMAN_END_P(Blocks);
-
-// TODO: stop early if slice/random access
-	ZAMAN_START_P(CheckMate);
-	for (int i = 0, j = 0; i < editOp[f]->size(); i++) {
-		PairedEndInfo &pe = (*pairedEnd[f])[i];
-		if (pe.bit == PairedEndInfo::Bits::LOOK_BACK) {
-			int prevPos = i - readName[f]->getPaired(j++);
-			(*readName[f])[i] = (*readName[f])[prevPos];
-						
-			EditOperation &eo = (*editOp[f])[i];
-			EditOperation &peo = (*editOp[f])[prevPos];
-			PairedEndInfo &ppe = (*pairedEnd[f])[prevPos];
-
-			ppe.tlen = eo.start + (peo.end - peo.start) - peo.start;
-			ppe.pos = eo.start;
-			pe.pos = peo.start;
-			pe.tlen = -ppe.tlen;
-
-			if (ppe.bit == PairedEndInfo::Bits::LOOK_AHEAD_1) 
-				pe.tlen++, ppe.tlen--;
-		}
-	}
-	ZAMAN_END_P(CheckMate);
-
-	ZAMAN_START_P(Parse);
-	size_t recordCount = editOp[f]->size();
-	size_t threadSz = recordCount / optThreads + 1;
-	vector<thread> threads(optThreads);
-	vector<vector<string>> records(optThreads);
-	vector<char> finishedRangeThread(optThreads, 0);
 	size_t count = 0;
+	while (editOp[f]->hasRecord()) {
+		string rname = readName[f]->getRecord();
+		int flag = mapFlag[f]->getRecord();
+		EditOperation eo = editOp[f]->getRecord();
+		int mqual = mapQual[f]->getRecord();
+		string qual = quality[f]->getRecord(eo.seq.size(), flag);
+		string optional = optField[f]->getRecord();
+		PairedEndInfo pe = pairedEnd[f]->getRecord(chr, eo.start);
 
-	for (int ti = 0; ti < optThreads; ti++) {
-		if (ti) records[ti].reserve(threadSz);
-		threads[ti] = thread([&](int ti, size_t S, size_t E) {
-			ZAMAN_START(Thread);
-			size_t maxLen = 255;
-			string record;
-			for (size_t i = S; i < E; i++) {
-				int flag = mapFlag[f]->getRecord(i);
-
-				if (filterFlag) {
-					if (filterFlag > 0 && (flag & filterFlag) != filterFlag)
-						continue;
-					if (filterFlag < 0 && (flag & -filterFlag) == -filterFlag)
-						continue;
-				}
-
-				auto &eo = editOp[f]->getRecord(i);
-				auto &pe = pairedEnd[f]->getRecord(i, eo.start, eo.end - eo.start, flag & 0x10);
-
-				if (chr != "*") 
-					eo.start++;
-				if (pe.chr != "*") 
-					pe.pos++;
-
-				if (eo.start < start)
-					continue;
-				if (eo.start > end) {
-					finishedRangeThread[ti] = true;
-					return;
-				}
-
-				if (isAPI) {
-					string of;
-					optField[f]->getRecord(i, eo, of);
-					printRecord(readName[f]->getRecord(i), 
-						flag, chr, eo, 
-						mapQual[f]->getRecord(i),
-						quality[f]->getRecord(i, eo.seq.size(), flag), 
-						of, pe, f, ti);
-					continue;
-				}
-
-				record.resize(0);
-				record += readName[f]->getRecord(i);
-				record += '\t';
-				inttostr(flag, record); 
-				record += '\t';
-				record += chr; 
-				record += '\t';
-				inttostr(eo.start, record); 
-				record += '\t';
-				inttostr(mapQual[f]->getRecord(i), record); 
-				record += '\t';
-				record += eo.op; 
-				record += '\t';
-				record += pe.chr; 
-				record += '\t';
-				inttostr(pe.pos, record); 
-				record += '\t';
-				inttostr(pe.tlen, record); 
-				record += '\t';
-				record += eo.seq; 
-				record += '\t';
-				record += quality[f]->getRecord(i, eo.seq.size(), flag);
-				optField[f]->getRecord(i, eo, record);
-				maxLen = max(record.size(), maxLen);
-				record.reserve(maxLen);
-
-				if (ti == 0) {
-					printRecord(record, f);
-					count++;
-				} else {
-					records[ti].push_back(record);
-				}
-			}
-			ZAMAN_END(Thread);
-			ZAMAN_THREAD_JOIN();
-		}, ti, threadSz * ti, min(recordCount, (ti + 1) * threadSz));
-	}
-	for (int ti = 0; ti < optThreads; ti++) {
-		threads[ti].join();
-		if (finishedRangeThread[ti])
-			finishedRange = true;
-	}
-	ZAMAN_END_P(Parse);
-	
-	ZAMAN_START_P(Write);
-	for (auto &v: records)
-		for (auto &r: v) {
-			printRecord(r, f);
-			count++;
+		if (filterFlag) {
+			if (filterFlag > 0 && (flag & filterFlag) != filterFlag)
+				continue;
+			if (filterFlag < 0 && (flag & -filterFlag) == -filterFlag)
+				continue;
 		}
-	LOGN("\r\t%5.2lf%% [Chr %-10s]", (100.0 * inFile->tell()) / inFileSz, chr.substr(0, 10).c_str());
-	ZAMAN_END_P(Write);
-	
-	ZAMAN_THREAD_JOIN();
+		if (eo.start < start)
+			continue;
+		if (eo.start > end) {
+			finishedRange = true;
+			return count;
+		}
+
+		if (chr != "*") eo.start++;
+		if (pe.chr != "*") pe.pos++;
+
+		printRecord(rname, flag, chr, eo, mqual, qual, optional, pe, f);
+		if (count % (1 << 16) == 0) 
+			LOGN("\r   Chr %-6s %5.2lf%%", chr.c_str(), (100.0 * inFile->tell()) / inFileSz);
+		count++;
+	}
 	return count;
 }
 
 void FileDecompressor::loadIndex () 
 {
-	ZAMAN_START_P(LoadIndex);
 	fileBlockCount.clear();
 	bool firstRead = 1;
 	indices.resize(fileNames.size());
@@ -488,7 +429,6 @@ void FileDecompressor::loadIndex ()
 		//if (inMemory)
 		indices[f][chr][idx.startPos] = idx;
 	}
-	ZAMAN_END_P(LoadIndex);
 }
 
 vector<range_t> FileDecompressor::getRanges (string range)
@@ -538,7 +478,6 @@ vector<range_t> FileDecompressor::getRanges (string range)
 
 void FileDecompressor::decompress (int filterFlag) 
 {
-	ZAMAN_START_P(Decompress);
 	for (int f = 0; f < comments.size(); f++)
 		printComment(f);
 
@@ -550,13 +489,10 @@ void FileDecompressor::decompress (int filterFlag)
 		blockCount++;
 	}
 	LOGN("\nDecompressed %'lu records, %'lu blocks\n", totalSz, blockCount);
-	ZAMAN_END_P(Decompress);
 }
 
 void FileDecompressor::decompress (const string &range, int filterFlag)
 {
-	ZAMAN_START_P(Decompress);
-
 	auto ranges = getRanges(range);
 
 	size_t 	blockSz = 0, 
@@ -586,17 +522,16 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 				char chflag = inFile->readU8();
 				while (chflag) chflag = inFile->readU8();
 				while (chr != sequence[f]->getChromosome())
-					sequence[f]->scanChromosome(chr, samComment[f]);
+					sequence[f]->scanChromosome(chr);
 
 				Array<uint8_t> in;
-				readBlock(in);
-				sequence[f]->importRecords(in.data(), in.size());
+				readBlock(sequence[f], in);
 			}
 		}
 		// set up field data
 		while (r->second.first >= i->second.startPos && r->second.first <= i->second.endPos) {		
 			inFile->seek(i->second.zpos);
-			shared_ptr<Decompressor> di[] = { 
+			Decompressor *di[] = { 
 				sequence[f], editOp[f], readName[f], mapFlag[f], 
 				mapQual[f], quality[f], pairedEnd[f], optField[f] 
 			};
@@ -617,50 +552,9 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 			i++;
 		}
 	}
-	ZAMAN_END_P(Decompress);
+
 	LOGN("\nDecompressed %'lu records, %'lu blocks\n", totalSz, blockCount);
 }
 
-inline void FileDecompressor::printRecord(const string &record, int file) 
-{
-	fputs(record.c_str(), samFiles[file]);
-	fputc('\n', samFiles[file]);
-}
-
-inline void FileDecompressor::printComment(int file) 
-{
-    fputs(comments[file].c_str(), samFiles[file]);
-}
-
-/*
-inline void FileDecompressor::printRecord(const string &rname, int flag, const string &chr, const EditOperation &eo, int mqual,
-    const string &qual, const string &optional, const PairedEndInfo &pe, int file)
-{
-	fputs(rname.c_str(), samFiles[file]);
-	fputc('\t', samFiles[file]);
-	inttostr(flag, samFiles[file]);
-	fputc('\t', samFiles[file]);
-	fputs(chr.c_str(), samFiles[file]);
-	fputc('\t', samFiles[file]);
-	inttostr(eo.start, samFiles[file]);
-	fputc('\t', samFiles[file]);
-	inttostr(mqual, samFiles[file]);
-	fputc('\t', samFiles[file]);
-	fputs(eo.op.c_str(), samFiles[file]);
-	fputc('\t', samFiles[file]);
-	fputs(pe.chr.c_str(), samFiles[file]);
-	fputc('\t', samFiles[file]);
-	inttostr(pe.pos, samFiles[file]);
-	fputc('\t', samFiles[file]);
-	inttostr(pe.tlen, samFiles[file]);
-	fputc('\t', samFiles[file]);
-	fputs(eo.seq.c_str(), samFiles[file]);
-	fputc('\t', samFiles[file]);
-	fputs(qual.c_str(), samFiles[file]);
-	if (optional.size()) {
-		fputc('\t', samFiles[file]);
-		fputs(optional.c_str(), samFiles[file]);
-	}
-	fputc('\n', samFiles[file]);
-}
-*/
+};
+};

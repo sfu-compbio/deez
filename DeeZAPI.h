@@ -27,20 +27,20 @@ public:
 	};
 
 private:
-	std::vector<SAMRecord> records;
+	std::vector<std::vector<SAMRecord>> records;
 
 protected:
     virtual inline void printRecord(const string &rname, int flag, const string &chr, const EditOperation &eo, int mqual,
-        const string &qual, const string &optional, const PairedEndInfo &pe, int file)
+        const string &qual, const string &optional, const PairedEndInfo &pe, int file, int thread)
     {
-    	records.push_back({rname, flag, chr, eo.start, mqual, eo.op, pe.chr, pe.pos, pe.tlen, eo.seq, qual, optional});
+    	records[thread].push_back({rname, flag, chr, eo.start, mqual, eo.op, pe.chr, pe.pos, pe.tlen, eo.seq, qual, optional});
     }
     virtual inline void printComment(int file) {
     }
 
 public:
 	DeeZFile (const std::string &inFile, const std::string &genomeFile = ""):
-		FileDecompressor(inFile, "", genomeFile, optBlock) 
+		FileDecompressor(inFile, "", genomeFile, optBlock, true), records(4)
 	{
 	}
 	~DeeZFile (void) {}
@@ -63,9 +63,12 @@ public:
 	}
 
 	std::vector<SAMRecord> &getRecords (const std::string &range, int filterFlag = 0) {
-		records.clear();
+		for (auto &r: records)
+			r.clear();
 		FileDecompressor::decompress(range, filterFlag);
-		return records;
+		for (size_t i = 1; i < records.size(); i++)
+			records[0].insert(records[0].end(), records[i].begin(), records[i].end());
+		return records[0];
 	}
 };
 

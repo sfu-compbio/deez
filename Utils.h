@@ -5,8 +5,8 @@
 #define MB  KB * 1024LL
 #define GB  MB * 1024LL
 
-#define VERSION	0x12 // 0x10
-#define MAGIC 	(0x07445A00 | VERSION)
+#define VERSION	0x20 // 0x10
+#define MAGIC 	(0x07445A00ll | VERSION)
 
 extern int  optLogLevel;
 
