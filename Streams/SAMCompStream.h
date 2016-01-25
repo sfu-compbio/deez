@@ -1,6 +1,10 @@
 #ifndef SAMCompStream_H
 #define SAMCompStream_H
 
+// This is a C++ rewrite of sam_comp's context model
+// developed by J. Bonfield and M. Mahoney
+// http://sourceforge.net/projects/samcomp/
+
 #include <vector>
 #include "../Common.h"
 #include "ArithmeticOrder0Stream.h"	

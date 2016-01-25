@@ -1,6 +1,9 @@
 #ifndef rANSOrder0CompressionStream_H
 #define rANSOrder0CompressionStream_H
 
+// Inspired by J. Bonfield's Scramble
+// http://sourceforge.net/projects/staden/files/io_lib/
+
 #include <vector>
 #include "../Common.h"
 #include "../Engines/Engine.h"

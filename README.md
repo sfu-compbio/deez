@@ -1,7 +1,10 @@
 **DeeZ**: Reference Based Compression by Local Assembly
 ===================
 
----
+**Warning**: Current version is 1.9 beta 2. It will eventually become 2.0.
+It is huge improvement over 1.x series, but it is still in developement, and it
+might contain some rough edges. If you need absolute stability, please use 1.1 
+until 2.0 is released.
 
 ### So what is DeeZ?
 DeeZ is a tool for compressing SAM/BAM files.
@@ -9,11 +12,10 @@ DeeZ is a tool for compressing SAM/BAM files.
 ### How do I get DeeZ?
 Just clone our repository and issue `make` command:
 ```
-git clone https://bitbucket.org/compbio/dz.git
-cd dz && make
+git clone https://github.com/sfu-compbio/deez.git
+cd deez && make -j 
 ```
-> **Note**: You will need at least g++ 4.4 to compile the sources, 
-as well as CURL and OpenSSL libraries.
+> **Note**: You will need at least g++ 4. to compile the sources, as well as BZ2, CURL, and OpenSSL libraries.
 
 ### How do I run DeeZ?
 DeeZ is invoked as following:
@@ -87,15 +89,10 @@ variables if you need to access private repositories.
 
 	Set lossy parameter for quality lossy encoding (for more information, please check [SCALCE][1]).
 
-- `--read-lossy, -L`
-
-	Enables lossy compression of read names. 
-
-	**WARNING: This option is experimental and might require a lot of memory!**
-
 - `--quality, -q [mode]`
 
 	If `mode` is **1** or **samcomp**, DeeZ will use [sam_comp][2] quality model to encode the qualities. Quality random access is not supported on those files. 
+	If `mode` is **2**, DeeZ will use rANS order-2 model. This will result in slightly better compression, but decompression  will be slower.
 
 - `--withflag, -f [flag]`
 
@@ -138,6 +135,13 @@ DeeZ was publised in [Nature Methods in November 2014][3].
 - Dr. Faraz Hach
 - Ibrahim Numanagić
 - Dr. S. Cenk Şahinalp
+
+### Many thanks to...
+
+- **James Bonfield**, author of [Scramble](http://sourceforge.net/projects/staden/files/io_lib/) and [sam_comp](http://sourceforge.net/projects/samcomp/) for many useful ideas and suggestions. 
+- **Fabian "ryg" Giessen** for his [rANS implementation](https://github.com/rygorous/ryg_rans)
+- **Eugene D. Shelwien** for his [arithmetic coder implementation](http://compression.ru/sh/aridemo6.rar)
+- ... and all people who are using and testing DeeZ
 
 ### Licence
 

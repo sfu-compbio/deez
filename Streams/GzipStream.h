@@ -4,6 +4,9 @@
 #include <zlib.h>
 #include "../Common.h"
 
+// Z_RLE strategy inspired by Scramble
+// http://sourceforge.net/projects/staden/files/io_lib/
+
 template<char Level, int Strategy = Z_DEFAULT_STRATEGY>
 class GzipCompressionStream: public CompressionStream {	
 	static int compress (uint8_t *dest, size_t *destLen, uint8_t *source, size_t sourceLen)
