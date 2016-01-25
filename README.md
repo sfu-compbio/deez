@@ -15,7 +15,7 @@ Just clone our repository and issue `make` command:
 git clone https://github.com/sfu-compbio/deez.git
 cd deez && make -j 
 ```
-> **Note**: You will need at least g++ 4. to compile the sources, as well as BZ2, CURL, and OpenSSL libraries.
+> **Note**: You will need at least g++ 4.8 with C++11 support to compile the sources, as well as BZ2, CURL, and OpenSSL libraries.
 
 ### How do I run DeeZ?
 DeeZ is invoked as following:
