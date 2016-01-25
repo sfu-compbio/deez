@@ -141,6 +141,7 @@ DeeZ was publised in [Nature Methods in November 2014][3].
 - **James Bonfield**, author of [Scramble](http://sourceforge.net/projects/staden/files/io_lib/) and [sam_comp](http://sourceforge.net/projects/samcomp/) for many useful ideas and suggestions. 
 - **Fabian "ryg" Giessen** for his [rANS implementation](https://github.com/rygorous/ryg_rans)
 - **Eugene D. Shelwien** for his [arithmetic coder implementation](http://compression.ru/sh/aridemo6.rar)
+- **Vitaliy Vitsentiy** for his [ctpl threading library](https://github.com/vit-vit/CTPL)
 - ... and all people who are using and testing DeeZ
 
 ### Licence
