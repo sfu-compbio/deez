@@ -51,9 +51,14 @@ string BAMParser::readComment (void)
 	gzread(input, &len, sizeof(int32_t));
 	char *c = (char*)calloc(len + 1, 1);
 	gzread(input, c, len);
+	currentRecord.line = (char*)malloc(len + 1);
 	strncpy(&currentRecord.line[0], c, len + 1);
 	string s = c;
 	free(c);
+
+	// ugly; needs smarter way
+	currentRecord.line = (char*)realloc(currentRecord.line, 8 * MB);
+	currentRecord.lineSize = 8 * MB;
 
 	readChromosomeInformation();
 	readNext();
@@ -217,6 +222,8 @@ bool BAMParser::readNext (void)
 		}
 	}
 	*buf = 0;
+	currentRecord.lineSize = buf - currentRecord.line;
+	currentRecord.lineLength = buf - currentRecord.line;
 
 	return true;
 }

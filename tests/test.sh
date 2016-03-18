@@ -54,6 +54,62 @@ function test {
 	fi;
 }
 
+# function testra {
+# 	sam=$1;
+# 	ref="";
+# 	comp="$2";
+# 	reg="$3";
+
+# 	if [ ! -z "$4" ];
+# 	then 
+# 		ref="-r $4";
+# 	else
+# 		ref=""
+# 	fi
+
+# 	echo -ne "${sam}\t${comp} ${ref}\n\tCompressing ... " >&2 ;
+# 	cmdc="${deez} ${comp} ${ref} ${sam} -! -o ${out}/${sam}.dz";
+# 	#echo ${cmdc};
+# 	`${cmdc} 2>${log}/c_${sam}`;
+	
+# 	echo -ne "\tDecompressing ... " >&2 ;
+# 	cmdd="${deez} ${ref} ${out}/${sam}.dz -! -o ${out}/dz_${sam}.sam ${reg}";
+# 	`${cmdd} 2>${log}/d_${sam}`;
+
+# 	echo -ne "\tTesting ... " >&2 ;
+# 	samtools view -bS ${sam} -o ${out}/dztemp_${sam}.bam ;
+# 	samtools index ${out}/dztemp_${sam}.bam ;
+# 	samtools view ${out}/dztemp_${sam}.bam ${reg} -o ${out}/dztemp_${sam}.RA ;
+
+# 	cmpd="cmp ${out}/dztemp_${sam}.RA ${out}/dz_${sam}.sam";
+# 	echo ${cmpd};
+# 	`${cmpd}`;
+# 	if [ $? -eq 0 ] ;
+# 	then 
+# 		echo "OK" >&2
+# 	else
+# 		echo -ne "FAIL\n\t\tCC: ${cmdc}\n\t\tDC: ${cmdd}\n" >&2 
+# 		exit
+# 	fi;
+# }
+
+
+# sam="small.sam"
+# for reg in "chr1:2-3" "chr1:2-3" "chr2:0-1" "chrE" ; 
+# do
+# #	testra ${sam} ""   "${reg}"
+# 	testra ${sam} ""   "${reg}" "ref"
+# #	testra ${sam} "-b" "${reg}" "ref"
+# done
+# exit
+# # sam="testChr.sam"
+# # chr5
+# # chr14
+# # chr14:18359325-18360000
+# # chr20:61742360-
+# # chr3:
+
+
 # TODO: test random access, noqual, filtering
 
 echo -ne "========================================================================\n"

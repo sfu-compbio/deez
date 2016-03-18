@@ -9,6 +9,9 @@ EXECUTABLE = deez
 LIB = libdeez
 TESTEXE = deeztest
 
+all: CFLAGS += -O3 -DNDEBUG 
+all: $(SOURCES) $(EXECUTABLE)
+
 debug: CFLAGS += -g -fno-omit-frame-pointer
 debug: $(SOURCES) $(EXECUTABLE)
 
@@ -18,9 +21,6 @@ superdebug: $(SOURCES) $(EXECUTABLE)
 profile: CFLAGS += -g -pg  -O2
 profile: LDFLAGS += -pg
 profile: $(SOURCES) $(EXECUTABLE)
-
-all: CFLAGS += -O3 -DNDEBUG 
-all: $(SOURCES) $(EXECUTABLE)
 
 gprofile: LDFLAGS += -ltcmalloc -lprofiler
 gprofile: CFLAGS += -g -O2
