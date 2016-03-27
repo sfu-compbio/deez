@@ -192,7 +192,7 @@ void FileCompressor::outputRecords (void)
 	}
 	int64_t total = 0;
 	int64_t blockCount = 0;
-	int totalMatchedMates = 0;
+	int64_t totalMatchedMates = 0;
 
 	Array<uint8_t> outputBuffer[8];
 	Array<uint8_t> idxBuffer[8];
@@ -491,7 +491,7 @@ void FileCompressor::outputRecords (void)
 	fwrite(&posStats, sizeof(size_t), 1, outputFile);
 	ZAMAN_END_P(WriteIndex);
 	
-	LOG("Paired %'d out of %'d reads", totalMatchedMates, total);
+	LOG("Paired %'lld out of %'lld reads", totalMatchedMates, total);
 	#define VERBOSE(y,x) \
 		LOG("%-12s  %'20lu", y, x->compressedSize()); x->printDetails();
 	for (int f = 0; f < parsers.size(); f++) {

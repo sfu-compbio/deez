@@ -749,7 +749,7 @@ std::string Reference::scanChromosome (const string &s)
 		md5sum += S("%02x", md5[i]);
 	chromosomes[currentChr].len = cnt;
 	chromosomes[currentChr].md5 = md5sum;
-	DEBUG("%s %s %d...",currentChr.c_str(),md5sum.c_str(),cnt);
+	DEBUG("%s %s %zu...",currentChr.c_str(),md5sum.c_str(),cnt);
 	input->seek(pos);
 #endif
 

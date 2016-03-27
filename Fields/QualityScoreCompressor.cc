@@ -1,4 +1,5 @@
 #include "QualityScore.h"
+#include <cmath>
 using namespace std;
 
 #include "../Streams/Stream.h"	

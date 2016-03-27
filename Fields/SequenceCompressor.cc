@@ -5,10 +5,19 @@
 
 using namespace std;
 
-//  Fixes     :           14,857,877
-//  Replace   :            7,872,718
-
-//FILE *fo;
+#define _ 0
+const __m128i GenomeStatsSSE::getSSEvalueCache[] = {
+	_mm_set_epi16(_,_,_,_,_,_,_,1),
+	_mm_set_epi16(_,_,_,_,_,_,1,_),
+	_mm_set_epi16(_,_,_,_,_,1,_,_),
+	_mm_set_epi16(_,_,_,_,1,_,_,_),
+	_mm_set_epi16(_,_,_,1,_,_,_,_),
+	_mm_set_epi16(_,_,1,_,_,_,_,_),
+	_mm_set_epi16(_,1,_,_,_,_,_,_),
+	_mm_set_epi16(1,_,_,_,_,_,_,_)
+};
+#undef _
+const __m128i GenomeStatsSSE::invert = _mm_set_epi16(0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff);
 
 SequenceCompressor::SequenceCompressor (const string &refFile):
 	reference(refFile), 
@@ -17,6 +26,10 @@ SequenceCompressor::SequenceCompressor (const string &refFile):
 	fixesLocSt(MB, MB),
 	maxEnd(0)
 {
+	if (!__builtin_cpu_supports("sse4.1")) {
+		WARN("Warning: SSE4.1 not found -- using sub-optimal sequence compression method.");
+	}
+
 	streams.resize(Fields::ENUM_COUNT);
 	if (optBzip) {
 		for (int i = 0; i < streams.size(); i++)
@@ -85,33 +98,8 @@ void SequenceCompressor::scanChromosome (const string &s, const SAMComment &samC
 // called at the end of the block!
 // IS NOT ATOMIC!
 
-// From SSEPlus_emulation_REF.h -- SSEPlus project
-/** \SSE4_1{Reference,_mm_minpos_epu16} */
-
-#define _ 0
-static __m128i getSSEvalueCache[] =  {
-	_mm_set_epi16(_,_,_,_,_,_,_,1),
-	_mm_set_epi16(_,_,_,_,_,_,1,_),
-	_mm_set_epi16(_,_,_,_,_,1,_,_),
-	_mm_set_epi16(_,_,_,_,1,_,_,_),
-	_mm_set_epi16(_,_,_,1,_,_,_,_),
-	_mm_set_epi16(_,_,1,_,_,_,_,_),
-	_mm_set_epi16(_,1,_,_,_,_,_,_),
-	_mm_set_epi16(1,_,_,_,_,_,_,_),
-};
-#undef _
-inline void SequenceCompressor::updateGenomeLoc (size_t loc, char ch, Stats &stats) 
-{
-	assert(loc < stats.size());
-	#ifdef DEEZ_SSE
-		stats[loc] = _mm_add_epi16(stats[loc], getSSEvalueCache[getDNAValue(ch)]);
-	#else
-		stats[loc][getDNAValue(ch)]++;
-	#endif
-}
-
 void SequenceCompressor::applyFixesThread(const Array<Record> &records, 
-	const Array<EditOperation> &editOps, Stats &stats,
+	const Array<EditOperation> &editOps, shared_ptr<GenomeStats> &stats,
 	size_t fixedStart, size_t start, size_t end) 
 {
 	for (size_t k = start; k < end; k++) {
@@ -127,11 +115,11 @@ void SequenceCompressor::applyFixesThread(const Array<Record> &records,
 			case '=':
 			case 'X':
 				for (size_t i = 0; i < op.second; i++, genPos++, seqPos++) 
-					updateGenomeLoc(genPos - fixedStart, seq[seqPos], stats);
+					stats->updateGenomeLoc(genPos - fixedStart, seq[seqPos]);
 				break;
 			case 'D':
 				for (size_t i = 0; i < op.second; i++, genPos++) 
-					updateGenomeLoc(genPos - fixedStart, '.', stats);
+					stats->updateGenomeLoc(genPos - fixedStart, '.');
 				break;
 			case 'I':
 			case 'S':
@@ -196,11 +184,7 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin,
 		// obtain statistics
 		ZAMAN_START_P(Calculate);
 		vector<thread> t(optThreads);
-		#ifdef DEEZ_SSE
-			Stats stats(fixedEnd - fixedStart, _mm_setzero_si128());
-		#else
-			Stats stats(fixedEnd - fixedStart, array<uint16_t, 6>());
-		#endif
+		auto stats = GenomeStatsSSE::newStats(fixedEnd - fixedStart);
 		size_t maxSz = editOps.size();
 		size_t sz = maxSz / optThreads + 1;
 		vector<thread> threads(optThreads);
@@ -213,30 +197,22 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin,
 					applyFixesThread(records, editOps, stats, fixedStart, start, end);
 					mtx.unlock();
 					return;
-				} 
+				}
+				if (start >= editOps.size())
+					return;
 
 				size_t genomeStart = editOps[start].start;
 				size_t genomeEnd = 0;
 				for (size_t i = start; i < end; i++) 
 					genomeEnd = max(genomeEnd, editOps[i].end);
 
-				#ifdef DEEZ_SSE
-					Stats threadStats(genomeEnd - genomeStart, _mm_setzero_si128());
-				#else
-					Stats threadStats(genomeEnd - genomeStart, array<uint16_t, 6>());
-				#endif	
+				auto threadStats = GenomeStatsSSE::newStats(genomeEnd - genomeStart);
 				applyFixesThread(records, editOps, threadStats, genomeStart, start, end);
 				ZAMAN_END(Thread);
 
 				unique_lock<mutex> lock(mtx);
-				for (size_t i = 0; i < threadStats.size(); i++) {
-					size_t g = i + genomeStart - fixedStart;
-					#ifdef DEEZ_SSE
-						stats[g] = _mm_add_epi16(stats[g], threadStats[i]);
-					#else
-						for (int j = 0; j < 6; j++)
-							stats[g][j] += threadStats[i][j];
-					#endif
+				for (size_t i = 0; i < threadStats->size(); i++) {
+					stats->update(i + genomeStart - fixedStart, threadStats, i);
 				}
 				ZAMAN_THREAD_JOIN();
 				// LOG("Done with %d.. %d %d fixes", ti, start, end);
@@ -253,23 +229,10 @@ size_t SequenceCompressor::applyFixes (size_t nextBlockBegin,
 		fixesLocSt.resize(0);
 		fixesReplace.resize(0);
 
-		#ifdef DEEZ_SSE
-			__m128i invert = _mm_set_epi16(0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff);
-		#endif
 		for (size_t i = 0; i < fixedEnd - fixedStart; i++) {
-			#ifdef DEEZ_SSE
-				if (_mm_movemask_epi8(_mm_cmpeq_epi8(stats[i], _mm_setzero_si128())) == 0xFFFF)
-					continue;
-				int pos = _mm_extract_epi16(_mm_minpos_epu16(_mm_sub_epi16(invert, stats[i])), 1);
-			#else
-				int max = -1, pos = -1;
-				for (int j = 1; j < 6; j++) {
-					if (stats[i][j] > max)
-						max = stats[i][pos = j];
-				}
-				if (max <= 0) continue;
-			#endif
-
+			int pos = stats->maxPos(i);
+			if (pos == -1)
+				continue;
 			if (fixed[i] != pos[".ACGTN"]) {
 				int p = fixedStart + i - fixedPrev;
 				if (p >= 254) {

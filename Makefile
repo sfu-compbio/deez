@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE  -std=c++11 -DOPENSSL -pthread -march=native
+CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE  -std=c++11 -DOPENSSL -pthread  -msse4.1
 LDFLAGS = -pthread -lz -lcurl -lcrypto -lbz2
 
 GIT_VERSION := $(shell git describe --dirty --always --tags)

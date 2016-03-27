@@ -59,11 +59,11 @@ size_t sizeInMemory(std::vector<T> t) {
 		sz += sizeInMemory(*(&t[0] + i));
 	return sizeof(T) + sz;
 }
-template<typename K, typename V>
-size_t sizeInMemory(std::map<K, V> t) {
-	return (sizeof(K) + sizeof(V) + sizeof(std::_Rb_tree_node_base) ) * t.size() + 
-	sizeof(std::_Rb_tree<K,V,K,std::less<K>, std::allocator<std::pair<const K, V>>>);
-}
+// template<typename K, typename V>
+// size_t sizeInMemory(std::map<K, V> t) {
+// 	return (sizeof(K) + sizeof(V) + sizeof(std::_Rb_tree_node_base) ) * t.size() + 
+// 	sizeof(std::_Rb_tree<K,V,K,std::less<K>, std::allocator<std::pair<const K, V>>>);
+// }
 template<>
 size_t sizeInMemory(std::string t);
 

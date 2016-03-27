@@ -2,6 +2,7 @@
 #ifndef Record_H
 #define Record_H
 
+#include <array>
 #include <string>
 #include <cstdlib>
 #include "../Common.h"
@@ -9,8 +10,8 @@
 class Record {
 	char *line;
 	size_t lineLength, lineSize;
-	array<int32_t, 7> strFields;
-	array<int32_t, 5> intFields;
+	std::array<int32_t, 7> strFields;
+	std::array<int32_t, 5> intFields;
 
 private:
 	friend class BAMParser;

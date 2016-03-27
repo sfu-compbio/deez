@@ -23,16 +23,78 @@
 #include "EditOperation.h"
 #include "SAMComment.h"
 
-#ifdef __SSE4_1__
-	#define DEEZ_SSE
-#else
-	#warning "Not using SSE 4.1 optimizations -- performance might be suboptimal"
-#endif
+class GenomeStats {
+protected:
+	std::vector<array<uint16_t, 6>> stats;
 
+public:
+	GenomeStats () {}
+	GenomeStats (size_t size): stats(size, array<uint16_t, 6>()) {}
 
-class SequenceCompressor: public Compressor {
-	friend class Stats;
+	virtual void updateGenomeLoc (size_t loc, char ch) {
+		assert(loc < stats.size());
+		stats[loc][getDNAValue(ch)]++;
+	}
+
+	virtual void update (size_t g, shared_ptr<GenomeStats> threadStats, size_t i) {
+		for (int j = 0; j < 6; j++)
+			stats[g][j] += threadStats->stats[i][j];
+	}
+
+	virtual int maxPos (size_t i) {
+		int max = -1, pos = -1;
+		for (int j = 1; j < 6; j++) {
+			if (stats[i][j] > max)
+				max = stats[i][pos = j];
+		}
+		return pos;
+	}
+
+	virtual size_t size () {
+		return stats.size();
+	}
+};
+
+class GenomeStatsSSE: public GenomeStats {
+	std::vector<__m128i> statsSSE;
 	
+	static const __m128i getSSEvalueCache[]; 
+	static const __m128i invert;
+
+public:
+	static shared_ptr<GenomeStats> newStats (size_t sz) {
+		if (__builtin_cpu_supports("sse4.1")) {
+			return make_shared<GenomeStatsSSE>(sz);
+		} else {
+			return make_shared<GenomeStats>(sz);
+		}
+	}
+
+public:
+	GenomeStatsSSE (size_t size): statsSSE(size, _mm_setzero_si128()) {}
+
+	void updateGenomeLoc (size_t loc, char ch) {
+		assert(loc < statsSSE.size());
+		statsSSE[loc] = _mm_add_epi16(statsSSE[loc], getSSEvalueCache[getDNAValue(ch)]);
+	}
+
+	void update (size_t g, shared_ptr<GenomeStats> threadStats, size_t i) {
+		statsSSE[g] = _mm_add_epi16(statsSSE[g], static_cast<GenomeStatsSSE*>(threadStats.get())->statsSSE[i]);
+	}
+
+	int maxPos (size_t i) {
+		if (_mm_movemask_epi8(_mm_cmpeq_epi8(statsSSE[i], _mm_setzero_si128())) == 0xFFFF)
+			return -1;
+		return _mm_extract_epi16(_mm_minpos_epu16(_mm_sub_epi16(invert, statsSSE[i])), 1);
+	}
+
+	size_t size () {
+		return statsSSE.size();
+	}
+};
+
+class SequenceCompressor: public Compressor {	
+	friend class Stats;
 	Reference reference;
 	
 	Array<uint8_t> 
@@ -75,14 +137,8 @@ public:
 	Reference &getReference() { return reference; }
 
 private:
-	#ifdef DEEZ_SSE
-		typedef std::vector<__m128i> Stats;
-	#else
-		typedef std::vector<std::array<uint16_t, 6>> Stats;
-	#endif
-	static void applyFixesThread(const Array<Record> &records, const Array<EditOperation> &editOps, Stats &stats, 
+	static void applyFixesThread(const Array<Record> &records, const Array<EditOperation> &editOps, shared_ptr<GenomeStats> &stats, 
 		size_t fixedStart, size_t offset, size_t size);
-	static void updateGenomeLoc (size_t loc, char ch, Stats &stats);
 
 public:
 	enum Fields {

@@ -282,9 +282,6 @@ int main (int argc, char **argv)
 
 	#ifdef VER
     	LOG("DeeZ 0x%x (%s)", VERSION, VER);
-    	#ifndef DEEZ_SSE
-    		LOG("     compiled without SSE4.1 support -- performance might be suboptimal!");
-    	#endif
 	#endif
 
     try {
