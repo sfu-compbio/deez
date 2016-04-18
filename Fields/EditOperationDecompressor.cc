@@ -119,6 +119,8 @@ inline EditOperation EditOperationDecompressor::getEditOperation (size_t loc, ve
 		eo.end += endPos - prevLoc;
 	}
 
+	return eo;
+
 	ZAMAN_END(GetEO);
 }
 

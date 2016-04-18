@@ -25,6 +25,7 @@ public:
 				l = m + 1;
 		}
 		assert(0);
+		return -1;
 	}
 
 	size_t compress (uint8_t *source, size_t source_sz, Array<uint8_t> &dest, size_t dest_offset) 

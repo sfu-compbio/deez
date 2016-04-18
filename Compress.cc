@@ -173,6 +173,7 @@ void FileCompressor::parser(size_t f, size_t start, size_t end, unordered_map<in
 
 size_t FileCompressor::currentMemUsage(size_t f)
 {
+	// this is slow otherwise; use only for debugging
 	return 0; //sizeInMemory(records) + sizeInMemory(editOps) + sizeInMemory(pairedEndInfos); 
 }
 

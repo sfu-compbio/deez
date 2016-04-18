@@ -206,7 +206,7 @@ void OptionalField::parse1 (const char *rec, const char *recEnd, unordered_map<i
 	keys.resize(0);
 	for (const char *recStart = rec; rec < recEnd; rec++) {
 		if (recEnd - rec < 5 || rec[2] != ':' || rec[4] != ':') {
-			LOG("ooops... %s %d %d", rec, rec[0], recEnd - rec);
+			LOG("ooops... %s %d %ld", rec, rec[0], recEnd - rec);
 			throw DZException("Invalid SAM tag %s", rec);
 		}
 
