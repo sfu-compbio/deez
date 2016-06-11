@@ -29,6 +29,9 @@ public:
 private:
 	std::vector<std::vector<SAMRecord>> records;
 
+	std::string prev_range;
+	int prev_filter_flag;
+	
 protected:
     virtual inline void printRecord(const string &rname, int flag, const string &chr, const EditOperation &eo, int mqual,
         const string &qual, const string &optional, const PairedEndInfo &pe, int file, int thread)
@@ -62,14 +65,29 @@ public:
 		return comments[file];
 	}
 
-	std::vector<SAMRecord> &getRecords (const std::string &range, int filterFlag = 0) {
+	std::vector<SAMRecord> &getRecords (const std::string &range = "", int filterFlag = 0) {
 		for (auto &r: records)
 			r.clear();
-		FileDecompressor::decompress(range, filterFlag);
-		for (size_t i = 1; i < records.size(); i++)
-			records[0].insert(records[0].end(), records[i].begin(), records[i].end());
+		if (range != "") {
+			prev_range = range;
+			prev_filter_flag = filterFlag;
+			FileDecompressor::decompress2(prev_range, prev_filter_flag, false);
+		} else {
+			FileDecompressor::decompress2(prev_range, prev_filter_flag, true);
+			for (size_t i = 1; i < records.size(); i++)
+				records[0].insert(records[0].end(), records[i].begin(), records[i].end());
+		}
 		return records[0];
 	}
+
+	std::vector<SAMRecord> &getRecordsOld (const std::string &range, int filterFlag = 0) {                                        
+		for (auto &r: records)                                   
+			r.clear();                                            
+		FileDecompressor::decompress(range, filterFlag);         
+		for (size_t i = 1; i < records.size(); i++)              
+			records[0].insert(records[0].end(), records[i].begin(), records[i].end());     
+		return records[0];
+	}                                      
 };
 
 #endif // DeeZAPI_H

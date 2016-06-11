@@ -316,7 +316,7 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 	threadPool.stop(true);
 	ZAMAN_END_P(Blocks);
 
-// TODO: stop early if slice/random access
+	// TODO: stop early if slice/random access
 	ZAMAN_START_P(CheckMate);
 	for (int i = 0, j = 0; i < editOp[f]->size(); i++) {
 		PairedEndInfo &pe = (*pairedEnd[f])[i];
@@ -381,11 +381,14 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 				if (isAPI) {
 					string of;
 					optField[f]->getRecord(i, eo, of);
+
+					//LOG("%d %d", ti, eo.start);
 					printRecord(readName[f]->getRecord(i), 
 						flag, chr, eo, 
 						mapQual[f]->getRecord(i),
 						quality[f]->getRecord(i, eo.seq.size(), flag), 
 						of, pe, f, ti);
+					count++;
 					continue;
 				}
 
@@ -553,13 +556,18 @@ void FileDecompressor::decompress (int filterFlag)
 	ZAMAN_END_P(Decompress);
 }
 
+inline bool intersect(size_t a, size_t b, size_t x, size_t y)
+{
+	return min(b, y) >= max(a, x);
+}
+
 void FileDecompressor::decompress (const string &range, int filterFlag)
 {
 	ZAMAN_START_P(Decompress);
 
 	auto ranges = getRanges(range);
 
-	size_t 	blockSz = 0, 
+	size_t blockSz = 0, 
 			totalSz = 0, 
 			blockCount = 0;
 
@@ -594,7 +602,7 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 			}
 		}
 		// set up field data
-		while (r->second.first >= i->second.startPos && r->second.first <= i->second.endPos) {		
+		while (intersect(i->second.startPos, i->second.endPos, r->second.first, r->second.second)) {	
 			inFile->seek(i->second.zpos);
 			shared_ptr<Decompressor> di[] = { 
 				sequence[f], editOp[f], readName[f], mapFlag[f], 
@@ -605,7 +613,9 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 				di[ti]->setIndexData(i->second.fieldData[ti].data(), i->second.fieldData[ti].size());
 
 			size_t blockSz = getBlock(f, chr, r->second.first, r->second.second, filterFlag);
-			if (!blockSz) break;
+			if (!blockSz) {
+				break;
+			}
 			totalSz += blockSz;
 			blockCount++;
 
@@ -620,6 +630,83 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 	ZAMAN_END_P(Decompress);
 	LOGN("\nDecompressed %'lu records, %'lu blocks\n", totalSz, blockCount);
 }
+
+bool FileDecompressor::decompress2 (const string &range, int filterFlag, bool cont)
+{
+	static range_t r;
+	static map<size_t, index_t> idx;
+	static map<size_t, index_t>::iterator i;
+	static string chr;
+	static int f;
+
+	if (!cont) {
+		auto ranges = getRanges(range);
+		if (ranges.size() != 1) 
+			throw DZException("API supports only single range per invocation, %d provided", ranges.size());
+
+		r = ranges[0];
+		f = r.first.first;
+		chr = r.first.second;
+		if (f < 0 || f >= fileNames.size())
+			throw DZException("Invalid sample ID %d", f);
+		if (indices[f].find(chr) == indices[f].end())
+			throw DZException("Invalid chromosome %s for sample ID %d", chr.c_str(), f);
+
+		idx = indices[f][chr];
+		i = idx.upper_bound(r.second.first);
+		if (i == idx.begin() || idx.size() == 0)
+			throw DZException("Region %s:%d-%d not found for sample ID %d", 
+				chr.c_str(), r.second.first, r.second.second, f);
+		i--;
+		
+		// prepare reference
+		foreach (j, idx) { // TODO speed up
+			if (j == i) break;
+			if (r.second.first >= j->second.fS && r.second.first <= j->second.fE) {
+				inFile->seek(j->second.zpos);
+				char chflag = inFile->readU8();
+				while (chflag) chflag = inFile->readU8();
+				while (chr != sequence[f]->getChromosome())
+					sequence[f]->scanChromosome(chr, samComment[f]);
+
+				Array<uint8_t> in;
+				readBlock(in);
+				sequence[f]->importRecords(in.data(), in.size());
+			}
+		}
+	}
+	
+	// set up field data
+	if (intersect(i->second.startPos, i->second.endPos, r.second.first, r.second.second)) {		
+		inFile->seek(i->second.zpos);
+		shared_ptr<Decompressor> di[] = { 
+			sequence[f], editOp[f], readName[f], mapFlag[f], 
+			mapQual[f], quality[f], pairedEnd[f], optField[f] 
+		};
+
+		for (int ti = 0; ti < 8; ti++) if (i->second.fieldData[ti].size()) 
+			di[ti]->setIndexData(i->second.fieldData[ti].data(), i->second.fieldData[ti].size());
+
+		size_t blockSz = getBlock(f, chr, r.second.first, r.second.second, filterFlag);
+		
+		if (!blockSz) {
+			return false;
+		}
+		
+		if (finishedRange) {
+			finishedRange = false;
+			//return false;
+		}
+		i++;
+		if (i == idx.end()) {
+			return false;
+		} 
+		return true;
+	} else {
+		return false;
+	}
+}
+
 
 inline void FileDecompressor::printRecord(const string &record, int file) 
 {

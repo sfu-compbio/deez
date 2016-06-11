@@ -74,12 +74,10 @@ public class DeeZFile {
 	/// Range is of format: 
 	/// 	(<file>),<chr>:<start>-<end>, 
 	/// where <file> is optional file index (if not specified, defaults to 0). 
-	/// Supports multiple ranges separated by ";".
+	/// Unlike DeeZ executable, API does not support multiple ranges separated by ";".
 	/// Example: 
-	///     dz.getRange("1:60-100;2:80-200;3,Y:50-70", 4)
-	/// gets all mapped records from ranges
-	///     chr1: 60-100, chr2: 80-200 from first file within the bundle
-	///		and chrY:50-70 from the fourth file within the bundle.
+	///     dz.getRange("1:60-100", 4)
+	/// gets all mapped records (flag 0x04) from chromosome 1 in range 60-100
 	public native SAMRecord[] getRecords (String range, int filterFlag) throws DeeZException;
 	/// Cleans up DeeZ native instance. 
 	/// Call it after you are done with DeeZ object.
@@ -102,5 +100,10 @@ public class DeeZFile {
 	/// without any filtering.
 	public SAMRecord[] getRecords (String range) throws DeeZException {
 		return getRecords(range, 0);
+	}
+	/// Gets all the records from the <range>
+	/// without any filtering.
+	public SAMRecord[] getRecords () throws DeeZException {
+		return getRecords("", 0);
 	}
 }

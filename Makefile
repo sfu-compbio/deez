@@ -32,7 +32,7 @@ test: $(SOURCES) $(TESTEXE)
 testdebug: CFLAGS += -g -std=c++11
 testdebug: $(SOURCES) $(TESTEXE)
 
-lib: CFLAGS += -O3 -DNDEBUG -fpic -DDEEZLIB
+lib: CFLAGS +=  -fpic -DDEEZLIB -O3 -DNDEBUG
 lib: $(SOURCES) $(LIB)
 
 libdebug: CFLAGS += -g -fpic -DDEEZLIB

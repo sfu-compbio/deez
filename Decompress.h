@@ -91,8 +91,10 @@ private: // TODO finish
 	void query (const string &query, const string &range);
 
 public:
-    void decompress (int filterFlag);
+   void decompress (int filterFlag);
 	void decompress (const std::string &range, int filterFlag);
+	bool decompress2 (const string &range, int filterFlag, bool cont);
+
 };
 
 #endif // Decompress_H
