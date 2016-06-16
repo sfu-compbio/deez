@@ -9,6 +9,7 @@
 #include <string.h>
 #include <zlib.h>
 #include <smmintrin.h>
+#include <cpuid.h>
 
 #include "../Common.h"
 #include "../Stats.h"
@@ -55,6 +56,23 @@ public:
 	}
 };
 
+inline void cpuid(int info[4], int InfoType)
+{
+	__cpuid_count(InfoType, 0, info[0], info[1], info[2], info[3]);
+}
+
+// Based on http://stackoverflow.com/questions/6121792/how-to-check-if-a-cpu-supports-the-sse3-instruction-set
+inline bool supports_sse41()
+{
+	int info[4];
+	cpuid(info, 0);
+	int nIds = info[0];
+	if (nIds >= 0x00000001){
+		return (info[2] & ((int)1 << 19)) != 0;
+	}
+	return false;
+}
+
 class GenomeStatsSSE: public GenomeStats {
 	std::vector<__m128i> statsSSE;
 	
@@ -63,7 +81,7 @@ class GenomeStatsSSE: public GenomeStats {
 
 public:
 	static shared_ptr<GenomeStats> newStats (size_t sz) {
-		if (__builtin_cpu_supports("sse4.1")) {
+		if (supports_sse41()) {
 			return make_shared<GenomeStatsSSE>(sz);
 		} else {
 			return make_shared<GenomeStats>(sz);

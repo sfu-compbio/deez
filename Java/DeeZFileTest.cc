@@ -10,12 +10,12 @@ using namespace std;
 int main (void)
 {
 	try {
-		auto df = make_shared<DeeZFile>("../run/T1-1B.rmdup.realigned.bam.dztemp.dz", "../run/human_g1k_v37.fasta");
+		auto df = make_shared<DeeZFile>("test.dz", "test.fa");
 		df->setLogLevel(1);
 
 		int f = df->getFileCount();
 		auto comment = df->getComment(0);
-		auto records = df->getRecords("1:30000-40000000");
+		auto records = df->getRecords("1:30000-40000");
 		while (records.size()) {
 			cerr << "Block!" << endl;
 			for (auto &r: records)

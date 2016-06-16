@@ -1,4 +1,5 @@
 CC=g++
+AR=ar
 CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE  -std=c++11 -DOPENSSL -pthread  -msse4.1
 LDFLAGS = -pthread -lz -lcurl -lcrypto -lbz2
 
@@ -46,7 +47,7 @@ $(LIB): OBJECTS := $(subst ./Test.o,,$(OBJECTS))
 $(LIB): $(OBJECTS) 
 	$(CC) $(OBJECTS) $(LDFLAGS) -fpic -shared -o $@.so
 	rm -rf $(LIB).a
-	ar rvs $(LIB).a $(OBJECTS) 
+	$(AR) rvs $(LIB).a $(OBJECTS) 
 
 .cc.o:	
 	$(CC) $(CFLAGS) -DVER=\"$(GIT_VERSION)\" $< -o $@

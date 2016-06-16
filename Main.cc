@@ -22,6 +22,7 @@ bool optStats   = false;
 bool optNoQual  = false;
 bool optReadLossy = false;
 bool optInvalidChr = false;
+bool optComment = false;
 string optRef 	 = "";
 vector<string> optInput;
 string optRange  = "";
@@ -40,7 +41,8 @@ void parseArguments (int argc, char **argv)
 {
 	int opt; 
 	struct option long_opt[] = {
-		{ "help",        0, NULL, 'h' },
+		{ "help",        0, NULL, '?' },
+		{ "header",      0, NULL, 'h' },
 		{ "reference",   1, NULL, 'r' },
 		{ "force",       0, NULL, '!' },
 		{ "test",        0, NULL, 'T' },
@@ -62,17 +64,20 @@ void parseArguments (int argc, char **argv)
 	//	{ "allow-invalid-ref", 0, NULL, 'I' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "hr:t:T!co:q:l:sM:Sf:F:QLbv:B:" /*"I"*/;
+	const char *short_opt = "?hr:t:T!co:q:l:sM:Sf:F:QLbv:B:" /*"I"*/;
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
-			case 'h':
+			case '?':
 				WARN("Compression: deez -r [reference] [input.sam] -o [output]");
 				WARN("Decompression: deez -r [reference] [input.dz] -o [output] ([region])");
 				WARN("For additional parameter explanation, please consult the man page (less README.md or http://sfu-compbio.github.io/deez/)");
 				exit(0);
 			case 'r':
 				optRef = optarg;
+				break;
+			case 'h':
+				optComment = true;
 				break;
 			case 'T':
 				optTest = true;

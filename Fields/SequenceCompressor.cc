@@ -26,7 +26,7 @@ SequenceCompressor::SequenceCompressor (const string &refFile):
 	fixesLocSt(MB, MB),
 	maxEnd(0)
 {
-	if (!__builtin_cpu_supports("sse4.1")) {
+	if (!supports_sse41()) {
 		WARN("Warning: SSE4.1 not found -- using sub-optimal sequence compression method.");
 	}
 

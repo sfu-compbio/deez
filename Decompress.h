@@ -24,6 +24,7 @@
 #endif
 
 extern size_t optBlock;
+extern bool optComment;
 
 struct index_t {
 	size_t startPos, endPos;

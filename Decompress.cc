@@ -542,8 +542,10 @@ vector<range_t> FileDecompressor::getRanges (string range)
 void FileDecompressor::decompress (int filterFlag) 
 {
 	ZAMAN_START_P(Decompress);
-	for (int f = 0; f < comments.size(); f++)
-		printComment(f);
+	if (optComment) {
+		for (int f = 0; f < comments.size(); f++)
+			printComment(f);
+	}
 
 	size_t blockSz = 0, 
 		   totalSz = 0, 
@@ -558,12 +560,18 @@ void FileDecompressor::decompress (int filterFlag)
 
 inline bool intersect(size_t a, size_t b, size_t x, size_t y)
 {
+	//LOG("intersect %d %d ... %d %d", a, b, x, y);
 	return min(b, y) >= max(a, x);
 }
 
 void FileDecompressor::decompress (const string &range, int filterFlag)
 {
 	ZAMAN_START_P(Decompress);
+
+	if (optComment && !isAPI) {
+		for (int f = 0; f < comments.size(); f++)
+			printComment(f);
+	}
 
 	auto ranges = getRanges(range);
 
@@ -581,15 +589,22 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 
 		auto idx = indices[f][chr];
 		auto i = idx.upper_bound(r->second.first);
-		if (i == idx.begin() || idx.size() == 0)
-			throw DZException("Region %s:%d-%d not found for sample ID %d", 
-				chr.c_str(), r->second.first, r->second.second, f);
-		i--;
+		if (i == idx.begin() || idx.size() == 0) {
+			if (i != idx.begin() || !intersect(i->second.startPos, i->second.endPos, r->second.first, r->second.second)) {
+				throw DZException("Region %s:%d-%d not found for sample ID %d", 	
+					chr.c_str(), r->second.first, r->second.second, f);
+			}
+		}
+		if (i != idx.begin()) {
+			i--;
+		}
 		
 		// prepare reference
 		foreach (j, idx) { // TODO speed up
 			if (j == i) break;
-			if (r->second.first >= j->second.fS && r->second.first <= j->second.fE) {
+			if (intersect(j->second.fS, j->second.fE, r->second.first, r->second.second)) {
+			// TODO check is version above better?
+			//if (r->second.first >= j->second.fS && r->second.first <= j->second.fE) {
 				inFile->seek(j->second.zpos);
 				char chflag = inFile->readU8();
 				while (chflag) chflag = inFile->readU8();
@@ -603,6 +618,7 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 		}
 		// set up field data
 		while (intersect(i->second.startPos, i->second.endPos, r->second.first, r->second.second)) {	
+			//LOG("in");
 			inFile->seek(i->second.zpos);
 			shared_ptr<Decompressor> di[] = { 
 				sequence[f], editOp[f], readName[f], mapFlag[f], 
@@ -654,15 +670,20 @@ bool FileDecompressor::decompress2 (const string &range, int filterFlag, bool co
 
 		idx = indices[f][chr];
 		i = idx.upper_bound(r.second.first);
-		if (i == idx.begin() || idx.size() == 0)
-			throw DZException("Region %s:%d-%d not found for sample ID %d", 
-				chr.c_str(), r.second.first, r.second.second, f);
-		i--;
+		if (i == idx.begin() || idx.size() == 0) {
+			if (i != idx.begin() || !intersect(i->second.startPos, i->second.endPos, r.second.first, r.second.second)) {
+				throw DZException("Region %s:%d-%d not found for sample ID %d", 	
+					chr.c_str(), r.second.first, r.second.second, f);
+			}
+		}
+		if (i != idx.begin()) {
+			i--;
+		}
 		
 		// prepare reference
 		foreach (j, idx) { // TODO speed up
 			if (j == i) break;
-			if (r.second.first >= j->second.fS && r.second.first <= j->second.fE) {
+			if (intersect(j->second.fS, j->second.fE, r.second.first, r.second.second)) {
 				inFile->seek(j->second.zpos);
 				char chflag = inFile->readU8();
 				while (chflag) chflag = inFile->readU8();
