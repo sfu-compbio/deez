@@ -51,6 +51,10 @@ variables if you need to access private repositories.
 
 	Default value: **4**
 
+- `--header, -h`
+
+	Outputs the SAM header.
+
 - `--reference, -r [file|directory]`
 
 	Specify the FASTA reference file.
