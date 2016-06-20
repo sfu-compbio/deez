@@ -37,6 +37,7 @@ void addEncoded (size_t n, Array<uint8_t> &o, uint8_t offset = 0);
 ssize_t getEncoded (uint8_t *&len, uint8_t offset = 0);
 int packInteger(uint64_t num, Array<uint8_t> &o);
 uint64_t unpackInteger(int T, Array<uint8_t> &i, size_t &ii) ;
+bool intersect(size_t a, size_t b, size_t x, size_t y);
 
 extern bool optReadLossy;	
 extern bool optBzip;

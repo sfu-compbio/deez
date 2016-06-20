@@ -296,6 +296,31 @@ void FileDecompressor::getComment (void) {
 	}
 }
 
+void FileDecompressor::printRecord(const string &rname, int flag, const string &chr, const EditOperation &eo, int mqual,
+    const string &qual, const string &optional, const PairedEndInfo &pe, int file, int thread)
+{
+    fprintf(samFiles[file], "%s\t%d\t%s\t%zu\t%d\t%s\t%s\t%lu\t%d\t%s\t%s",
+            rname.c_str(),
+            flag,
+            chr.c_str(),
+            eo.start,
+            mqual,
+            eo.op.c_str(),
+            pe.chr.c_str(),
+            pe.pos,
+            pe.tlen,
+            eo.seq.c_str(),
+            qual.c_str()
+    );
+    if (optional.size())
+        fprintf(samFiles[file], "\t%s", optional.c_str());
+    fprintf(samFiles[file], "\n");
+}
+
+void FileDecompressor::printComment(int file) {
+    fwrite(comments[file].c_str(), 1, comments[file].size(), samFiles[file]);
+}
+
 void FileDecompressor::readBlock (Decompressor *d, Array<uint8_t> &in) {
 	size_t sz = inFile->readU64();
 	in.resize(sz);
@@ -380,7 +405,7 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 		if (chr != "*") eo.start++;
 		if (pe.chr != "*") pe.pos++;
 
-		printRecord(rname, flag, chr, eo, mqual, qual, optional, pe, f);
+		printRecord(rname, flag, chr, eo, mqual, qual, optional, pe, f, 0);
 		if (count % (1 << 16) == 0) 
 			LOGN("\r   Chr %-6s %5.2lf%%", chr.c_str(), (100.0 * inFile->tell()) / inFileSz);
 		count++;
@@ -499,6 +524,11 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 			totalSz = 0, 
 			blockCount = 0;
 
+	if (optComment) {
+		for (int f = 0; f < comments.size(); f++)
+			printComment(f);
+	}
+
 	foreach (r, ranges) {
 		int f = r->first.first;
 		string chr = r->first.second;
@@ -509,15 +539,20 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 
 		auto idx = indices[f][chr];
 		auto i = idx.upper_bound(r->second.first);
-		if (i == idx.begin() || idx.size() == 0)
-			throw DZException("Region %s:%d-%d not found for sample ID %d", 
-				chr.c_str(), r->second.first, r->second.second, f);
-		i--;
+		if (i == idx.begin() || idx.size() == 0) {
+			if (i != idx.begin() || !intersect(i->second.startPos, i->second.endPos, r->second.first, r->second.second)) {
+				throw DZException("Region %s:%d-%d not found for sample ID %d", 	
+					chr.c_str(), r->second.first, r->second.second, f);
+			}
+		}
+		if (i != idx.begin()) {
+			i--;
+		}
 		
 		// prepare reference
 		foreach (j, idx) { // TODO speed up
 			if (j == i) break;
-			if (r->second.first >= j->second.fS && r->second.first <= j->second.fE) {
+			if (intersect(j->second.fS, j->second.fE, r->second.first, r->second.second)) {
 				inFile->seek(j->second.zpos);
 				char chflag = inFile->readU8();
 				while (chflag) chflag = inFile->readU8();
@@ -529,7 +564,7 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 			}
 		}
 		// set up field data
-		while (r->second.first >= i->second.startPos && r->second.first <= i->second.endPos) {		
+		while (intersect(i->second.startPos, i->second.endPos, r->second.first, r->second.second)) {	
 			inFile->seek(i->second.zpos);
 			Decompressor *di[] = { 
 				sequence[f], editOp[f], readName[f], mapFlag[f], 
@@ -554,6 +589,87 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 	}
 
 	LOGN("\nDecompressed %'lu records, %'lu blocks\n", totalSz, blockCount);
+}
+
+bool FileDecompressor::decompress2 (const string &range, int filterFlag, bool cont)
+{
+	static range_t r;
+	static map<size_t, index_t> idx;
+	static map<size_t, index_t>::iterator i;
+	static string chr;
+	static int f;
+
+	if (!cont) {
+		auto ranges = getRanges(range);
+		if (ranges.size() != 1) 
+			throw DZException("API supports only single range per invocation, %d provided", ranges.size());
+
+		r = ranges[0];
+		f = r.first.first;
+		chr = r.first.second;
+		if (f < 0 || f >= fileNames.size())
+			throw DZException("Invalid sample ID %d", f);
+		if (indices[f].find(chr) == indices[f].end())
+			throw DZException("Invalid chromosome %s for sample ID %d", chr.c_str(), f);
+
+		idx = indices[f][chr];
+		i = idx.upper_bound(r.second.first);
+		if (i == idx.begin() || idx.size() == 0) {
+			if (i != idx.begin() || !intersect(i->second.startPos, i->second.endPos, r.second.first, r.second.second)) {
+				throw DZException("Region %s:%d-%d not found for sample ID %d", 	
+					chr.c_str(), r.second.first, r.second.second, f);
+			}
+		}
+		if (i != idx.begin()) {
+			i--;
+		}
+		
+		// prepare reference
+		foreach (j, idx) { // TODO speed up
+			if (j == i) break;
+			if (intersect(j->second.fS, j->second.fE, r.second.first, r.second.second)) {
+				inFile->seek(j->second.zpos);
+				char chflag = inFile->readU8();
+				while (chflag) chflag = inFile->readU8();
+				while (chr != sequence[f]->getChromosome())
+					sequence[f]->scanChromosome(chr);
+
+				Array<uint8_t> in;
+				readBlock(sequence[f], in);
+				//sequence[f]->importRecords(in.data(), in.size());
+			}
+		}
+	}
+	
+	// set up field data
+	if (intersect(i->second.startPos, i->second.endPos, r.second.first, r.second.second)) {		
+		inFile->seek(i->second.zpos);
+		Decompressor *di[] = { 
+			sequence[f], editOp[f], readName[f], mapFlag[f], 
+			mapQual[f], quality[f], pairedEnd[f], optField[f] 
+		};
+
+		for (int ti = 0; ti < 8; ti++) if (i->second.fieldData[ti].size()) 
+			di[ti]->setIndexData(i->second.fieldData[ti].data(), i->second.fieldData[ti].size());
+
+		size_t blockSz = getBlock(f, chr, r.second.first, r.second.second, filterFlag);
+		
+		if (!blockSz) {
+			return false;
+		}
+		
+		if (finishedRange) {
+			finishedRange = false;
+			//return false;
+		}
+		i++;
+		if (i == idx.end()) {
+			return false;
+		} 
+		return true;
+	} else {
+		return false;
+	}
 }
 
 };

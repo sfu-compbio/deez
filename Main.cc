@@ -225,7 +225,8 @@ void decompress (const vector<string> &in, const string &out)
 		if (version <= 0x11) {
 			Legacy::v11::FileDecompressor::printStats(in[0], optFlag);
 		} else {
-			FileDecompressor::printStats(in[0], optFlag);
+			FileDecompressor sd(in[0], "", "", optBlock);
+			sd.printStats(optFlag);
 		}
 		return;
 	}

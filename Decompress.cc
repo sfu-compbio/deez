@@ -2,49 +2,20 @@
 #include <thread>
 using namespace std;
 
-void FileDecompressor::printStats (const string &path, int filterFlag) 
+void FileDecompressor::printStats (int filterFlag) 
 {
-	initCache();
-	
-	auto inFile = File::Open(path.c_str(), "rb");
-
-	if (inFile == NULL)
-		throw DZException("Cannot open the file %s", path.c_str());
-
-	size_t inFileSz = inFile->size();
-	uint32_t magic = inFile->readU32();
-	uint8_t optQuality = inFile->readU8();
-	uint16_t numFiles = 1;
-	if ((magic & 0xff) < 0x20)
-		throw DZException("Old DeeZ files are not supported");
-	if ((magic & 0xff) >= 0x11) // DeeZ v1.1
-		numFiles = inFile->readU16();
-
-	// seek to index
-	inFile->seek(inFileSz - sizeof(size_t));
-	size_t statPos = inFile->readU64();
-
-	char statmagic[10] = {0};
-	inFile->read(statmagic, 7, statPos);
-	if (strcmp(statmagic, "DZSTATS"))
-		throw DZException("Stats are corrupted ...%s", statmagic);
-
-	vector<shared_ptr<Stats>> stats(numFiles);
-	for (int i = 0; i < numFiles; i++) {
-		size_t sz = inFile->readU64();
-		Array<uint8_t> in(sz);
-		in.resize(sz);
-		inFile->read(in.data(), sz);
-		stats[i] = make_shared<Stats>(in, magic);
-	}
-
-	WARN("Index size %'lu bytes", inFileSz - statPos);
+	WARN("Index size: %'lu bytes", inFileSz - statPos);
+	WARN("Quality compression: %s", optQuality == 0 ? "rANS" : (optQuality == 1 ? "sam_comp" : "Order-2 AC"));
+	WARN("bzip compression: %s", optBzip ? "Yes" : "No");
+	WARN("Number of files: %d", numFiles);
 	for (int f = 0; f < numFiles; f++) {
-		if ((magic & 0xff) >= 0x11) // DeeZ v1.1
-			WARN("=== File %s ===", stats[f]->fileName.c_str());
+		WARN("=== File %s ===", stats[f]->fileName.c_str());
+		WARN("Reads: ");
 		WARN("%'16lu reads", stats[f]->getReadCount());
 		WARN("%'16lu mapped reads", stats[f]->getStats(-4));
 		WARN("%'16lu unmapped reads", stats[f]->getStats(4));
+
+		WARN("Reference: ");
 		WARN("%'16lu chromosomes in reference file:", stats[f]->getChromosomeCount());
 
 		if ((magic & 0xff) >= 0x11) // DeeZ v1.1
@@ -62,9 +33,21 @@ void FileDecompressor::printStats (const string &path, int filterFlag)
 			else
 				WARN("%'16lu records without flag %d(0x%x)", p, -filterFlag, -filterFlag);
 		} else {
+			WARN("Read flags: ");
 			for (int i = 0; i < Stats::FLAGCOUNT; i++) {
 				size_t p = stats[f]->getFlagCount(i);
-				if (p) WARN("%4d 0x%04x: %'16lu", i, i, p);
+				if (p) WARN("  %4d 0x%04x: %'16lu", i, i, p);
+			}
+		}
+
+		// blocks?
+		WARN("Block info: ");
+		int bid = 0;
+		for (auto &c: indices[f]) {
+			for (auto p: c.second) {
+				WARN("  Block %4d: %s:%'lu-%'lu (patches %'lu-%'lu)",
+					++bid, c.first.c_str(), p.second.startPos, p.second.endPos,
+					p.second.fS, p.second.fE);
 			}
 		}
 	}
@@ -81,24 +64,34 @@ FileDecompressor::FileDecompressor (const string &inFilePath, const string &outF
 		throw DZException("Cannot open the file %s", name1.c_str());
 
 	inFileSz = inFile->size();
+
 	magic = inFile->readU32();
+	optQuality = inFile->readU8();
+	optBzip = inFile->readU8();
+	
+	numFiles = 1;
+	if ((magic & 0xff) >= 0x11) // DeeZ v1.1
+		numFiles = inFile->readU16();	
 
 	if ((magic & 0xff) < 0x20)
 		throw DZException("Old DeeZ files are not supported");
 
 	// seek to index
 	inFile->seek(inFileSz - sizeof(size_t));
-	size_t statPos = inFile->readU64();
+	statPos = inFile->readU64();
 	char keymagic[10] = {0};
 	inFile->read(keymagic, 7, statPos);
 	if (strcmp(keymagic, "DZSTATS"))
 		throw DZException("Stats are corrupted ...%c%c%c%c%c%c%c", keymagic[0], keymagic[1], keymagic[2], keymagic[3], keymagic[4], keymagic[5], keymagic[6]);
 
-	size_t sz = inFile->readU64();
-	Array<uint8_t> in(sz);
-	in.resize(sz);
-	inFile->read(in.data(), sz);
-	stats = make_shared<Stats>(in, magic);
+	stats.resize(numFiles);
+	for (int f = 0; f < numFiles; f++) {
+		size_t sz = inFile->readU64();
+		Array<uint8_t> in(sz);
+		in.resize(sz);
+		inFile->read(in.data(), sz);
+		stats[f] = make_shared<Stats>(in, magic);
+	}
 
 	keymagic[5] = 0;
 	inFile->read(keymagic, 5);
@@ -109,6 +102,7 @@ FileDecompressor::FileDecompressor (const string &inFilePath, const string &outF
 	FILE *tmp = tmpfile();
 	char *buffer = (char*)malloc(MB);
 
+	size_t sz;
 	while (idxToRead && (sz = inFile->read(buffer, min(uint64_t(MB), (uint64_t)idxToRead)))) {
 		fwrite(buffer, 1, sz, tmp);
 		idxToRead -= sz;
@@ -152,7 +146,7 @@ void FileDecompressor::getMagic (void)
 	optBzip = inFile->readU8();
 	if (optBzip) LOG("Using bzip decoding");
 
-	uint16_t numFiles = 1;
+	numFiles = 1;
 	if ((magic & 0xff) >= 0x11) // DeeZ v1.1
 		numFiles = inFile->readU16();
 
@@ -556,12 +550,6 @@ void FileDecompressor::decompress (int filterFlag)
 	}
 	LOGN("\nDecompressed %'lu records, %'lu blocks\n", totalSz, blockCount);
 	ZAMAN_END_P(Decompress);
-}
-
-inline bool intersect(size_t a, size_t b, size_t x, size_t y)
-{
-	//LOG("intersect %d %d ... %d %d", a, b, x, y);
-	return min(b, y) >= max(a, x);
 }
 
 void FileDecompressor::decompress (const string &range, int filterFlag)

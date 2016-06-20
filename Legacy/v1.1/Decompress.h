@@ -8,6 +8,8 @@
 #include <vector>
 #include <unordered_map>
 
+#include "../../Decompress.h"
+
 namespace Legacy {
 namespace v11 {
 
@@ -47,7 +49,7 @@ public:
 	size_t getFlagCount(int i) { return flags[i]; }
 };
 
-class FileDecompressor {
+class FileDecompressor: public IFileDecompressor {
 	vector<SequenceDecompressor*> sequence;
 	vector<EditOperationDecompressor*> editOp;
 	vector<ReadNameDecompressor*> readName;
@@ -75,31 +77,8 @@ class FileDecompressor {
    	bool finishedRange;
 
 protected:
-    virtual inline void printRecord(const string &rname, int flag, const string &chr, const EditOperation &eo, int mqual,
-        const string &qual, const string &optional, const PairedEndInfo &pe, int file)
-    {
-        fprintf(samFiles[file], "%s\t%d\t%s\t%zu\t%d\t%s\t%s\t%lu\t%d\t%s\t%s",
-                rname.c_str(),
-                flag,
-                chr.c_str(),
-                eo.start,
-                mqual,
-                eo.op.c_str(),
-                pe.chr.c_str(),
-                pe.pos,
-                pe.tlen,
-                eo.seq.c_str(),
-                qual.c_str()
-        );
-        if (optional.size())
-            fprintf(samFiles[file], "\t%s", optional.c_str());
-        fprintf(samFiles[file], "\n");
-    }
-
-   	vector<string> comments;
-    virtual inline void printComment(int file) {
-        fwrite(comments[file].c_str(), 1, comments[file].size(), samFiles[file]);
-    }
+    virtual inline void printRecord(const string &rname, int flag, const string &chr, const EditOperation &eo, int mqual, const string &qual, const string &optional, const PairedEndInfo &pe, int file, int thread);
+    virtual inline void printComment(int file);
 
 public:
 	static void printStats (const std::string &inFile, int filterFlag);
@@ -122,6 +101,8 @@ private: // TODO finish
 public:
     void decompress (int filterFlag);
 	void decompress (const std::string &range, int filterFlag);
+
+	virtual bool decompress2 (const string &range, int filterFlag, bool cont);
 };
 
 };

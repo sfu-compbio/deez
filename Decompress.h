@@ -36,7 +36,13 @@ struct index_t {
 };
 typedef pair<pair<int, string>, pair<size_t, size_t>> range_t;
 
-class FileDecompressor {
+class IFileDecompressor {
+public:
+   	vector<string> comments;
+    virtual bool decompress2(const string &range, int filterFlag, bool cont) = 0;
+};
+
+class FileDecompressor: public IFileDecompressor {
 	vector<SAMComment> samComment;
 	vector<shared_ptr<SequenceDecompressor>> sequence;
 	vector<shared_ptr<EditOperationDecompressor>> editOp;
@@ -57,9 +63,11 @@ class FileDecompressor {
 	
 	string genomeFile;
 	string outFile;
-	shared_ptr<Stats> stats;
+	vector<shared_ptr<Stats>> stats;
 	size_t inFileSz;
+	size_t statPos;
     size_t blockSize;
+    uint16_t numFiles;
    	vector<int> fileBlockCount;
 
    	bool finishedRange;
@@ -69,12 +77,11 @@ protected:
     virtual inline void printRecord(const string &rname, int flag, const string &chr, const EditOperation &eo, int mqual,
         const string &qual, const string &optional, const PairedEndInfo &pe, int file, int thread);
 
-   	vector<string> comments;
 	inline void printRecord(const string &record, int file);
     virtual inline void printComment(int file);
 
 public:
-	static void printStats (const std::string &inFile, int filterFlag);
+	void printStats (int filterFlag);
 
 public:
 	FileDecompressor (const std::string &inFile, const std::string &outFile, const std::string &genomeFile, int bs, bool isAPI = false);
@@ -92,10 +99,9 @@ private: // TODO finish
 	void query (const string &query, const string &range);
 
 public:
-   void decompress (int filterFlag);
+	void decompress (int filterFlag);
 	void decompress (const std::string &range, int filterFlag);
-	bool decompress2 (const string &range, int filterFlag, bool cont);
-
+	virtual bool decompress2 (const string &range, int filterFlag, bool cont);
 };
 
 #endif // Decompress_H

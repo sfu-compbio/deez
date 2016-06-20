@@ -10,7 +10,7 @@ using namespace std;
 int main (void)
 {
 	try {
-		auto df = make_shared<DeeZFile>("test.dz", "test.fa");
+		auto df = make_shared<DeeZFile>("/home/inumanag/Desktop/ww/deez/test.dz", "/home/inumanag/snjofavac/git/dz/run/hs37d5.fa");
 		df->setLogLevel(1);
 
 		int f = df->getFileCount();

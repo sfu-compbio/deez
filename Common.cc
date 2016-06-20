@@ -186,3 +186,8 @@ size_t sizeInMemory(std::string t) {
 	return sizeof(t) + t.capacity();
 }
 
+bool intersect(size_t a, size_t b, size_t x, size_t y)
+{
+	//LOG("intersect %d %d ... %d %d", a, b, x, y);
+	return min(b, y) >= max(a, x);
+}
