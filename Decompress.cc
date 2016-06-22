@@ -672,24 +672,24 @@ bool FileDecompressor::decompress2 (const string &range, int filterFlag, bool co
 		}
 		
 		// prepare reference
-		foreach (j, idx) { // TODO speed up
-			if (j == i) break;
-			if (intersect(j->second.fS, j->second.fE, r.second.first, r.second.second)) {
-				inFile->seek(j->second.zpos);
-				char chflag = inFile->readU8();
-				while (chflag) chflag = inFile->readU8();
-				while (chr != sequence[f]->getChromosome())
-					sequence[f]->scanChromosome(chr, samComment[f]);
+		// foreach (j, idx) { // TODO speed up
+		// 	if (j == i) break;
+		// 	if (intersect(j->second.fS, j->second.fE, r.second.first, r.second.second)) {
+		// 		inFile->seek(j->second.zpos);
+		// 		char chflag = inFile->readU8();
+		// 		while (chflag) chflag = inFile->readU8();
+		// 		while (chr != sequence[f]->getChromosome())
+		// 			sequence[f]->scanChromosome(chr, samComment[f]);
 
-				Array<uint8_t> in;
-				readBlock(in);
-				sequence[f]->importRecords(in.data(), in.size());
-			}
-		}
+		// 		Array<uint8_t> in;
+		// 		readBlock(in);
+		// 		sequence[f]->importRecords(in.data(), in.size());
+		// 	}
+		// }
 	}
 	
 	// set up field data
-	if (intersect(i->second.startPos, i->second.endPos, r.second.first, r.second.second)) {		
+	if (intersect(i->second.fS, i->second.fE, r.second.first, r.second.second)) {		
 		inFile->seek(i->second.zpos);
 		shared_ptr<Decompressor> di[] = { 
 			sequence[f], editOp[f], readName[f], mapFlag[f], 
