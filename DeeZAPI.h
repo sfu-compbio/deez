@@ -105,9 +105,11 @@ public:
 		return dec->comments[file];
 	}
 
-	std::vector<SAMRecord> &getRecords (const std::string &range = "", int filterFlag = 0) {
+	std::vector<SAMRecord> &getRecords (const std::string &range = "", int filterFlag = 0, bool overlap = true) {
 		for (auto &r: records)
 			r.clear();
+
+		optOverlap = overlap;
 		if (range != "") {
 			prev_range = range;
 			prev_filter_flag = filterFlag;

@@ -45,7 +45,7 @@ JNIEXPORT jstring JNICALL Java_DeeZFile_getComment
  * Signature: (Ljava/lang/String;I)[LDeeZFile/SAMRecord;
  */
 JNIEXPORT jobjectArray JNICALL Java_DeeZFile_getRecords
-  (JNIEnv *, jobject, jstring, jint);
+  (JNIEnv *, jobject, jstring, jint, jboolean);
 
 /*
  * Class:     DeeZFile

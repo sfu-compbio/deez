@@ -20,6 +20,7 @@ bool optForce 	= false;
 bool optStdout  = false;
 bool optStats   = false;
 bool optNoQual  = false;
+bool optOverlap = false;
 bool optReadLossy = false;
 bool optInvalidChr = false;
 bool optComment = false;
@@ -61,10 +62,11 @@ void parseArguments (int argc, char **argv)
 		{ "verbosity",   1, NULL, 'v' },
 		{ "bzip",        0, NULL, 'b' },
 		{ "block",       1, NULL, 'B' },
+		{ "overlap",     0, NULL, 'x' },
 	//	{ "allow-invalid-ref", 0, NULL, 'I' },
 		{ NULL, 0, NULL, 0 }
 	};
-	const char *short_opt = "?hr:t:T!co:q:l:sM:Sf:F:QLbv:B:" /*"I"*/;
+	const char *short_opt = "?hr:t:T!co:q:l:sM:Sf:F:QLbv:B:x" /*"I"*/;
 	do {
 		opt = getopt_long (argc, argv, short_opt, long_opt, NULL);
 		switch (opt) {
@@ -81,6 +83,9 @@ void parseArguments (int argc, char **argv)
 				break;
 			case 'T':
 				optTest = true;
+				break;
+			case 'x':
+				optOverlap = true;
 				break;
 			case 'b':
 				optBzip = true;

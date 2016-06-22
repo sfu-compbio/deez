@@ -81,14 +81,14 @@ JNIEXPORT jstring JNICALL Java_DeeZFile_getComment (JNIEnv *env, jobject obj, ji
 	}
 }
 
-JNIEXPORT jobjectArray JNICALL Java_DeeZFile_getRecords (JNIEnv *env, jobject obj, jstring range, jint flags)
+JNIEXPORT jobjectArray JNICALL Java_DeeZFile_getRecords (JNIEnv *env, jobject obj, jstring range, jint flags, jboolean overlap)
 {
 	auto cls = env->FindClass("DeeZFile$SAMRecord");
 	auto ctor = env->GetMethodID(cls, "<init>", "(LDeeZFile;Ljava/lang/String;ILjava/lang/String;JILjava/lang/String;Ljava/lang/String;JILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
 
 	try {
 		auto f = getHandle<DeeZFile>(env, obj);
-		auto records = f->getRecords(env->GetStringUTFChars(range, 0), flags);
+		auto records = f->getRecords(env->GetStringUTFChars(range, 0), flags, overlap);
 
 		auto arr = env->NewObjectArray(records.size(), cls, NULL);
 		for (int i = 0; i < records.size(); i++) {

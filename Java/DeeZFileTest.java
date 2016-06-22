@@ -4,7 +4,8 @@ public class DeeZFileTest {
 	public static void main (String[] args) {
 		try {
 			DeeZFile df = new DeeZFile("test.dz", "test.fa");
-			//df.setLogLevel(1);
+			//DeeZFile df = new DeeZFile("../run/T1-1B.rmdup.realigned.bam.dztemp.dz", "../run/GRCh38_full_analysis_set_plus_decoy_hla.fa");
+			df.setLogLevel(1);
 
 			int f = df.getFileCount();
 			String comment = df.getComment(0);
@@ -12,7 +13,7 @@ public class DeeZFileTest {
 			//System.out.println(f);
 			//System.out.println(comment);
 
-			DeeZFile.SAMRecord[] records = df.getRecords("1:30000-32000");
+			DeeZFile.SAMRecord[] records = df.getRecords("1:15000-16000", true);
 			while (records.length > 0) { 
 				System.err.println("Block");
 				for (DeeZFile.SAMRecord r: records) {

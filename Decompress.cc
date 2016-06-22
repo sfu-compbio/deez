@@ -365,8 +365,11 @@ size_t FileDecompressor::getBlock (int f, const string &chromosome,
 				if (pe.chr != "*") 
 					pe.pos++;
 
-				if (eo.start < start)
-					continue;
+				if (eo.start < start) {
+					if (!optOverlap || eo.end <= start) {
+						continue;
+					}
+				}
 				if (eo.start > end) {
 					finishedRangeThread[ti] = true;
 					return;
@@ -588,24 +591,24 @@ void FileDecompressor::decompress (const string &range, int filterFlag)
 		}
 		
 		// prepare reference
-		foreach (j, idx) { // TODO speed up
-			if (j == i) break;
-			if (intersect(j->second.fS, j->second.fE, r->second.first, r->second.second)) {
-			// TODO check is version above better?
-			//if (r->second.first >= j->second.fS && r->second.first <= j->second.fE) {
-				inFile->seek(j->second.zpos);
-				char chflag = inFile->readU8();
-				while (chflag) chflag = inFile->readU8();
-				while (chr != sequence[f]->getChromosome())
-					sequence[f]->scanChromosome(chr, samComment[f]);
+		// foreach (j, idx) { // TODO speed up
+		// 	if (j == i) break;
+		// 	if (intersect(j->second.fS, j->second.fE, r->second.first, r->second.second)) {
+		// 	// TODO check is version above better?
+		// 	//if (r->second.first >= j->second.fS && r->second.first <= j->second.fE) {
+		// 		inFile->seek(j->second.zpos);
+		// 		char chflag = inFile->readU8();
+		// 		while (chflag) chflag = inFile->readU8();
+		// 		while (chr != sequence[f]->getChromosome())
+		// 			sequence[f]->scanChromosome(chr, samComment[f]);
 
-				Array<uint8_t> in;
-				readBlock(in);
-				sequence[f]->importRecords(in.data(), in.size());
-			}
-		}
+		// 		Array<uint8_t> in;
+		// 		readBlock(in);
+		// 		sequence[f]->importRecords(in.data(), in.size());
+		// 	}
+		// }
 		// set up field data
-		while (intersect(i->second.startPos, i->second.endPos, r->second.first, r->second.second)) {	
+		while (intersect(i->second.fS, i->second.fE, r->second.first, r->second.second)) {	
 			//LOG("in");
 			inFile->seek(i->second.zpos);
 			shared_ptr<Decompressor> di[] = { 

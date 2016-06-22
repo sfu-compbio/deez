@@ -78,7 +78,7 @@ public class DeeZFile {
 	/// Example: 
 	///     dz.getRange("1:60-100", 4)
 	/// gets all mapped records (flag 0x04) from chromosome 1 in range 60-100
-	public native SAMRecord[] getRecords (String range, int filterFlag) throws DeeZException;
+	public native SAMRecord[] getRecords (String range, int filterFlag, boolean overlap) throws DeeZException;
 	/// Cleans up DeeZ native instance. 
 	/// Call it after you are done with DeeZ object.
 	public native void dispose() throws DeeZException;
@@ -98,12 +98,17 @@ public class DeeZFile {
 	}
 	/// Gets all the records from the <range>
 	/// without any filtering.
+	public SAMRecord[] getRecords (String range, boolean overlap) throws DeeZException {
+		return getRecords(range, 0, overlap);
+	}
+	/// Gets all the records from the <range>
+	/// without any filtering.
 	public SAMRecord[] getRecords (String range) throws DeeZException {
-		return getRecords(range, 0);
+		return getRecords(range, 0, false);
 	}
 	/// Gets all the records from the <range>
 	/// without any filtering.
 	public SAMRecord[] getRecords () throws DeeZException {
-		return getRecords("", 0);
+		return getRecords("", 0, false);
 	}
 }

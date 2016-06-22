@@ -25,6 +25,7 @@
 
 extern size_t optBlock;
 extern bool optComment;
+extern bool optOverlap;
 
 struct index_t {
 	size_t startPos, endPos;

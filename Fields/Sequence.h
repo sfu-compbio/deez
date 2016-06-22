@@ -67,7 +67,9 @@ inline bool supports_sse41()
 	int info[4];
 	cpuid(info, 0);
 	int nIds = info[0];
+	cpuid(info, 0x80000000);
 	if (nIds >= 0x00000001){
+		cpuid(info,0x00000001);
 		return (info[2] & ((int)1 << 19)) != 0;
 	}
 	return false;
