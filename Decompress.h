@@ -102,7 +102,7 @@ private: // TODO finish
 public:
 	void decompress (int filterFlag);
 	void decompress (const std::string &range, int filterFlag);
-	virtual bool decompress2 (const string &range, int filterFlag, bool cont);
+	bool decompress2 (const string &range, int filterFlag, bool cont);
 };
 
 #endif // Decompress_H
