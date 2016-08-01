@@ -54,5 +54,7 @@ $(LIB): $(OBJECTS)
 
 clean:
 	find . -name '*.o' -delete
-	rm -rf $(EXECUTABLE) $(TESTEXE)
+	find . -name '*.class' -delete
+	find . -name '*.so' -delete
+	rm -rf $(EXECUTABLE) $(TESTEXE) libdeez.a libdeez.so
 	rm -rf gmon.out* 
