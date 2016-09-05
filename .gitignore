@@ -1,4 +1,5 @@
 tests/out
+tests/ref
 tests/log
 deez
 gmon.out*
