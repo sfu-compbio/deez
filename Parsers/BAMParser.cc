@@ -40,8 +40,10 @@ BAMParser::~BAMParser (void)
 {
 	for (int i = 0; i < chromosomesCount; i++)
 		free(chromosomes[i]);
-	chromosomes--;
-	free(chromosomes);
+	if (chromosomes) {
+		chromosomes--;
+		free(chromosomes);
+	}
 	gzclose(input);
 }
 

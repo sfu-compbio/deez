@@ -15,10 +15,11 @@ FileCompressor::FileCompressor (const string &outFile, const vector<string> &sam
 		auto fi = File::Open(samFiles[f].c_str(), "rb");
 		char mc[2];
 		fi->read(mc, 2);
-		if (mc[0] == char(0x1f) && mc[1] == char(0x8b)) 
+		if (mc[0] == char(0x1f) && mc[1] == char(0x8b)) {
 			parsers.push_back(make_shared<BAMParser>(samFiles[f]));
-		else
+		} else {
 			parsers.push_back(make_shared<SAMParser>(samFiles[f]));
+		}
 		sequence.push_back(make_shared<SequenceCompressor>(genomeFile));
 		editOp.push_back(make_shared<EditOperationCompressor>(*sequence.back()));
 		readName.push_back(make_shared<ReadNameCompressor>());
