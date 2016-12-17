@@ -4,7 +4,7 @@ CFLAGS = -c -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE  -std=c++11 -DOPENSSL -
 LDFLAGS = -pthread -lz -lcurl -lcrypto -lbz2
 
 GIT_VERSION := $(shell git describe --dirty --always --tags)
-SOURCES := $(shell find . -name '*.cc' -not -path "./run/*" -not -path "./Java/*")
+SOURCES := $(shell find . -name '*.cc' -not -path "./run/*" -not -path "./Java/*" -not -path "./deez-github/*")
 OBJECTS = $(SOURCES:.cc=.o)
 EXECUTABLE = deez
 LIB = libdeez
@@ -26,6 +26,10 @@ profile: $(SOURCES) $(EXECUTABLE)
 gprofile: LDFLAGS += -ltcmalloc -lprofiler
 gprofile: CFLAGS += -g -O2
 gprofile: $(SOURCES) $(EXECUTABLE)
+
+readname:
+	$(CC) -O3 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE  -std=c++11 ReadNameCompressor.cpp -lz -o readname
+	$(CC) -O3 -DRBZ2 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE  -std=c++11 ReadNameCompressor.cpp -lbz2 -o readnamebz
 
 test: CFLAGS += -O3 -DNDEBUG -std=c++11
 test: $(SOURCES) $(TESTEXE)
