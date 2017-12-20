@@ -118,7 +118,7 @@ bool BAMParser::readNext (void)
 	buf += chr.size() + 1;	 	
 
  	// loc
- 	currentRecord.intFields[Record::LOC] = di[1] + 1;
+ 	currentRecord.intFields[Record::LOC] = di[1] ; // + 1;
 
  	// mq
  	currentRecord.intFields[Record::MQ] = (di[2] >> 8) & 0xff;
@@ -144,7 +144,7 @@ bool BAMParser::readNext (void)
 	buf += pe_chr.size() + 1;
 
 	// p_loc
- 	currentRecord.intFields[Record::P_LOC] = di[6] + 1;
+ 	currentRecord.intFields[Record::P_LOC] = di[6] ; //+ 1;
  	
  	// tlen
  	currentRecord.intFields[Record::TLEN] = di[7];
@@ -180,7 +180,7 @@ bool BAMParser::readNext (void)
  	else 
  		currentRecord.strFields[Record::OPT]++; // avoid \t
 	while (pos < bsize) {
-		*buf = '\t', buf++;
+		*buf = 0, buf++;
 		char t = data[pos + 2]; 
 		buf += sprintf(buf, "%c%c:", data[pos], data[pos+1]); 
 		pos += 3;
@@ -226,6 +226,8 @@ bool BAMParser::readNext (void)
 	*buf = 0;
 	currentRecord.lineSize = buf - currentRecord.line;
 	currentRecord.lineLength = buf - currentRecord.line;
+
+	// printf("%s\n", currentRecord.getFullRecord().c_str());
 
 	return true;
 }

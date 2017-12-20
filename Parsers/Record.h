@@ -107,7 +107,7 @@ public:
 
 	std::string getFullRecord() const {
 		return S(
-			"%s %d %s %zu %d %s %s %zu %d %s %s %s",
+			"%s\t%d\t%s\t%zu\t%d\t%s\t%s\t%zu\t%d\t%s\t%s\t%s",
 			getReadName(),
 			getMappingFlag(),
 			getChromosome(),
